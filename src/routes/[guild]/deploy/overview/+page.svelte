@@ -7,13 +7,8 @@
 	const apps = $derived(guild?.apps ?? []);
 	const hosts = $derived(guild?.hosts ?? []);
 
-	const runningCount = $derived(apps.filter((a) => a.status === 'running').length);
-	const buildingCount = $derived(apps.filter((a) => a.status === 'building').length);
-	const failedCount = $derived(apps.filter((a) => a.status === 'failed').length);
-	const stoppedCount = $derived(apps.filter((a) => a.status === 'stopped').length);
 	const primaryHost = $derived(hosts[0]);
 
-	// Sparkline path helpers
 	function wobble(min: number, max: number, points: number, seed: number) {
 		return Array.from({ length: points }, (_, i) => {
 			return min + ((max - min) * Math.abs(Math.sin(i * 0.7 + seed) + Math.cos(i * 0.4 + seed))) / 2;
@@ -62,31 +57,31 @@
 	}
 </script>
 
-<div style="padding: 24px 28px;">
+<div class="px-7 py-6">
 	<!-- Page header -->
-	<div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:20px;">
-		<div style="flex:1;min-width:0;">
-			<div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:28px;letter-spacing:-.01em;">{guild?.name} Dashboard</div>
-			<div style="color:var(--tx-2);font-size:13.5px;margin-top:3px;">Live overview of all containers and hosts in {guild?.name}</div>
+	<div class="flex items-start gap-3 mb-5">
+		<div class="flex-1 min-w-0">
+			<div class="font-heading font-bold text-[28px] tracking-[-0.01em]">{guild?.name} Dashboard</div>
+			<div class="text-[var(--tx-2)] text-[13.5px] mt-[3px]">Live overview of all containers and hosts in {guild?.name}</div>
 		</div>
-		<span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:7px;background:var(--grn-dim);color:var(--grn);">rootless</span>
-		<span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;padding:5px 10px;border-radius:7px;background:var(--card);border:1px solid var(--line);color:var(--tx-2);">podman 5.1.0</span>
+		<span class="font-mono-jb text-[11.5px] font-semibold px-[10px] py-[5px] rounded-[7px] bg-[var(--grn-dim)] text-[var(--grn)]">rootless</span>
+		<span class="font-mono-jb text-[11.5px] px-[10px] py-[5px] rounded-[7px] bg-[var(--card)] border border-[var(--line)] text-[var(--tx-2)]">podman 5.1.0</span>
 	</div>
 
 	<!-- Metric cards -->
-	<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+	<div class="grid grid-cols-3 gap-[14px]">
 		{#each metricCards as m}
-			<div style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px 0;overflow:hidden;color:{m.color};">
-				<div style="display:flex;align-items:center;justify-content:space-between;">
-					<span style="font-size:13px;font-weight:600;color:var(--tx-2);white-space:nowrap;">{m.label}</span>
-					<span style="font-size:11.5px;font-weight:600;color:{m.deltaColor};">{m.delta}</span>
+			<div class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] pt-4 px-[18px] overflow-hidden" style:color={m.color}>
+				<div class="flex items-center justify-between">
+					<span class="text-[13px] font-semibold text-[var(--tx-2)] whitespace-nowrap">{m.label}</span>
+					<span class="text-[11.5px] font-semibold" style:color={m.deltaColor}>{m.delta}</span>
 				</div>
-				<div style="display:flex;align-items:baseline;gap:7px;margin-top:10px;">
-					<span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:34px;line-height:1;color:var(--tx);">{m.big}</span>
-					<span style="font-size:13px;color:var(--tx-3);">{m.unit}</span>
+				<div class="flex items-baseline gap-[7px] mt-[10px]">
+					<span class="font-heading font-bold text-[34px] leading-none text-[var(--tx)]">{m.big}</span>
+					<span class="text-[13px] text-[var(--tx-3)]">{m.unit}</span>
 				</div>
-				<div style="font-size:11.5px;color:var(--tx-3);margin-top:6px;">{m.sub}</div>
-				<svg viewBox="0 0 320 88" preserveAspectRatio="none" height="72" style="display:block;margin:10px -18px 0;width:calc(100% + 36px);">
+				<div class="text-[11.5px] text-[var(--tx-3)] mt-[6px]">{m.sub}</div>
+				<svg viewBox="0 0 320 88" preserveAspectRatio="none" height="72" class="block mt-[10px] -mx-[18px] w-[calc(100%+36px)]">
 					<path d={genArea(m.vals, 320, 88)} fill="currentColor" fill-opacity="0.13" stroke="none"/>
 					<path d={genLine(m.vals, 320, 88)} fill="none" stroke="currentColor" stroke-width="2"/>
 				</svg>
@@ -95,30 +90,30 @@
 	</div>
 
 	<!-- Stat row -->
-	<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:14px;">
+	<div class="grid grid-cols-5 gap-3 mt-[14px]">
 		{#each statRow as s}
-			<div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 15px;">
-				<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+			<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] p-[14px_15px]">
+				<div class="flex items-center gap-2 mb-[10px]">
 					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--tx-3)" stroke-width="1.7">
 						<path d={s.icon}/>
 					</svg>
-					<span style="font-size:12px;font-weight:600;color:var(--tx-2);">{s.label}</span>
+					<span class="text-[12px] font-semibold text-[var(--tx-2)]">{s.label}</span>
 				</div>
-				<div style="display:flex;align-items:baseline;gap:6px;">
-					<span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:24px;line-height:1;">{s.value}</span>
-					<span style="font-size:11.5px;color:var(--tx-3);">{s.sub}</span>
+				<div class="flex items-baseline gap-[6px]">
+					<span class="font-heading font-bold text-[24px] leading-none">{s.value}</span>
+					<span class="text-[11.5px] text-[var(--tx-3)]">{s.sub}</span>
 				</div>
 			</div>
 		{/each}
 	</div>
 
 	<!-- Bottom 2-col: workloads + activity -->
-	<div style="display:grid;grid-template-columns:1.55fr 1fr;gap:14px;margin-top:14px;">
+	<div class="grid grid-cols-[1.55fr_1fr] gap-[14px] mt-[14px]">
 		<!-- Top workloads -->
-		<div style="background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;">
-			<div style="display:flex;align-items:center;justify-content:space-between;padding:15px 18px 8px;">
-				<span style="font-size:14px;font-weight:700;">Top workloads</span>
-				<a href="/{guildId}/deploy/apps" style="font-size:12.5px;color:var(--grn-2);text-decoration:none;font-weight:600;">View all →</a>
+		<div class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] overflow-hidden">
+			<div class="flex items-center justify-between px-[18px] pt-[15px] pb-2">
+				<span class="text-[14px] font-bold">Top workloads</span>
+				<a href="/{guildId}/deploy/apps" class="text-[12.5px] text-[var(--grn-2)] no-underline font-semibold">View all →</a>
 			</div>
 			{#each workloads as w}
 				<div
@@ -126,37 +121,37 @@
 					onkeydown={(e) => e.key === 'Enter' && openApp(w.id)}
 					role="row"
 					tabindex="0"
-					style="display:grid;grid-template-columns:1fr 90px 54px 80px;gap:12px;align-items:center;padding:11px 18px;border-top:1px solid var(--line);cursor:pointer;"
+					class="grid grid-cols-[1fr_90px_54px_80px] gap-3 items-center px-[18px] py-[11px] border-t border-t-[var(--line)] cursor-pointer hover:bg-white/[0.02]"
 				>
-					<div style="display:flex;align-items:center;gap:10px;min-width:0;">
-						<div style="width:9px;height:9px;border-radius:50%;background:{w.dot};flex:none;"></div>
-						<div style="min-width:0;">
-							<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{w.name}</div>
-							<div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--tx-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">ghcr.io/…/{w.name}:latest</div>
+					<div class="flex items-center gap-[10px] min-w-0">
+						<div class="size-[9px] rounded-full shrink-0" style:background={w.dot}></div>
+						<div class="min-w-0">
+							<div class="text-[13px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis">{w.name}</div>
+							<div class="font-mono-jb text-[10.5px] text-[var(--tx-3)] whitespace-nowrap overflow-hidden text-ellipsis">ghcr.io/…/{w.name}:latest</div>
 						</div>
 					</div>
-					<div style="display:flex;align-items:center;gap:4px;">
-						<div style="flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden;">
-							<div style="width:{Math.max(4, w.cpu)}%;height:100%;background:var(--grn);border-radius:3px;"></div>
+					<div class="flex items-center gap-1">
+						<div class="flex-1 h-[5px] rounded-[3px] bg-white/[0.07] overflow-hidden">
+							<div class="h-full bg-[var(--grn)] rounded-[3px]" style:width="{Math.max(4, w.cpu)}%"></div>
 						</div>
 					</div>
-					<span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tx);text-align:right;">{w.cpu}%</span>
-					<span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tx-2);text-align:right;">{w.mem}</span>
+					<span class="font-mono-jb text-[12px] text-[var(--tx)] text-right">{w.cpu}%</span>
+					<span class="font-mono-jb text-[12px] text-[var(--tx-2)] text-right">{w.mem}</span>
 				</div>
 			{/each}
 		</div>
 
 		<!-- Recent activity -->
-		<div style="background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 4px 12px;">
-			<div style="padding:13px 16px 8px;font-size:14px;font-weight:700;">Recent activity</div>
+		<div class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] px-1 pt-[6px] pb-3">
+			<div class="px-4 pt-[13px] pb-2 text-[14px] font-bold">Recent activity</div>
 			{#each ACTIVITY as a}
-				<div style="display:flex;align-items:flex-start;gap:11px;padding:8px 16px;">
-					<div style="width:8px;height:8px;border-radius:50%;background:{a.dot};margin-top:5px;flex:none;"></div>
-					<div style="flex:1;min-width:0;">
-						<div style="font-size:12.5px;color:var(--tx-2);">
-							<span style="color:var(--tx);font-weight:600;">{a.who}</span>{a.text}
+				<div class="flex items-start gap-[11px] px-4 py-2">
+					<div class="size-2 rounded-full mt-[5px] shrink-0" style:background={a.dot}></div>
+					<div class="flex-1 min-w-0">
+						<div class="text-[12.5px] text-[var(--tx-2)]">
+							<span class="text-[var(--tx)] font-semibold">{a.who}</span>{a.text}
 						</div>
-						<div style="font-size:11px;color:var(--tx-3);margin-top:1px;">{a.time}</div>
+						<div class="text-[11px] text-[var(--tx-3)] mt-[1px]">{a.time}</div>
 					</div>
 				</div>
 			{/each}

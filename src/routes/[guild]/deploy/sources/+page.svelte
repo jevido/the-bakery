@@ -2,8 +2,8 @@
 	import { page } from '$app/state';
 	import { SOURCES, REPOS, sourceMeta } from '$lib/data/bakery';
 
-	const guildId = $derived(page.params.guild ?? '');
-	const sources = $derived(SOURCES[guildId] ?? []);
+	const guildId    = $derived(page.params.guild ?? '');
+	const sources    = $derived(SOURCES[guildId] ?? []);
 	const totalRepos = $derived(sources.reduce((n, s) => n + s.repoCount, 0));
 
 	let filter = $state<'all' | 'github' | 'selfhosted'>('all');
@@ -14,24 +14,22 @@
 		: sources.filter((s) => s.provider !== 'github_app')
 	);
 
-	function filterStyle(f: typeof filter) {
+	function filterCls(f: typeof filter) {
 		return f === filter
-			? 'padding:5px 11px;font-size:12.5px;color:var(--tx);border-radius:6px;cursor:pointer;background:var(--card-2);'
-			: 'padding:5px 11px;font-size:12.5px;color:var(--tx-2);border-radius:6px;cursor:pointer;';
+			? 'px-[11px] py-[5px] text-[12.5px] text-[var(--tx)] rounded-[6px] cursor-pointer bg-[var(--card-2)]'
+			: 'px-[11px] py-[5px] text-[12.5px] text-[var(--tx-2)] rounded-[6px] cursor-pointer';
 	}
 
-	// ── Add source panel ──────────────────────────────────────────────
-	let panelOpen = $state(false);
+	let panelOpen  = $state(false);
 	let step = $state<'pick' | 'github' | 'selfhosted' | 'done'>('pick');
 
-	// Self-hosted form state
-	let shName = $state('');
-	let shUrl = $state('');
+	let shName     = $state('');
+	let shUrl      = $state('');
 	let shProvider = $state<'gitlab' | 'gitea' | 'bitbucket' | 'generic'>('gitlab');
-	let shToken = $state('');
-	let testing = $state(false);
-	let tested = $state(false);
-	let testError = $state('');
+	let shToken    = $state('');
+	let testing    = $state(false);
+	let tested     = $state(false);
+	let testError  = $state('');
 
 	function openPanel() {
 		panelOpen = true;
@@ -44,9 +42,7 @@
 		testError = '';
 	}
 
-	function closePanel() {
-		panelOpen = false;
-	}
+	function closePanel() { panelOpen = false; }
 
 	async function testConnection() {
 		testing = true;
@@ -62,14 +58,18 @@
 	}
 
 	const canConnect = $derived(tested && shName.trim().length > 0);
+
+	const panelInputCls = 'w-full bg-[var(--card)] border border-[var(--line-2)] rounded-[8px] px-3 py-[9px] text-[13.5px] text-[var(--tx)]';
+	const panelInputMonoCls = 'w-full bg-[var(--card)] border border-[var(--line-2)] rounded-[8px] px-3 py-[9px] text-[13.5px] text-[var(--tx)] font-mono-jb';
+	const panelSelectCls = 'w-full bg-[var(--card)] border border-[var(--line-2)] rounded-[8px] px-3 py-[9px] text-[13.5px] text-[var(--tx)] font-bakery appearance-none cursor-pointer';
 </script>
 
-<div style="padding: 22px 28px;">
+<div class="px-7 py-[22px]">
 	<!-- Header -->
-	<div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:22px;">
+	<div class="flex items-start gap-[14px] mb-[22px]">
 		<div>
-			<div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:23px;letter-spacing:-.01em;margin-bottom:3px;">Sources</div>
-			<div style="font-size:13px;color:var(--tx-2);">
+			<div class="font-heading font-bold text-[23px] tracking-[-0.01em] mb-[3px]">Sources</div>
+			<div class="text-[13px] text-[var(--tx-2)]">
 				{#if sources.length > 0}
 					{sources.length} source{sources.length !== 1 ? 's' : ''} · {totalRepos} repos accessible
 				{:else}
@@ -77,71 +77,65 @@
 				{/if}
 			</div>
 		</div>
-		<div style="flex:1"></div>
-		<button onclick={openPanel} style="display:flex;align-items:center;gap:7px;background:var(--grn);color:#07130c;border-radius:9px;padding:8px 14px;font-size:13.5px;font-weight:700;cursor:pointer;box-shadow:0 2px 12px var(--grn-dim);">
+		<div class="flex-1"></div>
+		<button onclick={openPanel} class="flex items-center gap-[7px] bg-[var(--grn)] text-[#07130c] rounded-[9px] px-[14px] py-2 text-[13.5px] font-bold cursor-pointer shadow-[0_2px_12px_var(--grn-dim)]">
 			<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
 			Add source
 		</button>
 	</div>
 
 	{#if sources.length === 0}
-		<!-- Empty / onboarding state -->
-		<div style="background:var(--card);border:1px solid var(--line);border-radius:13px;padding:40px 32px;">
-			<div style="font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:700;color:var(--tx);margin-bottom:6px;">No sources connected</div>
-			<div style="font-size:13px;color:var(--tx-3);margin-bottom:32px;">Follow three steps to connect your first git source and start pulling projects.</div>
+		<div class="bg-[var(--card)] border border-[var(--line)] rounded-[13px] p-[40px_32px]">
+			<div class="font-heading text-[16px] font-bold text-[var(--tx)] mb-[6px]">No sources connected</div>
+			<div class="text-[13px] text-[var(--tx-3)] mb-8">Follow three steps to connect your first git source and start pulling projects.</div>
 
-			<!-- 3-step guide -->
-			<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:32px;">
+			<div class="grid grid-cols-3 gap-4 mb-8">
 				{#each [
 					{ n: '1', title: 'Choose a provider', desc: 'Select GitHub App for cloud repos, or self-hosted for GitLab, Gitea, or Bitbucket Server.' },
 					{ n: '2', title: 'Install & authorize', desc: 'Install the Bakery GitHub App on your org, or provide a personal access token for self-hosted.' },
 					{ n: '3', title: 'Pick repos', desc: 'Choose which repositories Bakery can read and deploy from.' },
 				] as guideStep (guideStep.n)}
-					<div style="background:var(--card-2);border:1px solid var(--line);border-radius:10px;padding:18px 16px;">
-						<div style="width:28px;height:28px;border-radius:50%;background:var(--grn-dim);border:1px solid var(--grn-line);display:flex;align-items:center;justify-content:center;margin-bottom:12px;">
-							<span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--grn-2);">{guideStep.n}</span>
+					<div class="bg-[var(--card-2)] border border-[var(--line)] rounded-[10px] p-[18px_16px]">
+						<div class="size-7 rounded-full bg-[var(--grn-dim)] border border-[var(--grn-line)] flex items-center justify-center mb-3">
+							<span class="font-mono-jb text-[12px] font-bold text-[var(--grn-2)]">{guideStep.n}</span>
 						</div>
-						<div style="font-size:13.5px;font-weight:600;color:var(--tx);margin-bottom:5px;">{guideStep.title}</div>
-						<div style="font-size:12px;color:var(--tx-3);line-height:1.55;">{guideStep.desc}</div>
+						<div class="text-[13.5px] font-semibold text-[var(--tx)] mb-[5px]">{guideStep.title}</div>
+						<div class="text-[12px] text-[var(--tx-3)] leading-[1.55]">{guideStep.desc}</div>
 					</div>
 				{/each}
 			</div>
 
-			<!-- Provider pills -->
-			<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:28px;">
+			<div class="flex flex-wrap gap-2 mb-7">
 				{#each [
 					{ label: 'GitHub App',       icon: 'github'    },
 					{ label: 'GitLab',           icon: 'gitlab'    },
 					{ label: 'Gitea',            icon: 'gitea'     },
 					{ label: 'Bitbucket Server', icon: 'bitbucket' },
 				] as p (p.icon)}
-					<div style="display:flex;align-items:center;gap:7px;background:var(--card-2);border:1px solid var(--line);border-radius:7px;padding:6px 12px;">
+					<div class="flex items-center gap-[7px] bg-[var(--card-2)] border border-[var(--line)] rounded-[7px] px-3 py-[6px]">
 						{@render ProviderIcon({ icon: p.icon, size: 14 })}
-						<span style="font-size:12.5px;color:var(--tx-2);">{p.label}</span>
+						<span class="text-[12.5px] text-[var(--tx-2)]">{p.label}</span>
 					</div>
 				{/each}
 			</div>
 
-			<button onclick={openPanel} style="display:inline-flex;align-items:center;gap:7px;background:var(--grn);color:#07130c;border-radius:9px;padding:9px 18px;font-size:13.5px;font-weight:700;cursor:pointer;box-shadow:0 2px 12px var(--grn-dim);">
+			<button onclick={openPanel} class="inline-flex items-center gap-[7px] bg-[var(--grn)] text-[#07130c] rounded-[9px] px-[18px] py-[9px] text-[13.5px] font-bold cursor-pointer shadow-[0_2px_12px_var(--grn-dim)]">
 				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
 				Connect your first source
 			</button>
 		</div>
 
 	{:else}
-		<!-- Filter tabs -->
-		<div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
-			<div style="display:flex;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:3px;">
-				<button onclick={() => filter = 'all'} style={filterStyle('all')}>All</button>
-				<button onclick={() => filter = 'github'} style={filterStyle('github')}>GitHub</button>
-				<button onclick={() => filter = 'selfhosted'} style={filterStyle('selfhosted')}>Self-hosted</button>
+		<div class="flex items-center gap-[14px] mb-[14px]">
+			<div class="flex gap-0.5 bg-[var(--card)] border border-[var(--line)] rounded-[9px] p-[3px]">
+				<button onclick={() => filter = 'all'}          class={filterCls('all')}>All</button>
+				<button onclick={() => filter = 'github'}       class={filterCls('github')}>GitHub</button>
+				<button onclick={() => filter = 'selfhosted'}   class={filterCls('selfhosted')}>Self-hosted</button>
 			</div>
 		</div>
 
-		<!-- Sources table -->
-		<div style="background:var(--card);border:1px solid var(--line);border-radius:13px;overflow:hidden;">
-			<!-- Header row -->
-			<div style="display:grid;grid-template-columns:2fr 1.2fr 80px 120px 100px;gap:14px;padding:11px 18px;border-bottom:1px solid var(--line);font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--tx-3);">
+		<div class="bg-[var(--card)] border border-[var(--line)] rounded-[13px] overflow-hidden">
+			<div class="grid grid-cols-[2fr_1.2fr_80px_120px_100px] gap-[14px] px-[18px] py-[11px] border-b border-b-[var(--line)] text-[11px] font-bold tracking-[.05em] text-[var(--tx-3)]">
 				<div>SOURCE</div>
 				<div>PROVIDER</div>
 				<div>REPOS</div>
@@ -151,59 +145,53 @@
 
 			{#each filtered as s (s.id)}
 				{@const m = sourceMeta(s.provider)}
-				<div class="source-row" style="padding:13px 18px;display:grid;grid-template-columns:2fr 1.2fr 80px 120px 100px;gap:14px;align-items:center;border-bottom:1px solid var(--line);">
-					<!-- Name + host -->
-					<div style="display:flex;align-items:center;gap:11px;min-width:0;">
-						<div style="width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;">
+				<div class="group px-[18px] py-[13px] grid grid-cols-[2fr_1.2fr_80px_120px_100px] gap-[14px] items-center border-b border-b-[var(--line)] last:border-b-0 hover:bg-white/[0.02]">
+					<div class="flex items-center gap-[11px] min-w-0">
+						<div class="size-[34px] rounded-[9px] bg-white/5 border border-[var(--line)] flex items-center justify-center shrink-0">
 							{@render ProviderIcon({ icon: s.provider === 'github_app' ? 'github' : s.provider, size: 17 })}
 						</div>
-						<div style="min-width:0;">
-							<div style="font-size:14px;font-weight:600;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{s.name}</div>
+						<div class="min-w-0">
+							<div class="text-[14px] font-semibold text-[var(--tx)] whitespace-nowrap overflow-hidden text-ellipsis">{s.name}</div>
 							{#if s.host}
-								<div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{s.host}</div>
+								<div class="font-mono-jb text-[11px] text-[var(--tx-3)] whitespace-nowrap overflow-hidden text-ellipsis">{s.host}</div>
 							{:else}
-								<div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx-3);">github.com</div>
+								<div class="font-mono-jb text-[11px] text-[var(--tx-3)]">github.com</div>
 							{/if}
 						</div>
 					</div>
 
-					<!-- Provider badge -->
 					<div>
-						<span style="font-size:12px;font-weight:600;color:{m.color};background:{m.bg};border-radius:5px;padding:3px 8px;">{m.label}</span>
+						<span class="text-[12px] font-semibold rounded-[5px] px-2 py-[3px]" style:color={m.color} style:background={m.bg}>{m.label}</span>
 					</div>
 
-					<!-- Repo count -->
-					<div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--tx-2);">{s.repoCount}</div>
+					<div class="font-mono-jb text-[13px] text-[var(--tx-2)]">{s.repoCount}</div>
 
-					<!-- Connected at -->
-					<div style="font-size:12.5px;color:var(--tx-3);">{s.connectedAt}</div>
+					<div class="text-[12.5px] text-[var(--tx-3)]">{s.connectedAt}</div>
 
-					<!-- Configure button -->
-					<div style="text-align:right;">
-						<button class="configure-btn" style="font-size:12.5px;color:var(--tx-3);cursor:pointer;padding:4px 8px;border-radius:6px;">Configure →</button>
+					<div class="text-right">
+						<button class="opacity-0 transition-opacity duration-150 group-hover:opacity-100 text-[12.5px] text-[var(--tx-3)] cursor-pointer px-2 py-1 rounded-[6px]">Configure →</button>
 					</div>
 				</div>
 			{/each}
 
 			{#if filtered.length === 0}
-				<div style="padding:40px;text-align:center;color:var(--tx-3);font-size:13.5px;">No sources match the current filter.</div>
+				<div class="p-10 text-center text-[var(--tx-3)] text-[13.5px]">No sources match the current filter.</div>
 			{/if}
 		</div>
 
-		<!-- Repo list preview -->
 		{#if guildId === 'sourdough'}
-			<div style="margin-top:20px;">
-				<div style="font-size:12px;font-weight:700;letter-spacing:.05em;color:var(--tx-3);margin-bottom:10px;">REPOS FROM SOURDOUGH-LABS</div>
-				<div style="background:var(--card);border:1px solid var(--line);border-radius:13px;overflow:hidden;">
+			<div class="mt-5">
+				<div class="text-[12px] font-bold tracking-[.05em] text-[var(--tx-3)] mb-[10px]">REPOS FROM SOURDOUGH-LABS</div>
+				<div class="bg-[var(--card)] border border-[var(--line)] rounded-[13px] overflow-hidden">
 					{#each REPOS as r (r.id)}
-						<div style="display:flex;align-items:center;gap:14px;padding:11px 18px;border-bottom:1px solid var(--line);">
+						<div class="flex items-center gap-[14px] px-[18px] py-[11px] border-b border-b-[var(--line)] last:border-b-0">
 							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--tx-3)" stroke-width="1.6"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
-							<div style="flex:1;font-size:13px;color:var(--tx);">{r.name}</div>
-							<div style="display:flex;align-items:center;gap:5px;">
-								<div style="width:10px;height:10px;border-radius:50%;background:{r.langColor};"></div>
-								<span style="font-size:12px;color:var(--tx-3);">{r.lang}</span>
+							<div class="flex-1 text-[13px] text-[var(--tx)]">{r.name}</div>
+							<div class="flex items-center gap-[5px]">
+								<div class="size-[10px] rounded-full" style:background={r.langColor}></div>
+								<span class="text-[12px] text-[var(--tx-3)]">{r.lang}</span>
 							</div>
-							<div style="font-size:12px;color:var(--tx-3);width:110px;text-align:right;">{r.updated}</div>
+							<div class="text-[12px] text-[var(--tx-3)] w-[110px] text-right">{r.updated}</div>
 						</div>
 					{/each}
 				</div>
@@ -212,144 +200,116 @@
 	{/if}
 </div>
 
-<!-- ── Add Source Panel ─────────────────────────────────────────────── -->
 {#if panelOpen}
-	<!-- Backdrop -->
 	<div
 		role="button"
 		tabindex="-1"
 		onclick={closePanel}
 		onkeydown={(e) => e.key === 'Escape' && closePanel()}
-		style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;"
+		class="fixed inset-0 bg-black/55 z-[200]"
 	></div>
 
-	<!-- Slide panel -->
-	<div style="position:fixed;top:0;right:0;width:480px;height:100vh;background:var(--panel);border-left:1px solid var(--line);z-index:201;display:flex;flex-direction:column;overflow:hidden;">
-		<!-- Panel header -->
-		<div style="padding:20px 24px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;">
+	<div class="fixed top-0 right-0 w-[480px] h-screen bg-[var(--panel)] border-l border-l-[var(--line)] z-[201] flex flex-col overflow-hidden">
+		<div class="px-6 pt-5 pb-4 border-b border-b-[var(--line)] flex items-center gap-3">
 			{#if step !== 'pick'}
-				<button onclick={() => { step = 'pick'; tested = false; testError = ''; }} style="color:var(--tx-3);cursor:pointer;font-size:12.5px;display:flex;align-items:center;gap:4px;">
+				<button onclick={() => { step = 'pick'; tested = false; testError = ''; }} class="text-[var(--tx-3)] cursor-pointer text-[12.5px] flex items-center gap-1">
 					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
 					Back
 				</button>
-				<div style="width:1px;height:14px;background:var(--line);"></div>
+				<div class="w-px h-[14px] bg-[var(--line)] shrink-0"></div>
 			{/if}
-			<div style="font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:700;color:var(--tx);">
+			<div class="font-heading text-[16px] font-bold text-[var(--tx)]">
 				{step === 'pick' ? 'Add source' : step === 'github' ? 'GitHub App' : step === 'selfhosted' ? 'Self-hosted Git' : 'Source connected'}
 			</div>
-			<div style="flex:1"></div>
-			<button onclick={closePanel} aria-label="Close panel" style="color:var(--tx-3);cursor:pointer;display:flex;align-items:center;">
+			<div class="flex-1"></div>
+			<button onclick={closePanel} aria-label="Close panel" class="text-[var(--tx-3)] cursor-pointer flex items-center">
 				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
 			</button>
 		</div>
 
-		<!-- Panel body -->
-		<div style="flex:1;overflow-y:auto;padding:24px;">
-
+		<div class="flex-1 overflow-y-auto p-6">
 			{#if step === 'pick'}
-				<!-- Provider picker -->
-				<div style="font-size:13px;color:var(--tx-3);margin-bottom:20px;">Choose where your code lives. You can add multiple sources.</div>
+				<div class="text-[13px] text-[var(--tx-3)] mb-5">Choose where your code lives. You can add multiple sources.</div>
 
-				<!-- GitHub App card -->
-				<button onclick={() => step = 'github'} class="provider-card" style="width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:18px;margin-bottom:10px;cursor:pointer;display:flex;align-items:flex-start;gap:14px;">
-					<div style="width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px;">
+				<button onclick={() => step = 'github'} class="w-full text-left bg-[var(--card)] border border-[var(--line)] rounded-[11px] p-[18px] mb-[10px] cursor-pointer flex items-start gap-[14px] hover:bg-[var(--card-2)] hover:border-[var(--line-2)] transition-colors">
+					<div class="size-10 rounded-[10px] bg-white/[.06] flex items-center justify-center shrink-0 mt-[1px]">
 						{@render ProviderIcon({ icon: 'github', size: 20 })}
 					</div>
 					<div>
-						<div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:4px;">GitHub App</div>
-						<div style="font-size:12.5px;color:var(--tx-3);line-height:1.5;">Install once on your GitHub org or personal account. Bakery gets fine-grained access to selected repos — no secrets stored.</div>
-						<div style="margin-top:10px;display:flex;gap:6px;">
-							<span style="font-size:11px;color:var(--grn-2);background:var(--grn-dim);border-radius:4px;padding:2px 7px;">Recommended</span>
-							<span style="font-size:11px;color:var(--tx-3);background:rgba(255,255,255,.05);border-radius:4px;padding:2px 7px;">github.com</span>
+						<div class="text-[14px] font-semibold text-[var(--tx)] mb-1">GitHub App</div>
+						<div class="text-[12.5px] text-[var(--tx-3)] leading-[1.5]">Install once on your GitHub org or personal account. Bakery gets fine-grained access to selected repos — no secrets stored.</div>
+						<div class="mt-[10px] flex gap-[6px]">
+							<span class="text-[11px] text-[var(--grn-2)] bg-[var(--grn-dim)] rounded-[4px] px-[7px] py-[2px]">Recommended</span>
+							<span class="text-[11px] text-[var(--tx-3)] bg-white/5 rounded-[4px] px-[7px] py-[2px]">github.com</span>
 						</div>
 					</div>
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx-3)" stroke-width="2" style="margin-left:auto;flex:none;margin-top:2px;"><path d="M9 18l6-6-6-6"/></svg>
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx-3)" stroke-width="2" class="ml-auto shrink-0 mt-[2px]"><path d="M9 18l6-6-6-6"/></svg>
 				</button>
 
-				<!-- Self-hosted card -->
-				<button onclick={() => step = 'selfhosted'} class="provider-card" style="width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:18px;cursor:pointer;display:flex;align-items:flex-start;gap:14px;">
-					<div style="width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px;">
+				<button onclick={() => step = 'selfhosted'} class="w-full text-left bg-[var(--card)] border border-[var(--line)] rounded-[11px] p-[18px] cursor-pointer flex items-start gap-[14px] hover:bg-[var(--card-2)] hover:border-[var(--line-2)] transition-colors">
+					<div class="size-10 rounded-[10px] bg-white/[.06] flex items-center justify-center shrink-0 mt-[1px]">
 						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--tx-2)" stroke-width="1.6"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
 					</div>
 					<div>
-						<div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:4px;">Self-hosted Git</div>
-						<div style="font-size:12.5px;color:var(--tx-3);line-height:1.5;">Connect a GitLab, Gitea, or Bitbucket Server instance running on your own infrastructure using a personal access token.</div>
-						<div style="margin-top:10px;display:flex;gap:6px;">
-							<span style="font-size:11px;color:var(--tx-3);background:rgba(255,255,255,.05);border-radius:4px;padding:2px 7px;">GitLab</span>
-							<span style="font-size:11px;color:var(--tx-3);background:rgba(255,255,255,.05);border-radius:4px;padding:2px 7px;">Gitea</span>
-							<span style="font-size:11px;color:var(--tx-3);background:rgba(255,255,255,.05);border-radius:4px;padding:2px 7px;">Bitbucket Server</span>
+						<div class="text-[14px] font-semibold text-[var(--tx)] mb-1">Self-hosted Git</div>
+						<div class="text-[12.5px] text-[var(--tx-3)] leading-[1.5]">Connect a GitLab, Gitea, or Bitbucket Server instance running on your own infrastructure using a personal access token.</div>
+						<div class="mt-[10px] flex gap-[6px]">
+							<span class="text-[11px] text-[var(--tx-3)] bg-white/5 rounded-[4px] px-[7px] py-[2px]">GitLab</span>
+							<span class="text-[11px] text-[var(--tx-3)] bg-white/5 rounded-[4px] px-[7px] py-[2px]">Gitea</span>
+							<span class="text-[11px] text-[var(--tx-3)] bg-white/5 rounded-[4px] px-[7px] py-[2px]">Bitbucket Server</span>
 						</div>
 					</div>
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx-3)" stroke-width="2" style="margin-left:auto;flex:none;margin-top:2px;"><path d="M9 18l6-6-6-6"/></svg>
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx-3)" stroke-width="2" class="ml-auto shrink-0 mt-[2px]"><path d="M9 18l6-6-6-6"/></svg>
 				</button>
 
 			{:else if step === 'github'}
-				<!-- GitHub App instructions -->
-				<div style="background:var(--grn-dim);border:1px solid var(--grn-line);border-radius:10px;padding:14px 16px;margin-bottom:24px;display:flex;gap:10px;">
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--grn-2)" stroke-width="2" style="flex:none;margin-top:1px;"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-					<div style="font-size:12.5px;color:var(--grn-2);line-height:1.5;">The Bakery GitHub App requests <strong>read-only</strong> access to contents and metadata. No write permissions are ever requested.</div>
+				<div class="bg-[var(--grn-dim)] border border-[var(--grn-line)] rounded-[10px] px-4 py-[14px] mb-6 flex gap-[10px]">
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--grn-2)" stroke-width="2" class="shrink-0 mt-[1px]"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+					<div class="text-[12.5px] text-[var(--grn-2)] leading-[1.5]">The Bakery GitHub App requests <strong>read-only</strong> access to contents and metadata. No write permissions are ever requested.</div>
 				</div>
 
-				<div style="margin-bottom:24px;">
+				<div class="mb-6">
 					{#each [
 						{ n: '1', label: 'Click "Install on GitHub" below', detail: 'You will be redirected to GitHub to install the Bakery App on your account or organisation.' },
 						{ n: '2', label: 'Select repositories', detail: 'Choose "All repositories" or specific repos you want Bakery to access.' },
 						{ n: '3', label: 'Return here', detail: 'GitHub will redirect you back and your source will appear in the list automatically.' },
 					] as inst (inst.n)}
-						<div style="display:flex;gap:14px;margin-bottom:16px;">
-							<div style="width:24px;height:24px;border-radius:50%;background:var(--card-2);border:1px solid var(--line-2);display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px;">
-								<span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--tx-2);">{inst.n}</span>
+						<div class="flex gap-[14px] mb-4">
+							<div class="size-6 rounded-full bg-[var(--card-2)] border border-[var(--line-2)] flex items-center justify-center shrink-0 mt-[1px]">
+								<span class="font-mono-jb text-[11px] font-bold text-[var(--tx-2)]">{inst.n}</span>
 							</div>
 							<div>
-								<div style="font-size:13.5px;font-weight:600;color:var(--tx);margin-bottom:3px;">{inst.label}</div>
-								<div style="font-size:12px;color:var(--tx-3);line-height:1.5;">{inst.detail}</div>
+								<div class="text-[13.5px] font-semibold text-[var(--tx)] mb-[3px]">{inst.label}</div>
+								<div class="text-[12px] text-[var(--tx-3)] leading-[1.5]">{inst.detail}</div>
 							</div>
 						</div>
 					{/each}
 				</div>
 
-				<button style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--grn);color:#07130c;border-radius:9px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 2px 12px var(--grn-dim);">
+				<button class="w-full flex items-center justify-center gap-2 bg-[var(--grn)] text-[#07130c] rounded-[9px] py-[11px] text-[14px] font-bold cursor-pointer shadow-[0_2px_12px_var(--grn-dim)]">
 					{@render ProviderIcon({ icon: 'github', size: 16, color: '#07130c' })}
 					Install on GitHub →
 				</button>
 
-				<div style="margin-top:14px;text-align:center;">
-					<button onclick={() => step = 'done'} style="font-size:12px;color:var(--tx-3);cursor:pointer;text-decoration:underline;">I've already installed it — continue</button>
+				<div class="mt-[14px] text-center">
+					<button onclick={() => step = 'done'} class="text-[12px] text-[var(--tx-3)] cursor-pointer underline">I've already installed it — continue</button>
 				</div>
 
 			{:else if step === 'selfhosted'}
-				<!-- Self-hosted form -->
-				<div style="display:flex;flex-direction:column;gap:16px;">
-					<!-- Display name -->
+				<div class="flex flex-col gap-4">
 					<div>
-						<label for="sh-name" style="display:block;font-size:12px;font-weight:600;color:var(--tx-2);margin-bottom:6px;letter-spacing:.03em;">DISPLAY NAME</label>
-						<input
-							id="sh-name"
-							bind:value={shName}
-							placeholder="my-gitlab"
-							style="width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;font-size:13.5px;color:var(--tx);font-family:'Instrument Sans',sans-serif;outline:none;"
-						/>
+						<label for="sh-name" class="block text-[12px] font-semibold text-[var(--tx-2)] mb-[6px] tracking-[.03em]">DISPLAY NAME</label>
+						<input id="sh-name" bind:value={shName} placeholder="my-gitlab" class={panelInputCls} />
 					</div>
 
-					<!-- Base URL -->
 					<div>
-						<label for="sh-url" style="display:block;font-size:12px;font-weight:600;color:var(--tx-2);margin-bottom:6px;letter-spacing:.03em;">BASE URL</label>
-						<input
-							id="sh-url"
-							bind:value={shUrl}
-							placeholder="https://git.example.com"
-							style="width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;font-size:13.5px;color:var(--tx);font-family:'JetBrains Mono',monospace;outline:none;"
-						/>
+						<label for="sh-url" class="block text-[12px] font-semibold text-[var(--tx-2)] mb-[6px] tracking-[.03em]">BASE URL</label>
+						<input id="sh-url" bind:value={shUrl} placeholder="https://git.example.com" class={panelInputMonoCls} />
 					</div>
 
-					<!-- Provider type -->
 					<div>
-						<label for="sh-provider" style="display:block;font-size:12px;font-weight:600;color:var(--tx-2);margin-bottom:6px;letter-spacing:.03em;">PROVIDER</label>
-						<select
-							id="sh-provider"
-							bind:value={shProvider}
-							style="width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;font-size:13.5px;color:var(--tx);font-family:'Instrument Sans',sans-serif;outline:none;appearance:none;cursor:pointer;"
-						>
+						<label for="sh-provider" class="block text-[12px] font-semibold text-[var(--tx-2)] mb-[6px] tracking-[.03em]">PROVIDER</label>
+						<select id="sh-provider" bind:value={shProvider} class={panelSelectCls}>
 							<option value="gitlab">GitLab</option>
 							<option value="gitea">Gitea</option>
 							<option value="bitbucket">Bitbucket Server</option>
@@ -357,85 +317,71 @@
 						</select>
 					</div>
 
-					<!-- Personal access token -->
 					<div>
-						<label for="sh-token" style="display:block;font-size:12px;font-weight:600;color:var(--tx-2);margin-bottom:6px;letter-spacing:.03em;">PERSONAL ACCESS TOKEN</label>
-						<input
-							id="sh-token"
-							bind:value={shToken}
-							type="password"
-							placeholder="glpat-xxxxxxxxxxxxxxxxxxxx"
-							style="width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;font-size:13.5px;color:var(--tx);font-family:'JetBrains Mono',monospace;outline:none;"
-						/>
-						<div style="font-size:11.5px;color:var(--tx-3);margin-top:5px;">Needs <code style="font-family:'JetBrains Mono',monospace;background:rgba(255,255,255,.06);padding:1px 4px;border-radius:3px;">read_repository</code> scope. Stored encrypted at rest.</div>
+						<label for="sh-token" class="block text-[12px] font-semibold text-[var(--tx-2)] mb-[6px] tracking-[.03em]">PERSONAL ACCESS TOKEN</label>
+						<input id="sh-token" bind:value={shToken} type="password" placeholder="glpat-xxxxxxxxxxxxxxxxxxxx" class={panelInputMonoCls} />
+						<div class="text-[11.5px] text-[var(--tx-3)] mt-[5px]">Needs <code class="font-mono-jb bg-white/[.06] px-1 py-[1px] rounded-[3px]">read_repository</code> scope. Stored encrypted at rest.</div>
 					</div>
 
-					<!-- Test connection -->
 					<div>
 						<button
 							onclick={testConnection}
 							disabled={testing}
-							style="display:flex;align-items:center;gap:7px;background:var(--card-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;color:var(--tx-2);cursor:pointer;{testing ? 'opacity:.6;' : ''}"
+							class="flex items-center gap-[7px] bg-[var(--card-2)] border border-[var(--line-2)] rounded-[8px] px-[14px] py-[9px] text-[13px] font-semibold text-[var(--tx-2)] cursor-pointer {testing ? 'opacity-60' : ''}"
 						>
 							{#if testing}
-								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--grn)" stroke-width="2" style="animation:bk-spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--grn)" stroke-width="2" class="animate-[bk-spin_1s_linear_infinite]"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
 								Testing connection…
 							{:else if tested}
 								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--grn-2)" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-								<span style="color:var(--grn-2);">Connection successful</span>
+								<span class="text-[var(--grn-2)]">Connection successful</span>
 							{:else}
 								<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
 								Test connection
 							{/if}
 						</button>
 						{#if testError}
-							<div style="margin-top:7px;font-size:12px;color:#f0836b;">{testError}</div>
+							<div class="mt-[7px] text-[12px] text-[#f0836b]">{testError}</div>
 						{/if}
 					</div>
 
-					<!-- Connect button -->
 					<button
 						onclick={() => step = 'done'}
 						disabled={!canConnect}
-						style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--grn);color:#07130c;border-radius:9px;padding:11px;font-size:14px;font-weight:700;box-shadow:0 2px 12px var(--grn-dim);{!canConnect ? 'opacity:.4;cursor:not-allowed;' : 'cursor:pointer;'}"
+						class="w-full flex items-center justify-center gap-2 bg-[var(--grn)] text-[#07130c] rounded-[9px] py-[11px] text-[14px] font-bold shadow-[0_2px_12px_var(--grn-dim)] {!canConnect ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}"
 					>
 						Connect source
 					</button>
 				</div>
 
 			{:else if step === 'done'}
-				<!-- Success -->
-				<div style="text-align:center;padding:24px 0;">
-					<div style="width:56px;height:56px;border-radius:50%;background:var(--grn-dim);border:1px solid var(--grn-line);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+				<div class="text-center py-6">
+					<div class="size-14 rounded-full bg-[var(--grn-dim)] border border-[var(--grn-line)] flex items-center justify-center mx-auto mb-4">
 						<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--grn-2)" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
 					</div>
-					<div style="font-family:'Bricolage Grotesque',sans-serif;font-size:18px;font-weight:700;color:var(--tx);margin-bottom:6px;">Source connected!</div>
-					<div style="font-size:13px;color:var(--tx-3);margin-bottom:28px;">
+					<div class="font-heading text-[18px] font-bold text-[var(--tx)] mb-[6px]">Source connected!</div>
+					<div class="text-[13px] text-[var(--tx-3)] mb-7">
 						{shName || 'Your GitHub App'} is now linked. Bakery found the following repos:
 					</div>
 
-					<div style="background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;text-align:left;margin-bottom:24px;">
+					<div class="bg-[var(--card)] border border-[var(--line)] rounded-[10px] overflow-hidden text-left mb-6">
 						{#each REPOS as r (r.id)}
-							<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);">
+							<div class="flex items-center gap-[10px] px-[14px] py-[10px] border-b border-b-[var(--line)] last:border-b-0">
 								<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--tx-3)" stroke-width="1.8"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
-								<div style="flex:1;font-size:12.5px;color:var(--tx);">{r.name}</div>
-								<div style="width:9px;height:9px;border-radius:50%;background:{r.langColor};"></div>
-								<span style="font-size:11.5px;color:var(--tx-3);">{r.lang}</span>
+								<div class="flex-1 text-[12.5px] text-[var(--tx)]">{r.name}</div>
+								<div class="size-[9px] rounded-full" style:background={r.langColor}></div>
+								<span class="text-[11.5px] text-[var(--tx-3)]">{r.lang}</span>
 							</div>
 						{/each}
 					</div>
 
-					<button onclick={closePanel} style="width:100%;display:flex;align-items:center;justify-content:center;background:var(--grn);color:#07130c;border-radius:9px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 2px 12px var(--grn-dim);">
-						Done
-					</button>
+					<button onclick={closePanel} class="w-full flex items-center justify-center bg-[var(--grn)] text-[#07130c] rounded-[9px] py-[11px] text-[14px] font-bold cursor-pointer shadow-[0_2px_12px_var(--grn-dim)]">Done</button>
 				</div>
 			{/if}
-
 		</div>
 	</div>
 {/if}
 
-<!-- ── Provider icon snippet ───────────────────────────────────────── -->
 {#snippet ProviderIcon({ icon, size = 16, color }: { icon: string; size?: number; color?: string })}
 	{#if icon === 'github'}
 		<svg width={size} height={size} viewBox="0 0 24 24" fill={color ?? 'var(--tx-2)'}>
@@ -455,34 +401,3 @@
 		</svg>
 	{/if}
 {/snippet}
-
-<style>
-	button {
-		all: unset;
-		box-sizing: border-box;
-		cursor: pointer;
-	}
-	input, select {
-		box-sizing: border-box;
-	}
-	input:focus, select:focus {
-		border-color: var(--grn) !important;
-	}
-	.source-row:hover {
-		background: rgba(255,255,255,.02);
-	}
-	.source-row:last-child {
-		border-bottom: none;
-	}
-	.configure-btn {
-		opacity: 0;
-		transition: opacity 0.15s;
-	}
-	.source-row:hover .configure-btn {
-		opacity: 1;
-	}
-	.provider-card:hover {
-		background: var(--card-2) !important;
-		border-color: var(--line-2) !important;
-	}
-</style>

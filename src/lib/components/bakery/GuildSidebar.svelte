@@ -39,8 +39,8 @@
 
 	function isActive(section: string) { return activeSection === section; }
 
-	const navBase = 'display:flex;align-items:center;gap:11px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13.5px;font-weight:500;color:var(--tx-2);margin-bottom:2px;';
-	const navOn = 'display:flex;align-items:center;gap:11px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13.5px;font-weight:600;color:var(--grn);margin-bottom:2px;background:var(--grn-dim);';
+	const navBase = 'flex items-center gap-[11px] px-[10px] py-2 rounded-[8px] cursor-pointer text-[13.5px] font-medium text-[var(--tx-2)] mb-0.5 w-full text-left hover:bg-white/5';
+	const navOn = 'flex items-center gap-[11px] px-[10px] py-2 rounded-[8px] cursor-pointer text-[13.5px] font-semibold text-[var(--grn)] mb-0.5 w-full text-left bg-[var(--grn-dim)]';
 	function ns(s: string) { return isActive(s) ? navOn : navBase; }
 
 	const moduleIcons: Record<string, string> = {
@@ -54,9 +54,8 @@
 	const appCount = $derived(apps.length);
 	const hostCount = $derived(guild?.hosts?.length ?? 0);
 
-	const badgeStyle = 'font-size:11px;font-weight:700;padding:1px 7px;border-radius:20px;background:rgba(255,255,255,.07);color:var(--tx-2);';
+	const badgeStyle = 'text-[11px] font-bold px-[7px] py-[1px] rounded-[20px] bg-white/[0.07] text-[var(--tx-2)]';
 
-	const menuHover = 'background:rgba(255,255,255,.05);';
 	const guildMenuItems = [
 		{ icon: 'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z', label: 'Invite People', color: 'var(--tx)' },
 		{ icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z', label: 'Guild Settings', color: 'var(--tx)' },
@@ -66,27 +65,18 @@
 
 <svelte:window onclick={handleWindowClick} />
 
-<div bind:this={sidebarEl} style="
-	width: 248px;
-	flex: none;
-	background: var(--sidebar);
-	display: flex;
-	flex-direction: column;
-	border-right: 1px solid var(--line);
-	z-index: 1;
-	position: relative;
-">
+<div bind:this={sidebarEl} class="w-[248px] shrink-0 bg-[var(--sidebar)] flex flex-col border-r border-r-[var(--line)] z-[1] relative">
 	<!-- Guild header -->
-	<div style="position:relative;flex:none;">
+	<div class="relative shrink-0">
 		<div
 			onclick={toggleGuildMenu}
 			onkeydown={(e) => e.key === 'Enter' && toggleGuildMenu()}
 			role="button"
 			tabindex="0"
-			style="height:52px;padding:0 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);cursor:pointer;"
+			class="h-[52px] px-4 flex items-center justify-between border-b border-b-[var(--line)] cursor-pointer"
 		>
-			<div style="min-width:0;">
-				<div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:15px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+			<div class="min-w-0">
+				<div class="font-heading font-bold text-[15px] text-[var(--tx)] whitespace-nowrap overflow-hidden text-ellipsis">
 					{guild?.name ?? guildId}
 				</div>
 			</div>
@@ -96,19 +86,19 @@
 		</div>
 
 		{#if guildMenuOpen}
-			<div style="position:absolute;left:10px;right:10px;top:50px;z-index:39;background:var(--panel);border:1px solid var(--line-2);border-radius:11px;padding:6px;box-shadow:0 18px 46px rgba(0,0,0,.55);">
+			<div class="absolute left-[10px] right-[10px] top-[50px] z-[39] bg-[var(--panel)] border border-[var(--line-2)] rounded-[11px] p-[6px] shadow-[0_18px_46px_rgba(0,0,0,.55)]">
 				{#each guildMenuItems as m}
 					<div
 						onclick={closeAll}
 						onkeydown={(e) => e.key === 'Enter' && closeAll()}
 						role="button"
 						tabindex="0"
-						style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;"
+						class="flex items-center gap-[10px] px-[10px] py-[9px] rounded-[8px] cursor-pointer hover:bg-white/5"
 					>
-						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={m.color} stroke-width="1.8" style="flex:none">
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={m.color} stroke-width="1.8" class="shrink-0">
 							<path d={m.icon}/>
 						</svg>
-						<span style="flex:1;font-size:13px;font-weight:600;color:{m.color}">{m.label}</span>
+						<span class="flex-1 text-[13px] font-semibold" style:color={m.color}>{m.label}</span>
 					</div>
 				{/each}
 			</div>
@@ -116,26 +106,26 @@
 	</div>
 
 	<!-- Module dropdown -->
-	<div style="padding:12px 12px 6px;position:relative;">
-		<div style="font-size:10px;font-weight:700;letter-spacing:.09em;color:var(--tx-3);padding:0 6px 7px">MODULE</div>
+	<div class="px-3 pt-3 pb-[6px] relative">
+		<div class="text-[10px] font-bold tracking-[.09em] text-[var(--tx-3)] px-[6px] pb-[7px]">MODULE</div>
 		<div
 			onclick={toggleModuleMenu}
 			onkeydown={(e) => e.key === 'Enter' && toggleModuleMenu()}
 			role="button"
 			tabindex="0"
-			style="display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:9px;background:var(--card);border:1px solid var(--line-2);cursor:pointer;"
+			class="flex items-center gap-[9px] px-[11px] py-[9px] rounded-[9px] bg-[var(--card)] border border-[var(--line-2)] cursor-pointer"
 		>
 			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--grn)" stroke-width="1.9">
 				<path d={moduleIcons[module]}/>
 			</svg>
-			<div style="font-size:13.5px;font-weight:700;color:var(--tx);flex:1">{moduleNames[module]}</div>
+			<div class="text-[13.5px] font-bold text-[var(--tx)] flex-1">{moduleNames[module]}</div>
 			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tx-2)" stroke-width="2">
 				<path d="M8 9l4-4 4 4M8 15l4 4 4-4"/>
 			</svg>
 		</div>
 
 		{#if moduleMenuOpen}
-			<div style="position:absolute;left:12px;right:12px;top:64px;z-index:30;background:var(--panel);border:1px solid var(--line-2);border-radius:11px;padding:6px;box-shadow:0 16px 44px rgba(0,0,0,.55);">
+			<div class="absolute left-3 right-3 top-[64px] z-[30] bg-[var(--panel)] border border-[var(--line-2)] rounded-[11px] p-[6px] shadow-[0_16px_44px_rgba(0,0,0,.55)]">
 				{#each (['deploy', 'planning', 'guild'] as const) as m}
 					{@const defaultSection = m === 'deploy' ? 'overview' : m === 'planning' ? 'board' : 'members'}
 					<div
@@ -143,14 +133,15 @@
 						onkeydown={(e) => e.key === 'Enter' && nav(`${m}/${defaultSection}`)}
 						role="button"
 						tabindex="0"
-						style="display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:8px;cursor:pointer;{module === m ? 'background:var(--grn-dim);' : ''}"
+						class="flex items-center gap-[10px] px-[11px] py-[10px] rounded-[8px] cursor-pointer"
+						class:bg-[var(--grn-dim)]={module === m}
 					>
-						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{module === m ? 'var(--grn)' : 'var(--tx-2)'}" stroke-width="1.8" style="flex:none">
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={module === m ? 'var(--grn)' : 'var(--tx-2)'} stroke-width="1.8" class="shrink-0">
 							<path d={moduleIcons[m]}/>
 						</svg>
-						<div style="flex:1;min-width:0;">
-							<div style="font-size:13.5px;font-weight:600;color:{module === m ? 'var(--grn)' : 'var(--tx)'}">{moduleNames[m]}</div>
-							<div style="font-size:11px;color:var(--tx-3)">{moduleDescs[m]}</div>
+						<div class="flex-1 min-w-0">
+							<div class="text-[13.5px] font-semibold" style:color={module === m ? 'var(--grn)' : 'var(--tx)'}>{moduleNames[m]}</div>
+							<div class="text-[11px] text-[var(--tx-3)]">{moduleDescs[m]}</div>
 						</div>
 					</div>
 				{/each}
@@ -159,142 +150,142 @@
 	</div>
 
 	<!-- Nav -->
-	<div style="flex:1;overflow-y:auto;padding:10px 12px 12px;">
+	<div class="flex-1 overflow-y-auto px-3 pb-3 pt-[10px]">
 		{#if module === 'deploy'}
-			<button onclick={() => nav('deploy/overview')} style={ns('overview')}>
+			<button onclick={() => nav('deploy/overview')} class={ns('overview')}>
 				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
 					<rect x="3" y="3" width="7" height="9" rx="1.5"/>
 					<rect x="14" y="3" width="7" height="5" rx="1.5"/>
 					<rect x="14" y="12" width="7" height="9" rx="1.5"/>
 					<rect x="3" y="16" width="7" height="5" rx="1.5"/>
 				</svg>
-				<span style="flex:1">Dashboard</span>
+				<span class="flex-1">Dashboard</span>
 			</button>
 
-			<button onclick={() => nav('deploy/projects')} style={ns('projects')}>
+			<button onclick={() => nav('deploy/projects')} class={ns('projects')}>
 				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
 					<path d="M4 6a2 2 0 012-2h4l2 2h6a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2z"/>
 				</svg>
-				<span style="flex:1">Projects</span>
+				<span class="flex-1">Projects</span>
 			</button>
 
-			<button onclick={() => nav('deploy/sources')} style={ns('sources')}>
+			<button onclick={() => nav('deploy/sources')} class={ns('sources')}>
 				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
 					<polyline points="16 18 22 12 16 6"/>
 					<polyline points="8 6 2 12 8 18"/>
 				</svg>
-				<span style="flex:1">Sources</span>
+				<span class="flex-1">Sources</span>
 			</button>
 
-			<button onclick={() => nav('deploy/networks')} style={ns('networks')}>
+			<button onclick={() => nav('deploy/networks')} class={ns('networks')}>
 				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
 					<circle cx="12" cy="5" r="2"/>
 					<circle cx="5" cy="19" r="2"/>
 					<circle cx="19" cy="19" r="2"/>
 					<path d="M12 7v4M12 11l-5 6M12 11l5 6"/>
 				</svg>
-				<span style="flex:1">Networks</span>
+				<span class="flex-1">Networks</span>
 			</button>
 
-			<button onclick={() => nav('deploy/storage')} style={ns('storage')}>
+			<button onclick={() => nav('deploy/storage')} class={ns('storage')}>
 				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
 					<ellipse cx="12" cy="6" rx="7" ry="3"/>
 					<path d="M5 6v12c0 1.6 3.1 3 7 3s7-1.4 7-3V6"/>
 					<path d="M5 12c0 1.6 3.1 3 7 3s7-1.4 7-3"/>
 				</svg>
-				<span style="flex:1">Storage</span>
+				<span class="flex-1">Storage</span>
 			</button>
 
 		{:else if module === 'guild'}
-			<div style="font-size:10px;font-weight:700;letter-spacing:.09em;color:var(--tx-3);padding:8px 6px 6px">GUILD</div>
+			<div class="text-[10px] font-bold tracking-[.09em] text-[var(--tx-3)] px-[6px] pt-2 pb-[6px]">GUILD</div>
 
-			<button onclick={() => nav('guild/members')} style={ns('members')}>
+			<button onclick={() => nav('guild/members')} class={ns('members')}>
 				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
 					<circle cx="8" cy="9" r="3"/>
 					<circle cx="16.5" cy="10" r="2.4"/>
 					<path d="M2.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5M15 19c0-2 .8-3.4 2.2-4.2"/>
 				</svg>
-				<span style="flex:1">Members</span>
-				<span style={badgeStyle}>{memberCount}</span>
+				<span class="flex-1">Members</span>
+				<span class={badgeStyle}>{memberCount}</span>
 			</button>
 
-			<button onclick={() => nav('guild/roles')} style={ns('roles')}>
+			<button onclick={() => nav('guild/roles')} class={ns('roles')}>
 				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
 					<path d="M12 3l7 3v5c0 4.2-3 7.5-7 9-4-1.5-7-4.8-7-9V6l7-3z"/>
 				</svg>
-				<span style="flex:1">Roles</span>
+				<span class="flex-1">Roles</span>
 			</button>
 
-			<div style="font-size:10px;font-weight:700;letter-spacing:.09em;color:var(--tx-3);padding:16px 6px 6px">SETTINGS</div>
+			<div class="text-[10px] font-bold tracking-[.09em] text-[var(--tx-3)] px-[6px] pt-4 pb-[6px]">SETTINGS</div>
 
-			<button onclick={() => nav('guild/settings')} style={ns('settings')}>
+			<button onclick={() => nav('guild/settings')} class={ns('settings')}>
 				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
 					<circle cx="12" cy="12" r="3.2"/>
 					<path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/>
 				</svg>
-				<span style="flex:1">Guild Settings</span>
+				<span class="flex-1">Guild Settings</span>
 			</button>
 
 		{:else}
-			<div style="font-size:10px;font-weight:700;letter-spacing:.09em;color:var(--tx-3);padding:8px 6px 6px">PLANNING</div>
+			<div class="text-[10px] font-bold tracking-[.09em] text-[var(--tx-3)] px-[6px] pt-2 pb-[6px]">PLANNING</div>
 
-			<button onclick={() => nav('planning/board')} style={ns('board')}>
+			<button onclick={() => nav('planning/board')} class={ns('board')}>
 				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
 					<rect x="3" y="4" width="18" height="16" rx="2"/>
 					<path d="M9 4v16M15 4v16"/>
 				</svg>
-				<span style="flex:1">Board</span>
+				<span class="flex-1">Board</span>
 			</button>
 
-			<button onclick={() => nav('planning/my-work')} style={ns('my-work')}>
+			<button onclick={() => nav('planning/my-work')} class={ns('my-work')}>
 				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
 					<circle cx="12" cy="8" r="3.2"/>
 					<path d="M5 20c0-3.4 3.1-6 7-6s7 2.6 7 6"/>
 				</svg>
-				<span style="flex:1">My Work</span>
-				<span style={badgeStyle}>4</span>
+				<span class="flex-1">My Work</span>
+				<span class={badgeStyle}>4</span>
 			</button>
 
-			<button onclick={() => nav('planning/projects')} style={ns('projects')}>
+			<button onclick={() => nav('planning/projects')} class={ns('projects')}>
 				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
 					<path d="M4 6a2 2 0 012-2h4l2 2h6a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2z"/>
 				</svg>
-				<span style="flex:1">Projects</span>
-				<span style={badgeStyle}>3</span>
+				<span class="flex-1">Projects</span>
+				<span class={badgeStyle}>3</span>
 			</button>
 
-			<button onclick={() => nav('planning/cycles')} style={ns('cycles')}>
+			<button onclick={() => nav('planning/cycles')} class={ns('cycles')}>
 				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
 					<path d="M21 12a9 9 0 11-3-6.7L21 8"/>
 					<path d="M21 3v5h-5"/>
 				</svg>
-				<span style="flex:1">Cycles</span>
+				<span class="flex-1">Cycles</span>
 			</button>
 
-			<button onclick={() => nav('planning/views')} style={ns('views')}>
+			<button onclick={() => nav('planning/views')} class={ns('views')}>
 				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
 					<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/>
 					<circle cx="12" cy="12" r="3"/>
 				</svg>
-				<span style="flex:1">Views</span>
+				<span class="flex-1">Views</span>
 			</button>
 		{/if}
 	</div>
 
 	<!-- User panel -->
-	<div style="height:56px;flex:none;background:rgba(0,0,0,.22);border-top:1px solid var(--line);display:flex;align-items:center;gap:9px;padding:0 10px;">
-		<div style="position:relative;width:34px;height:34px;flex:none;">
-			<div style="width:34px;height:34px;border-radius:11px;background:linear-gradient(140deg,#d98a4a,#b5632c);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#1a0f07">RY</div>
-			<div style="position:absolute;right:-2px;bottom:-2px;width:12px;height:12px;border-radius:50%;background:var(--ok);border:2.5px solid var(--sidebar);"></div>
+	<div class="h-[56px] shrink-0 bg-black/[0.22] border-t border-t-[var(--line)] flex items-center gap-[9px] px-[10px]">
+		<div class="relative size-[34px] shrink-0">
+			<div class="size-[34px] rounded-[11px] bg-gradient-to-br from-[#d98a4a] to-[#b5632c] flex items-center justify-center font-bold text-[13px] text-[#1a0f07]">RY</div>
+			<div class="absolute right-[-2px] bottom-[-2px] size-3 rounded-full bg-[var(--ok)] border-[2.5px] border-[var(--sidebar)]"></div>
 		</div>
-		<div style="min-width:0;flex:1;">
-			<div style="font-size:13px;font-weight:600;color:var(--tx);display:flex;align-items:center;gap:5px;">Rye
+		<div class="min-w-0 flex-1">
+			<div class="text-[13px] font-semibold text-[var(--tx)] flex items-center gap-[5px]">Rye
 				<svg width="11" height="11" viewBox="0 0 24 24" fill="#e0a83e"><path d="M5 16L3 6l5 4 4-6 4 6 5-4-2 10z"/></svg>
 			</div>
-			<div style="font-size:11px;color:var(--tx-3);">Guild Master</div>
+			<div class="text-[11px] text-[var(--tx-3)]">Guild Master</div>
 		</div>
-		<div style="display:flex;gap:2px;color:var(--tx-2);">
-			<div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:7px;cursor:pointer;">
+		<div class="flex gap-0.5 text-[var(--tx-2)]">
+			<div class="size-7 flex items-center justify-center rounded-[7px] cursor-pointer">
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
 					<circle cx="12" cy="12" r="3.2"/>
 					<path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
@@ -303,16 +294,3 @@
 		</div>
 	</div>
 </div>
-
-<style>
-	button {
-		all: unset;
-		box-sizing: border-box;
-		width: 100%;
-		text-align: left;
-	}
-	button:hover {
-		background: rgba(255,255,255,.05);
-		border-radius: 8px;
-	}
-</style>

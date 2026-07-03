@@ -6,87 +6,82 @@
 	import { goto } from '$app/navigation';
 
 	const guildId = $derived(page.params.guild ?? '');
-	const appId = $derived(page.params.appId ?? '');
-	const guild = $derived(GUILDS[guildId]);
-	const app = $derived(guild?.apps.find((a) => a.id === appId));
-	const meta = $derived(app ? statusMeta(app.status) : null);
+	const appId   = $derived(page.params.appId ?? '');
+	const guild   = $derived(GUILDS[guildId]);
+	const app     = $derived(guild?.apps.find((a) => a.id === appId));
+	const meta    = $derived(app ? statusMeta(app.status) : null);
 
 	type Tab = 'overview' | 'containers' | 'network' | 'deployments' | 'logs' | 'env' | 'domains' | 'quadlet';
 	let activeTab = $state<Tab>('overview');
-	let envSel = $state<'production' | 'staging'>('production');
-	let reveal = $state(false);
+	let envSel    = $state<'production' | 'staging'>('production');
+	let reveal    = $state(false);
 
 	const containers = $derived(APP_CONTAINERS[appId] ?? []);
-	const envVars = $derived((ENV_SETS[envSel] ?? []).map(e => ({
+	const envVars    = $derived((ENV_SETS[envSel] ?? []).map((e) => ({
 		...e,
 		shown: e.secret && !reveal ? '••••••••••••••••' : e.v,
 	})));
 
-	// Spark bars for CPU chart
 	const sparkbars = Array.from({ length: 42 }, (_, i) => {
 		const h = Math.min(100, 25 + Math.round(35 * Math.abs(Math.sin(i * 0.7)) + 20 * Math.abs(Math.cos(i * 0.4))));
 		return { h, recent: i > 36 };
 	});
 
-	function tabStyle(t: Tab) {
-		const on = 'padding:10px 14px;font-size:13.5px;font-weight:600;color:var(--grn);cursor:pointer;border-bottom:2px solid var(--grn);background:none;border-top:none;border-left:none;border-right:none;margin-bottom:-1px;';
-		const off = 'padding:10px 14px;font-size:13.5px;font-weight:600;color:var(--tx-2);cursor:pointer;border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;margin-bottom:-1px;';
-		return t === activeTab ? on : off;
+	function tabCls(t: Tab) {
+		return t === activeTab
+			? 'px-[14px] py-[10px] text-[13.5px] font-semibold text-[var(--grn)] cursor-pointer border-b-2 border-b-[var(--grn)] -mb-px'
+			: 'px-[14px] py-[10px] text-[13.5px] font-semibold text-[var(--tx-2)] cursor-pointer border-b-2 border-b-transparent -mb-px';
 	}
 
-	const tabs: Array<{id: Tab; label: string}> = [
-		{ id: 'overview', label: 'Overview' },
-		{ id: 'containers', label: 'Containers' },
-		{ id: 'network', label: 'Network' },
-		{ id: 'deployments', label: 'Deployments' },
-		{ id: 'logs', label: 'Logs' },
-		{ id: 'env', label: 'Environment' },
-		{ id: 'domains', label: 'Domains & Proxy' },
-		{ id: 'quadlet', label: 'Quadlet' },
+	const tabs: Array<{ id: Tab; label: string }> = [
+		{ id: 'overview',     label: 'Overview' },
+		{ id: 'containers',   label: 'Containers' },
+		{ id: 'network',      label: 'Network' },
+		{ id: 'deployments',  label: 'Deployments' },
+		{ id: 'logs',         label: 'Logs' },
+		{ id: 'env',          label: 'Environment' },
+		{ id: 'domains',      label: 'Domains & Proxy' },
+		{ id: 'quadlet',      label: 'Quadlet' },
 	];
 
 	const port = $derived(app?.port === '—' ? '3000' : (app?.port ?? '3000'));
 </script>
 
 {#if !app}
-	<div style="padding:40px;color:var(--tx-2);">Project not found.</div>
+	<div class="p-10 text-[var(--tx-2)]">Project not found.</div>
 {:else}
 <div>
 	<!-- App header -->
-	<div style="padding: 20px 28px 0;">
+	<div class="px-7 pt-5 pb-0">
 		<button
 			onclick={() => goto(`/${guildId}/deploy/projects`)}
-			style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--tx-2);cursor:pointer;margin-bottom:14px;background:none;border:none;padding:0;"
+			class="inline-flex items-center gap-[6px] text-[12.5px] text-[var(--tx-2)] cursor-pointer mb-[14px]"
 		>
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-				<path d="M15 18l-6-6 6-6"/>
-			</svg>
+			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 18l-6-6 6-6"/></svg>
 			All projects
 		</button>
 
-		<div style="display:flex;align-items:center;gap:15px;">
+		<div class="flex items-center gap-[15px]">
 			<AppIcon initial={app.initial} status={app.status} size={52} radius={14} />
-			<div style="flex:1;min-width:0;">
-				<div style="display:flex;align-items:center;gap:11px;">
-					<div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:23px;">{app.name}</div>
-					<div style="display:flex;align-items:center;gap:7px;padding:4px 10px;border-radius:20px;background:{meta?.bg};">
+			<div class="flex-1 min-w-0">
+				<div class="flex items-center gap-[11px]">
+					<div class="font-heading font-bold text-[23px]">{app.name}</div>
+					<div class="flex items-center gap-[7px] px-[10px] py-1 rounded-[20px]" style:background={meta?.bg}>
 						<StatusDot status={app.status} />
-						<span style="font-size:12px;font-weight:600;color:{meta?.c};">{meta?.label}</span>
+						<span class="text-[12px] font-semibold" style:color={meta?.c}>{meta?.label}</span>
 					</div>
 				</div>
-				<div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tx-3);margin-top:3px;">{app.type} · {app.host}</div>
+				<div class="font-mono-jb text-[12px] text-[var(--tx-3)] mt-[3px]">{app.type} · {app.host}</div>
 			</div>
 
 			{#if app.domain !== '— internal —'}
-				<a href="https://{app.domain}" target="_blank" rel="noreferrer" style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--grn-2);text-decoration:none;font-weight:600;padding:8px 12px;border:1px solid var(--grn-line);border-radius:8px;">
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<path d="M7 17L17 7M9 7h8v8"/>
-					</svg>
+				<a href="https://{app.domain}" target="_blank" rel="noreferrer" class="flex items-center gap-[6px] text-[12.5px] text-[var(--grn-2)] no-underline font-semibold px-3 py-2 border border-[var(--grn-line)] rounded-[8px]">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M9 7h8v8"/></svg>
 					{app.domain}
 				</a>
 			{/if}
 
-			<button style="display:flex;align-items:center;gap:7px;background:var(--grn);color:#07130c;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;">
+			<button class="flex items-center gap-[7px] bg-[var(--grn)] text-[#07130c] rounded-[8px] px-[14px] py-[9px] text-[13px] font-bold cursor-pointer">
 				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
 					<path d="M21 12a9 9 0 11-3-6.7L21 8"/>
 					<path d="M21 3v5h-5"/>
@@ -96,60 +91,60 @@
 		</div>
 
 		<!-- Tab bar -->
-		<div style="display:flex;gap:2px;margin-top:18px;border-bottom:1px solid var(--line);">
+		<div class="flex gap-0.5 mt-[18px] border-b border-b-[var(--line)]">
 			{#each tabs as t}
-				<button onclick={() => activeTab = t.id} style={tabStyle(t.id)}>{t.label}</button>
+				<button onclick={() => activeTab = t.id} class={tabCls(t.id)}>{t.label}</button>
 			{/each}
 		</div>
 	</div>
 
 	<!-- Tab content -->
-	<div style="padding: 22px 28px;">
+	<div class="px-7 py-[22px]">
 
 		<!-- Overview -->
 		{#if activeTab === 'overview'}
-			<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:16px;">
+			<div class="grid grid-cols-4 gap-[13px] mb-4">
 				{#each [
-					{ label: 'CPU', value: app.cpu + '%' },
-					{ label: 'Memory', value: app.mem },
-					{ label: 'Uptime', value: app.status === 'running' ? '4d 6h' : '—' },
+					{ label: 'CPU',            value: app.cpu + '%' },
+					{ label: 'Memory',         value: app.mem },
+					{ label: 'Uptime',         value: app.status === 'running' ? '4d 6h' : '—' },
 					{ label: 'Restarts (24h)', value: app.status === 'failed' ? '7' : '0' },
-				] as m}
-					<div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 16px;">
-						<div style="font-size:12px;color:var(--tx-2);">{m.label}</div>
-						<div style="font-family:'JetBrains Mono',monospace;font-weight:600;font-size:20px;margin-top:7px;color:var(--tx);">{m.value}</div>
+				] as m (m.label)}
+					<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] px-4 py-[15px]">
+						<div class="text-[12px] text-[var(--tx-2)]">{m.label}</div>
+						<div class="font-mono-jb font-semibold text-[20px] mt-[7px] text-[var(--tx)]">{m.value}</div>
 					</div>
 				{/each}
 			</div>
 
-			<div style="display:grid;grid-template-columns:1.6fr 1fr;gap:16px;">
+			<div class="grid grid-cols-[1.6fr_1fr] gap-4">
 				<!-- CPU chart -->
-				<div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;">
-					<div style="font-size:13px;font-weight:700;margin-bottom:14px;">CPU & Memory · last hour</div>
-					<div style="display:flex;align-items:flex-end;gap:3px;height:110px;">
+				<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] px-[18px] py-4">
+					<div class="text-[13px] font-bold mb-[14px]">CPU & Memory · last hour</div>
+					<div class="flex items-end gap-[3px] h-[110px]">
 						{#each sparkbars as b}
-							<div style="flex:1;height:{b.h}%;background:{b.recent ? 'var(--grn)' : 'var(--grn-dim)'};border-radius:2px 2px 0 0;"></div>
+							<div class="flex-1 rounded-t-[2px]" class:bg-[var(--grn)]={b.recent} class:bg-[var(--grn-dim)]={!b.recent} style:height="{b.h}%"></div>
 						{/each}
 					</div>
-					<div style="display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--tx-3);margin-top:8px;">
+					<div class="flex justify-between font-mono-jb text-[10.5px] text-[var(--tx-3)] mt-2">
 						<span>60m ago</span><span>now</span>
 					</div>
 				</div>
 
 				<!-- Details -->
-				<div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;">
-					<div style="font-size:13px;font-weight:700;margin-bottom:12px;">Details</div>
+				<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] px-[18px] py-4">
+					<div class="text-[13px] font-bold mb-3">Details</div>
 					{#each [
-						{ k: 'Host', v: app.host },
-						{ k: 'Image', v: 'ghcr.io/…/' + app.name },
-						{ k: 'Port', v: port },
-						{ k: 'Quadlet', v: app.quadletPath.split('/').pop() },
+						{ k: 'Host',           v: app.host },
+						{ k: 'Image',          v: 'ghcr.io/…/' + app.name },
+						{ k: 'Port',           v: port },
+						{ k: 'Quadlet',        v: app.quadletPath.split('/').pop() },
 						{ k: 'Restart policy', v: 'always' },
-						{ k: 'Auto-update', v: 'registry' },
-					] as d}
-						<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);">
-							<span style="font-size:12.5px;color:var(--tx-2);">{d.k}</span>
-							<span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tx);text-align:right;">{d.v}</span>
+						{ k: 'Auto-update',    v: 'registry' },
+					] as d (d.k)}
+						<div class="flex justify-between gap-[10px] py-[7px] border-b border-b-[var(--line)]">
+							<span class="text-[12.5px] text-[var(--tx-2)]">{d.k}</span>
+							<span class="font-mono-jb text-[12px] text-[var(--tx)] text-right">{d.v}</span>
 						</div>
 					{/each}
 				</div>
@@ -158,64 +153,64 @@
 
 		<!-- Containers -->
 		{#if activeTab === 'containers'}
-			<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+			<div class="flex items-center justify-between mb-[14px]">
 				<div>
-					<div style="font-size:15px;font-weight:700;">Containers</div>
-					<div style="font-size:12.5px;color:var(--tx-2);">Every container running inside <span style="color:var(--tx);">{app.name}</span>, from one quadlet pod.</div>
+					<div class="text-[15px] font-bold">Containers</div>
+					<div class="text-[12.5px] text-[var(--tx-2)]">Every container running inside <span class="text-[var(--tx)]">{app.name}</span>, from one quadlet pod.</div>
 				</div>
-				<button style="display:flex;align-items:center;gap:7px;background:var(--card-2);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:600;cursor:pointer;">
+				<button class="flex items-center gap-[7px] bg-[var(--card-2)] border border-[var(--line)] text-[var(--tx)] rounded-[8px] px-3 py-2 text-[12.5px] font-semibold cursor-pointer">
 					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
 					Add container
 				</button>
 			</div>
-			<div style="background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;">
-				<div style="display:grid;grid-template-columns:1.4fr 1.4fr 1fr 90px 90px;gap:14px;padding:10px 18px;border-bottom:1px solid var(--line);font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--tx-3);">
+			<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] overflow-hidden">
+				<div class="grid grid-cols-[1.4fr_1.4fr_1fr_90px_90px] gap-[14px] px-[18px] py-[10px] border-b border-b-[var(--line)] text-[11px] font-bold tracking-[.05em] text-[var(--tx-3)]">
 					<div>CONTAINER</div><div>IMAGE</div><div>NETWORKS</div><div>CPU</div><div>MEM</div>
 				</div>
-				{#each containers as c}
-					<div style="display:grid;grid-template-columns:1.4fr 1.4fr 1fr 90px 90px;gap:14px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line);">
-						<div style="display:flex;align-items:center;gap:9px;min-width:0;">
+				{#each containers as c (c.name)}
+					<div class="grid grid-cols-[1.4fr_1.4fr_1fr_90px_90px] gap-[14px] items-center px-[18px] py-3 border-b border-b-[var(--line)] last:border-b-0">
+						<div class="flex items-center gap-[9px] min-w-0">
 							<StatusDot status={c.status} size={8} />
-							<span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{c.name}</span>
+							<span class="font-mono-jb text-[13px] text-[var(--tx)] whitespace-nowrap overflow-hidden text-ellipsis">{c.name}</span>
 						</div>
-						<span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--tx-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{c.image}</span>
-						<span style="font-size:11.5px;color:var(--tx-2);">{c.nets}</span>
-						<span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tx);">{c.cpu}</span>
-						<span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tx);">{c.mem}</span>
+						<span class="font-mono-jb text-[11.5px] text-[var(--tx-2)] whitespace-nowrap overflow-hidden text-ellipsis">{c.image}</span>
+						<span class="text-[11.5px] text-[var(--tx-2)]">{c.nets}</span>
+						<span class="font-mono-jb text-[12px] text-[var(--tx)]">{c.cpu}</span>
+						<span class="font-mono-jb text-[12px] text-[var(--tx)]">{c.mem}</span>
 					</div>
 				{/each}
 				{#if containers.length === 0}
-					<div style="padding:30px;text-align:center;color:var(--tx-3);font-size:13px;">No container data available.</div>
+					<div class="p-[30px] text-center text-[var(--tx-3)] text-[13px]">No container data available.</div>
 				{/if}
 			</div>
 		{/if}
 
 		<!-- Network (visual placeholder) -->
 		{#if activeTab === 'network'}
-			<div style="background:#0c0d13;border:1px solid var(--line);border-radius:14px;padding:60px;text-align:center;color:var(--tx-3);">
-				<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--tx-3)" stroke-width="1.2" style="margin:0 auto 12px;">
+			<div class="bg-[#0c0d13] border border-[var(--line)] rounded-[14px] p-[60px] text-center text-[var(--tx-3)]">
+				<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--tx-3)" stroke-width="1.2" class="mx-auto mb-3">
 					<circle cx="12" cy="12" r="3"/><circle cx="4" cy="6" r="2"/><circle cx="20" cy="6" r="2"/>
 					<circle cx="4" cy="18" r="2"/><circle cx="20" cy="18" r="2"/>
 					<path d="M6 6l4 4M14 14l4 4M6 18l4-4M14 10l4-4"/>
 				</svg>
-				<div style="font-size:14px;font-weight:600;color:var(--tx-2);">Network topology</div>
-				<div style="font-size:12.5px;margin-top:4px;">Interactive network graph for {app.name}</div>
+				<div class="text-[14px] font-semibold text-[var(--tx-2)]">Network topology</div>
+				<div class="text-[12.5px] mt-1">Interactive network graph for {app.name}</div>
 			</div>
 		{/if}
 
 		<!-- Deployments -->
 		{#if activeTab === 'deployments'}
-			<div style="background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;">
-				{#each APP_DEPLOYMENTS as d}
-					<div style="display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);">
-						<div style="width:10px;height:10px;border-radius:50%;background:{d.status === 'Deployed' ? 'var(--grn)' : '#e5654b'};flex:none;"></div>
+			<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] overflow-hidden">
+				{#each APP_DEPLOYMENTS as d (d.sha)}
+					<div class="grid grid-cols-[auto_1fr_auto] gap-[14px] items-center px-[18px] py-[14px] border-b border-b-[var(--line)] last:border-b-0">
+						<div class="size-[10px] rounded-full shrink-0" style:background={d.status === 'Deployed' ? 'var(--grn)' : '#e5654b'}></div>
 						<div>
-							<div style="font-size:13.5px;color:var(--tx);font-weight:600;">{d.msg}</div>
-							<div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--tx-3);margin-top:2px;">{d.sha} · {d.branch} · by {d.by}</div>
+							<div class="text-[13.5px] text-[var(--tx)] font-semibold">{d.msg}</div>
+							<div class="font-mono-jb text-[11.5px] text-[var(--tx-3)] mt-[2px]">{d.sha} · {d.branch} · by {d.by}</div>
 						</div>
-						<div style="text-align:right;">
-							<div style="font-size:12px;color:{d.status === 'Deployed' ? '#52cc96' : '#f0836b'};font-weight:600;">{d.status}</div>
-							<div style="font-size:11px;color:var(--tx-3);margin-top:2px;">{d.time}</div>
+						<div class="text-right">
+							<div class="text-[12px] font-semibold" style:color={d.status === 'Deployed' ? '#52cc96' : '#f0836b'}>{d.status}</div>
+							<div class="text-[11px] text-[var(--tx-3)] mt-[2px]">{d.time}</div>
 						</div>
 					</div>
 				{/each}
@@ -224,22 +219,22 @@
 
 		<!-- Logs -->
 		{#if activeTab === 'logs'}
-			<div style="background:#080c09;border:1px solid var(--line);border-radius:12px;overflow:hidden;">
-				<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--card);">
-					<div style="display:flex;align-items:center;gap:7px;">
-						<div style="width:8px;height:8px;border-radius:50%;background:var(--grn);animation:bk-pulse 2s infinite;"></div>
-						<span style="font-size:12.5px;font-weight:600;">Live</span>
+			<div class="bg-[#080c09] border border-[var(--line)] rounded-[12px] overflow-hidden">
+				<div class="flex items-center gap-[10px] px-4 py-[10px] border-b border-b-[var(--line)] bg-[var(--card)]">
+					<div class="flex items-center gap-[7px]">
+						<div class="size-2 rounded-full bg-[var(--grn)] animate-[bk-pulse_2s_infinite]"></div>
+						<span class="text-[12.5px] font-semibold">Live</span>
 					</div>
-					<span style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--tx-3);">journalctl --user -u {app.unit} -f</span>
-					<div style="flex:1"></div>
-					<span style="font-size:11.5px;color:var(--tx-3);">stdout · stderr</span>
+					<span class="font-mono-jb text-[11.5px] text-[var(--tx-3)]">journalctl --user -u {app.unit} -f</span>
+					<div class="flex-1"></div>
+					<span class="text-[11.5px] text-[var(--tx-3)]">stdout · stderr</span>
 				</div>
-				<div style="padding:14px 16px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.7;max-height:360px;overflow-y:auto;">
-					{#each LOG_LINES as l}
-						<div style="display:flex;gap:12px;">
-							<span style="color:var(--tx-3);flex:none;">{l.t}</span>
-							<span style="color:{l.color};flex:none;width:52px;">{l.lvl}</span>
-							<span style="color:var(--tx);white-space:pre-wrap;">{l.msg}</span>
+				<div class="px-4 py-[14px] font-mono-jb text-[12px] leading-[1.7] max-h-[360px] overflow-y-auto">
+					{#each LOG_LINES as l (l.t + l.msg)}
+						<div class="flex gap-3">
+							<span class="text-[var(--tx-3)] shrink-0">{l.t}</span>
+							<span class="shrink-0 w-[52px]" style:color={l.color}>{l.lvl}</span>
+							<span class="text-[var(--tx)] whitespace-pre-wrap">{l.msg}</span>
 						</div>
 					{/each}
 				</div>
@@ -248,31 +243,30 @@
 
 		<!-- Environment -->
 		{#if activeTab === 'env'}
-			<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+			<div class="flex items-center justify-between mb-[14px]">
 				<div>
-					<div style="font-size:15px;font-weight:700;">Environment</div>
-					<div style="font-size:12.5px;color:var(--tx-2);">Scoped to <span style="color:var(--tx);">{app.name}</span> only · written to <span style="font-family:'JetBrains Mono',monospace;color:var(--grn-2);">/etc/bakery/{app.unit}.env</span></div>
+					<div class="text-[15px] font-bold">Environment</div>
+					<div class="text-[12.5px] text-[var(--tx-2)]">Scoped to <span class="text-[var(--tx)]">{app.name}</span> only · written to <span class="font-mono-jb text-[var(--grn-2)]">/etc/bakery/{app.unit}.env</span></div>
 				</div>
-				<div style="display:flex;gap:8px;">
-					<button style="background:var(--card-2);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:600;cursor:pointer;">Import .env</button>
-					<button onclick={() => reveal = !reveal} style="background:var(--card-2);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:600;cursor:pointer;">{reveal ? 'Hide values' : 'Reveal values'}</button>
+				<div class="flex gap-2">
+					<button class="bg-[var(--card-2)] border border-[var(--line)] text-[var(--tx)] rounded-[8px] px-3 py-2 text-[12.5px] font-semibold cursor-pointer">Import .env</button>
+					<button onclick={() => reveal = !reveal} class="bg-[var(--card-2)] border border-[var(--line)] text-[var(--tx)] rounded-[8px] px-3 py-2 text-[12.5px] font-semibold cursor-pointer">{reveal ? 'Hide values' : 'Reveal values'}</button>
 				</div>
 			</div>
-			<!-- Env filter tabs -->
-			<div style="display:flex;gap:3px;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:3px;width:fit-content;margin-bottom:14px;">
+			<div class="flex gap-[3px] bg-[var(--card)] border border-[var(--line)] rounded-[9px] p-[3px] w-fit mb-[14px]">
 				{#each (['production', 'staging'] as const) as tab}
 					<button
 						onclick={() => envSel = tab}
-						style="padding:5px 11px;font-size:12.5px;border-radius:6px;cursor:pointer;background:{envSel === tab ? 'var(--card-2)' : 'transparent'};color:{envSel === tab ? 'var(--tx)' : 'var(--tx-2)'};border:none;"
+						class="px-[11px] py-[5px] text-[12.5px] rounded-[6px] cursor-pointer {envSel === tab ? 'bg-[var(--card-2)] text-[var(--tx)]' : 'text-[var(--tx-2)]'}"
 					>{tab.charAt(0).toUpperCase() + tab.slice(1)}</button>
 				{/each}
 			</div>
-			<div style="background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;">
-				{#each envVars as e}
-					<div style="display:grid;grid-template-columns:1fr 1.6fr auto;gap:14px;align-items:center;padding:11px 18px;border-bottom:1px solid var(--line);">
-						<span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--grn-2);font-weight:500;">{e.key}</span>
-						<span style="font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{e.shown}</span>
-						<span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:600;padding:3px 8px;border-radius:6px;background:{e.secret ? 'rgba(224,168,62,.14)' : 'rgba(255,255,255,.06)'};color:{e.secret ? '#efc060' : 'var(--tx-3)'};">{e.secret ? 'secret' : 'variable'}</span>
+			<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] overflow-hidden">
+				{#each envVars as e (e.key)}
+					<div class="grid grid-cols-[1fr_1.6fr_auto] gap-[14px] items-center px-[18px] py-[11px] border-b border-b-[var(--line)] last:border-b-0">
+						<span class="font-mono-jb text-[12.5px] text-[var(--grn-2)] font-medium">{e.key}</span>
+						<span class="font-mono-jb text-[12.5px] text-[var(--tx)] whitespace-nowrap overflow-hidden text-ellipsis">{e.shown}</span>
+						<span class="font-mono-jb text-[10.5px] font-semibold px-2 py-[3px] rounded-[6px]" style:background={e.secret ? 'rgba(224,168,62,.14)' : 'rgba(255,255,255,.06)'} style:color={e.secret ? '#efc060' : 'var(--tx-3)'}>{e.secret ? 'secret' : 'variable'}</span>
 					</div>
 				{/each}
 			</div>
@@ -280,18 +274,18 @@
 
 		<!-- Domains & Proxy -->
 		{#if activeTab === 'domains'}
-			<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-				<div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;">
-					<div style="font-size:14px;font-weight:700;margin-bottom:4px;">Domain</div>
-					<div style="font-size:12.5px;color:var(--tx-2);margin-bottom:14px;">Public address routed to this app.</div>
-					<div style="display:flex;align-items:center;gap:10px;background:var(--card-2);border:1px solid var(--line);border-radius:9px;padding:11px 14px;">
+			<div class="grid grid-cols-2 gap-4">
+				<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] p-[18px]">
+					<div class="text-[14px] font-bold mb-1">Domain</div>
+					<div class="text-[12.5px] text-[var(--tx-2)] mb-[14px]">Public address routed to this app.</div>
+					<div class="flex items-center gap-[10px] bg-[var(--card-2)] border border-[var(--line)] rounded-[9px] px-[14px] py-[11px]">
 						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--grn)" stroke-width="1.8">
 							<circle cx="12" cy="12" r="9"/>
 							<path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>
 						</svg>
-						<span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--tx);">{app.domain}</span>
+						<span class="font-mono-jb text-[13px] text-[var(--tx)]">{app.domain}</span>
 						{#if app.domain !== '— internal —'}
-							<span style="margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--grn);">
+							<span class="ml-auto flex items-center gap-[5px] text-[11.5px] text-[var(--grn)]">
 								<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M20 6L9 17l-5-5"/></svg>
 								DNS ok
 							</span>
@@ -299,45 +293,34 @@
 					</div>
 				</div>
 
-				<div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;">
-					<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-						<div style="font-size:14px;font-weight:700;">Caddy reverse proxy</div>
-						<div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--grn);">
-							<div style="width:7px;height:7px;border-radius:50%;background:var(--grn);"></div>Active · auto HTTPS
+				<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] p-[18px]">
+					<div class="flex items-center justify-between mb-1">
+						<div class="text-[14px] font-bold">Caddy reverse proxy</div>
+						<div class="flex items-center gap-[7px] text-[11.5px] text-[var(--grn)]">
+							<div class="size-[7px] rounded-full bg-[var(--grn)]"></div>Active · auto HTTPS
 						</div>
 					</div>
-					<div style="font-size:12.5px;color:var(--tx-2);margin-bottom:14px;">Bakery manages a single Caddy instance per host.</div>
-					<div style="font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.8;background:#080c09;border:1px solid var(--line);border-radius:9px;padding:13px 15px;color:var(--tx-2);">
-						<span style="color:var(--grn-2);">{app.domain}</span> {'{'}
-						<br>&nbsp;&nbsp;reverse_proxy <span style="color:var(--amber);">127.0.0.1:{port}</span>
-						<br>&nbsp;&nbsp;encode zstd gzip
-						<br>{'}'}
-					</div>
+					<div class="text-[12.5px] text-[var(--tx-2)] mb-[14px]">Bakery manages a single Caddy instance per host.</div>
+					<pre class="font-mono-jb text-[12px] leading-[1.8] bg-[#080c09] border border-[var(--line)] rounded-[9px] px-[15px] py-[13px] text-[var(--tx-2)] overflow-x-auto m-0"><span class="text-[var(--grn-2)]">{app.domain}</span> {'{'}
+  reverse_proxy <span class="text-[var(--amber)]">127.0.0.1:{port}</span>
+  encode zstd gzip
+{'}'}</pre>
 				</div>
 			</div>
 		{/if}
 
 		<!-- Quadlet -->
 		{#if activeTab === 'quadlet'}
-			<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+			<div class="flex items-center justify-between mb-3">
 				<div>
-					<div style="font-size:15px;font-weight:700;">Quadlet</div>
-					<div style="font-size:12.5px;color:var(--tx-2);">The Podman Quadlet that defines this app, sourced from <span style="font-family:'JetBrains Mono',monospace;color:var(--grn-2);">{app.quadletPath}</span>.</div>
+					<div class="text-[15px] font-bold">Quadlet</div>
+					<div class="text-[12.5px] text-[var(--tx-2)]">The Podman Quadlet that defines this app, sourced from <span class="font-mono-jb text-[var(--grn-2)]">{app.quadletPath}</span>.</div>
 				</div>
-				<span style="font-family:'JetBrains Mono',monospace;font-size:11px;padding:5px 10px;border-radius:6px;background:var(--grn-dim);color:var(--grn);">.container</span>
+				<span class="font-mono-jb text-[11px] px-[10px] py-[5px] rounded-[6px] bg-[var(--grn-dim)] text-[var(--grn)]">.container</span>
 			</div>
-			<pre style="font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.85;background:#080c09;border:1px solid var(--line);border-radius:12px;padding:18px 20px;overflow-x:auto;color:var(--tx);margin:0;">{quadletContent(app)}</pre>
+			<pre class="font-mono-jb text-[12.5px] leading-[1.85] bg-[#080c09] border border-[var(--line)] rounded-[12px] px-5 py-[18px] overflow-x-auto text-[var(--tx)] m-0 [tab-size:2]">{quadletContent(app)}</pre>
 		{/if}
+
 	</div>
 </div>
 {/if}
-
-<style>
-	button {
-		all: unset;
-		box-sizing: border-box;
-	}
-	button:not([style*="cursor:pointer"]) {
-		cursor: pointer;
-	}
-</style>

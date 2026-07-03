@@ -78,6 +78,9 @@
 
 @theme inline {
 	--font-sans: 'Inter Variable', sans-serif;
+	--font-bakery: 'Instrument Sans', system-ui, sans-serif;
+	--font-heading: 'Bricolage Grotesque', sans-serif;
+	--font-mono-jb: 'JetBrains Mono', monospace;
 	--color-sidebar-ring: var(--sidebar-ring);
 	--color-sidebar-border: var(--sidebar-border);
 	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -128,6 +131,43 @@
 	html {
 		@apply font-sans;
 	}
+	.bakery-shell button {
+		all: unset;
+		box-sizing: border-box;
+	}
+	.bakery-shell input,
+	.bakery-shell select {
+		box-sizing: border-box;
+	}
+	.bakery-shell input:focus,
+	.bakery-shell select:focus {
+		outline: none;
+		border-color: var(--grn-line);
+	}
+}
+
+/* Bakery shell — design tokens */
+.bakery-shell {
+	--rail: #0a0b10;
+	--sidebar: #0c0d13;
+	--main: #0a0b0f;
+	--topbar: #0b0c11;
+	--panel: #101119;
+	--card: #12141b;
+	--card-2: #191c25;
+	--line: rgba(255,255,255,.06);
+	--line-2: rgba(255,255,255,.11);
+	--tx: #e7e9ee;
+	--tx-2: #8f94a3;
+	--tx-3: #5c6170;
+	--grn: #3fb984;
+	--grn-2: #52cc96;
+	--grn-dim: rgba(63,185,132,.14);
+	--grn-line: rgba(63,185,132,.28);
+	--ok: #34d399;
+	--ok-2: #5ee0ab;
+	--amber: #f59e0b;
+	--violet: #8b5cf6;
 }
 
 /* Bakery app animations & scrollbar */

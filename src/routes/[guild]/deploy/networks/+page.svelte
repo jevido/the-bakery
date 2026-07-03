@@ -17,13 +17,12 @@
 		: networks.filter((n) => n.internal)
 	);
 
-	function filterStyle(f: typeof filter) {
+	function filterCls(f: typeof filter) {
 		return f === filter
-			? 'padding:5px 11px;font-size:12.5px;color:var(--tx);border-radius:6px;cursor:pointer;background:var(--card-2);'
-			: 'padding:5px 11px;font-size:12.5px;color:var(--tx-2);border-radius:6px;cursor:pointer;';
+			? 'px-[11px] py-[5px] text-[12.5px] text-[var(--tx)] rounded-[6px] cursor-pointer bg-[var(--card-2)]'
+			: 'px-[11px] py-[5px] text-[12.5px] text-[var(--tx-2)] rounded-[6px] cursor-pointer';
 	}
 
-	// ── Add network panel ─────────────────────────────────────────────
 	let panelOpen = $state(false);
 	let formStep = $state<'form' | 'done'>('form');
 	let netName = $state('');
@@ -44,9 +43,7 @@
 		creating = false;
 	}
 
-	function closePanel() {
-		panelOpen = false;
-	}
+	function closePanel() { panelOpen = false; }
 
 	const canCreate = $derived(netName.trim().length > 0 && netHost.length > 0);
 
@@ -58,14 +55,17 @@
 	}
 
 	const resolvedSubnet = $derived(netSubnet.trim() || '10.88.0.0/16');
+
+	const panelInputCls = 'w-full bg-[var(--card)] border border-[var(--line-2)] rounded-[8px] px-3 py-[9px] text-[13.5px] text-[var(--tx)] font-mono-jb';
+	const panelSelectCls = 'w-full bg-[var(--card)] border border-[var(--line-2)] rounded-[8px] px-3 py-[9px] text-[13.5px] text-[var(--tx)] font-bakery appearance-none cursor-pointer';
 </script>
 
-<div style="padding: 22px 28px;">
+<div class="px-7 py-[22px]">
 	<!-- Header -->
-	<div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:22px;">
+	<div class="flex items-start gap-[14px] mb-[22px]">
 		<div>
-			<div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:23px;letter-spacing:-.01em;margin-bottom:3px;">Networks</div>
-			<div style="font-size:13px;color:var(--tx-2);">
+			<div class="font-heading font-bold text-[23px] tracking-[-0.01em] mb-[3px]">Networks</div>
+			<div class="text-[13px] text-[var(--tx-2)]">
 				{#if networks.length > 0}
 					{networks.length} network{networks.length !== 1 ? 's' : ''} · {totalApps} container{totalApps !== 1 ? 's' : ''} attached
 				{:else}
@@ -73,71 +73,65 @@
 				{/if}
 			</div>
 		</div>
-		<div style="flex:1"></div>
-		<button onclick={openPanel} style="display:flex;align-items:center;gap:7px;background:var(--grn);color:#07130c;border-radius:9px;padding:8px 14px;font-size:13.5px;font-weight:700;cursor:pointer;box-shadow:0 2px 12px var(--grn-dim);">
+		<div class="flex-1"></div>
+		<button onclick={openPanel} class="flex items-center gap-[7px] bg-[var(--grn)] text-[#07130c] rounded-[9px] px-[14px] py-2 text-[13.5px] font-bold cursor-pointer shadow-[0_2px_12px_var(--grn-dim)]">
 			<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
 			Add network
 		</button>
 	</div>
 
 	{#if networks.length === 0}
-		<!-- Empty / onboarding state -->
-		<div style="background:var(--card);border:1px solid var(--line);border-radius:13px;padding:40px 32px;">
-			<div style="font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:700;color:var(--tx);margin-bottom:6px;">No networks defined</div>
-			<div style="font-size:13px;color:var(--tx-3);margin-bottom:32px;">Create a Podman network to isolate or connect your containers across a host.</div>
+		<div class="bg-[var(--card)] border border-[var(--line)] rounded-[13px] p-[40px_32px]">
+			<div class="font-heading text-[16px] font-bold text-[var(--tx)] mb-[6px]">No networks defined</div>
+			<div class="text-[13px] text-[var(--tx-3)] mb-8">Create a Podman network to isolate or connect your containers across a host.</div>
 
-			<!-- 3-step guide -->
-			<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:32px;">
+			<div class="grid grid-cols-3 gap-4 mb-8">
 				{#each [
 					{ n: '1', title: 'Choose a host', desc: 'Select which machine the network lives on. Networks are scoped to a single host.' },
 					{ n: '2', title: 'Configure the network', desc: 'Give it a name, pick a driver (bridge is the default), and optionally set a CIDR range.' },
 					{ n: '3', title: 'Attach apps', desc: 'Connect deployments at deploy time or add them from the app detail page.' },
 				] as guideStep (guideStep.n)}
-					<div style="background:var(--card-2);border:1px solid var(--line);border-radius:10px;padding:18px 16px;">
-						<div style="width:28px;height:28px;border-radius:50%;background:var(--grn-dim);border:1px solid var(--grn-line);display:flex;align-items:center;justify-content:center;margin-bottom:12px;">
-							<span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--grn-2);">{guideStep.n}</span>
+					<div class="bg-[var(--card-2)] border border-[var(--line)] rounded-[10px] p-[18px_16px]">
+						<div class="size-7 rounded-full bg-[var(--grn-dim)] border border-[var(--grn-line)] flex items-center justify-center mb-3">
+							<span class="font-mono-jb text-[12px] font-bold text-[var(--grn-2)]">{guideStep.n}</span>
 						</div>
-						<div style="font-size:13.5px;font-weight:600;color:var(--tx);margin-bottom:5px;">{guideStep.title}</div>
-						<div style="font-size:12px;color:var(--tx-3);line-height:1.55;">{guideStep.desc}</div>
+						<div class="text-[13.5px] font-semibold text-[var(--tx)] mb-[5px]">{guideStep.title}</div>
+						<div class="text-[12px] text-[var(--tx-3)] leading-[1.55]">{guideStep.desc}</div>
 					</div>
 				{/each}
 			</div>
 
-			<!-- Driver pills -->
-			<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:28px;">
+			<div class="flex flex-wrap gap-2 mb-7">
 				{#each [
 					{ label: 'bridge',  color: '#7aa6f5', desc: 'Default — software bridge on host' },
 					{ label: 'macvlan', color: '#c09bf0', desc: 'Physical device appearance' },
 					{ label: 'ipvlan',  color: '#efc060', desc: 'Shares parent MAC address' },
 				] as d (d.label)}
-					<div style="display:flex;align-items:center;gap:8px;background:var(--card-2);border:1px solid var(--line);border-radius:7px;padding:6px 12px;">
-						<div style="width:8px;height:8px;border-radius:50%;background:{d.color};"></div>
-						<span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tx-2);">{d.label}</span>
-						<span style="font-size:12px;color:var(--tx-3);">{d.desc}</span>
+					<div class="flex items-center gap-2 bg-[var(--card-2)] border border-[var(--line)] rounded-[7px] px-3 py-[6px]">
+						<div class="size-2 rounded-full" style:background={d.color}></div>
+						<span class="font-mono-jb text-[12px] text-[var(--tx-2)]">{d.label}</span>
+						<span class="text-[12px] text-[var(--tx-3)]">{d.desc}</span>
 					</div>
 				{/each}
 			</div>
 
-			<button onclick={openPanel} style="display:inline-flex;align-items:center;gap:7px;background:var(--grn);color:#07130c;border-radius:9px;padding:9px 18px;font-size:13.5px;font-weight:700;cursor:pointer;box-shadow:0 2px 12px var(--grn-dim);">
+			<button onclick={openPanel} class="inline-flex items-center gap-[7px] bg-[var(--grn)] text-[#07130c] rounded-[9px] px-[18px] py-[9px] text-[13.5px] font-bold cursor-pointer shadow-[0_2px_12px_var(--grn-dim)]">
 				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
 				Create your first network
 			</button>
 		</div>
 
 	{:else}
-		<!-- Filter tabs -->
-		<div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
-			<div style="display:flex;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:3px;">
-				<button onclick={() => filter = 'all'} style={filterStyle('all')}>All</button>
-				<button onclick={() => filter = 'bridge'} style={filterStyle('bridge')}>Bridge</button>
-				<button onclick={() => filter = 'internal'} style={filterStyle('internal')}>Internal</button>
+		<div class="flex items-center gap-[14px] mb-[14px]">
+			<div class="flex gap-0.5 bg-[var(--card)] border border-[var(--line)] rounded-[9px] p-[3px]">
+				<button onclick={() => filter = 'all'} class={filterCls('all')}>All</button>
+				<button onclick={() => filter = 'bridge'} class={filterCls('bridge')}>Bridge</button>
+				<button onclick={() => filter = 'internal'} class={filterCls('internal')}>Internal</button>
 			</div>
 		</div>
 
-		<!-- Networks table -->
-		<div style="background:var(--card);border:1px solid var(--line);border-radius:13px;overflow:hidden;">
-			<!-- Header row -->
-			<div style="display:grid;grid-template-columns:1.6fr 100px 1.3fr 1.4fr 120px 90px 80px;gap:12px;padding:11px 18px;border-bottom:1px solid var(--line);font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--tx-3);">
+		<div class="bg-[var(--card)] border border-[var(--line)] rounded-[13px] overflow-hidden">
+			<div class="grid grid-cols-[1.6fr_100px_1.3fr_1.4fr_120px_90px_80px] gap-3 px-[18px] py-[11px] border-b border-b-[var(--line)] text-[11px] font-bold tracking-[.05em] text-[var(--tx-3)]">
 				<div>NETWORK</div>
 				<div>DRIVER</div>
 				<div>SUBNET</div>
@@ -149,172 +143,132 @@
 
 			{#each filtered as net (net.id)}
 				{@const dm = networkDriverMeta(net.driver)}
-				<div class="net-row" style="padding:13px 18px;display:grid;grid-template-columns:1.6fr 100px 1.3fr 1.4fr 120px 90px 80px;gap:12px;align-items:center;border-bottom:1px solid var(--line);">
-					<!-- Name -->
-					<div style="display:flex;align-items:center;gap:11px;min-width:0;">
-						<div style="width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex:none;">
+				<div class="group px-[18px] py-[13px] grid grid-cols-[1.6fr_100px_1.3fr_1.4fr_120px_90px_80px] gap-3 items-center border-b border-b-[var(--line)] last:border-b-0 hover:bg-white/[0.02]">
+					<div class="flex items-center gap-[11px] min-w-0">
+						<div class="size-[34px] rounded-[9px] bg-white/5 border border-[var(--line)] flex items-center justify-center shrink-0">
 							{@render NetworkIcon()}
 						</div>
-						<div style="min-width:0;">
-							<div style="font-size:14px;font-weight:600;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{net.name}</div>
-							<div style="font-size:11px;color:var(--tx-3);">{net.internal ? 'internal · isolated' : 'external · routable'}</div>
+						<div class="min-w-0">
+							<div class="text-[14px] font-semibold text-[var(--tx)] whitespace-nowrap overflow-hidden text-ellipsis">{net.name}</div>
+							<div class="text-[11px] text-[var(--tx-3)]">{net.internal ? 'internal · isolated' : 'external · routable'}</div>
 						</div>
 					</div>
 
-					<!-- Driver badge -->
 					<div>
-						<span style="font-size:12px;font-weight:600;color:{dm.color};background:{dm.bg};border-radius:5px;padding:3px 8px;">{dm.label}</span>
+						<span class="text-[12px] font-semibold rounded-[5px] px-2 py-[3px]" style:color={dm.color} style:background={dm.bg}>{dm.label}</span>
 					</div>
 
-					<!-- Subnet + gateway -->
 					<div>
-						<div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--tx-2);">{net.subnet}</div>
-						<div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--tx-3);">gw {net.gateway}</div>
+						<div class="font-mono-jb text-[12px] text-[var(--tx-2)]">{net.subnet}</div>
+						<div class="font-mono-jb text-[11px] text-[var(--tx-3)]">gw {net.gateway}</div>
 					</div>
 
-					<!-- Apps -->
-					<div style="display:flex;flex-wrap:wrap;gap:4px;min-width:0;">
+					<div class="flex flex-wrap gap-1 min-w-0">
 						{#each net.connectedApps.slice(0, 3) as appId (appId)}
-							<span style="font-size:11px;color:var(--tx-2);background:var(--card-2);border:1px solid var(--line);border-radius:4px;padding:2px 6px;white-space:nowrap;">{appId}</span>
+							<span class="text-[11px] text-[var(--tx-2)] bg-[var(--card-2)] border border-[var(--line)] rounded-[4px] px-[6px] py-[2px] whitespace-nowrap">{appId}</span>
 						{/each}
 						{#if net.connectedApps.length > 3}
-							<span style="font-size:11px;color:var(--tx-3);background:var(--card-2);border:1px solid var(--line);border-radius:4px;padding:2px 6px;">+{net.connectedApps.length - 3} more</span>
+							<span class="text-[11px] text-[var(--tx-3)] bg-[var(--card-2)] border border-[var(--line)] rounded-[4px] px-[6px] py-[2px]">+{net.connectedApps.length - 3} more</span>
 						{/if}
 					</div>
 
-					<!-- Host -->
-					<div style="font-size:12.5px;color:var(--tx-2);">{net.host}</div>
+					<div class="text-[12.5px] text-[var(--tx-2)]">{net.host}</div>
+					<div class="text-[12px] text-[var(--tx-3)]">{net.created}</div>
 
-					<!-- Created -->
-					<div style="font-size:12px;color:var(--tx-3);">{net.created}</div>
-
-					<!-- Inspect -->
-					<div style="text-align:right;">
-						<button class="inspect-btn" style="font-size:12.5px;color:var(--tx-3);cursor:pointer;padding:4px 8px;border-radius:6px;">Inspect →</button>
+					<div class="text-right">
+						<button class="opacity-0 transition-opacity duration-150 group-hover:opacity-100 text-[12.5px] text-[var(--tx-3)] cursor-pointer px-2 py-1 rounded-[6px]">Inspect →</button>
 					</div>
 				</div>
 			{/each}
 
 			{#if filtered.length === 0}
-				<div style="padding:40px;text-align:center;color:var(--tx-3);font-size:13.5px;">No networks match the current filter.</div>
+				<div class="p-10 text-center text-[var(--tx-3)] text-[13.5px]">No networks match the current filter.</div>
 			{/if}
 		</div>
 	{/if}
 </div>
 
-<!-- ── Add Network Panel ──────────────────────────────────────────────── -->
 {#if panelOpen}
-	<!-- Backdrop -->
 	<div
 		role="button"
 		tabindex="-1"
 		onclick={closePanel}
 		onkeydown={(e) => e.key === 'Escape' && closePanel()}
-		style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;"
+		class="fixed inset-0 bg-black/55 z-[200]"
 	></div>
 
-	<!-- Panel -->
-	<div style="position:fixed;top:0;right:0;width:480px;height:100vh;background:var(--panel);border-left:1px solid var(--line);z-index:201;display:flex;flex-direction:column;overflow:hidden;">
-		<!-- Header -->
-		<div style="padding:20px 24px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;">
-			<div style="font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:700;color:var(--tx);">
+	<div class="fixed top-0 right-0 w-[480px] h-screen bg-[var(--panel)] border-l border-l-[var(--line)] z-[201] flex flex-col overflow-hidden">
+		<div class="px-6 pt-5 pb-4 border-b border-b-[var(--line)] flex items-center gap-3">
+			<div class="font-heading text-[16px] font-bold text-[var(--tx)]">
 				{formStep === 'form' ? 'Add network' : 'Network created'}
 			</div>
-			<div style="flex:1"></div>
-			<button onclick={closePanel} aria-label="Close panel" style="color:var(--tx-3);cursor:pointer;display:flex;align-items:center;">
+			<div class="flex-1"></div>
+			<button onclick={closePanel} aria-label="Close panel" class="text-[var(--tx-3)] cursor-pointer flex items-center">
 				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
 			</button>
 		</div>
 
-		<!-- Body -->
-		<div style="flex:1;overflow-y:auto;padding:24px;">
-
+		<div class="flex-1 overflow-y-auto p-6">
 			{#if formStep === 'form'}
-				<div style="display:flex;flex-direction:column;gap:18px;">
-
-					<!-- Name -->
+				<div class="flex flex-col gap-[18px]">
 					<div>
-						<label for="net-name" style="display:block;font-size:12px;font-weight:600;color:var(--tx-2);margin-bottom:6px;letter-spacing:.03em;">NETWORK NAME</label>
-						<input
-							id="net-name"
-							bind:value={netName}
-							placeholder="bakery-net"
-							style="width:100%;background:var(--card);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;font-size:13.5px;color:var(--tx);font-family:'JetBrains Mono',monospace;outline:none;"
-						/>
+						<label for="net-name" class="block text-[12px] font-semibold text-[var(--tx-2)] mb-[6px] tracking-[.03em]">NETWORK NAME</label>
+						<input id="net-name" bind:value={netName} placeholder="bakery-net" class={panelInputCls} />
 					</div>
 
-					<!-- Host -->
 					<div>
-						<label for="net-host" style="display:block;font-size:12px;font-weight:600;color:var(--tx-2);margin-bottom:6px;letter-spacing:.03em;">HOST</label>
-						<select
-							id="net-host"
-							bind:value={netHost}
-							style="width:100%;background:var(--card);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;font-size:13.5px;color:var(--tx);font-family:'Instrument Sans',sans-serif;outline:none;appearance:none;cursor:pointer;"
-						>
+						<label for="net-host" class="block text-[12px] font-semibold text-[var(--tx-2)] mb-[6px] tracking-[.03em]">HOST</label>
+						<select id="net-host" bind:value={netHost} class={panelSelectCls}>
 							{#each hosts as h (h.name)}
 								<option value={h.name}>{h.name} — {h.location}</option>
 							{/each}
 						</select>
-						<div style="font-size:11.5px;color:var(--tx-3);margin-top:5px;">Networks are scoped to a single host.</div>
+						<div class="text-[11.5px] text-[var(--tx-3)] mt-[5px]">Networks are scoped to a single host.</div>
 					</div>
 
-					<!-- Driver -->
 					<div>
-						<label for="net-driver" style="display:block;font-size:12px;font-weight:600;color:var(--tx-2);margin-bottom:6px;letter-spacing:.03em;">DRIVER</label>
-						<select
-							id="net-driver"
-							bind:value={netDriver}
-							style="width:100%;background:var(--card);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;font-size:13.5px;color:var(--tx);font-family:'Instrument Sans',sans-serif;outline:none;appearance:none;cursor:pointer;"
-						>
+						<label for="net-driver" class="block text-[12px] font-semibold text-[var(--tx-2)] mb-[6px] tracking-[.03em]">DRIVER</label>
+						<select id="net-driver" bind:value={netDriver} class={panelSelectCls}>
 							<option value="bridge">bridge — default software bridge</option>
 							<option value="macvlan">macvlan — appear as physical device</option>
 							<option value="ipvlan">ipvlan — shares parent MAC</option>
 						</select>
 						{#if netDriver !== 'bridge'}
-							<div style="margin-top:8px;background:var(--card-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--tx-3);line-height:1.5;">
+							<div class="mt-2 bg-[var(--card-2)] border border-[var(--line)] rounded-[8px] px-3 py-[10px] text-[12px] text-[var(--tx-3)] leading-[1.5]">
 								{networkDriverMeta(netDriver).desc}
 							</div>
 						{/if}
 					</div>
 
-					<!-- Subnet -->
 					<div>
-						<label for="net-subnet" style="display:block;font-size:12px;font-weight:600;color:var(--tx-2);margin-bottom:6px;letter-spacing:.03em;">SUBNET <span style="font-weight:400;color:var(--tx-3);">— optional</span></label>
-						<input
-							id="net-subnet"
-							bind:value={netSubnet}
-							placeholder="10.88.0.0/16"
-							style="width:100%;background:var(--card);border:1px solid var(--line-2);border-radius:8px;padding:9px 12px;font-size:13.5px;color:var(--tx);font-family:'JetBrains Mono',monospace;outline:none;"
-						/>
-						<div style="font-size:11.5px;color:var(--tx-3);margin-top:5px;">Leave blank to let Podman assign automatically.</div>
+						<label for="net-subnet" class="block text-[12px] font-semibold text-[var(--tx-2)] mb-[6px] tracking-[.03em]">SUBNET <span class="font-normal text-[var(--tx-3)]">— optional</span></label>
+						<input id="net-subnet" bind:value={netSubnet} placeholder="10.88.0.0/16" class={panelInputCls} />
+						<div class="text-[11.5px] text-[var(--tx-3)] mt-[5px]">Leave blank to let Podman assign automatically.</div>
 					</div>
 
-					<!-- Internal toggle -->
 					<div>
-						<div style="font-size:12px;font-weight:600;color:var(--tx-2);margin-bottom:8px;letter-spacing:.03em;">CONNECTIVITY</div>
+						<div class="text-[12px] font-semibold text-[var(--tx-2)] mb-2 tracking-[.03em]">CONNECTIVITY</div>
 						<button
 							onclick={() => netInternal = !netInternal}
-							style="display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line-2);border-radius:8px;padding:10px 14px;width:100%;cursor:pointer;text-align:left;"
+							class="flex items-center gap-3 bg-[var(--card)] border border-[var(--line-2)] rounded-[8px] px-[14px] py-[10px] w-full cursor-pointer text-left"
 						>
-							<!-- Toggle -->
-							<div style="width:36px;height:20px;border-radius:10px;background:{netInternal ? 'var(--grn)' : 'rgba(255,255,255,.1)'};position:relative;transition:background 0.2s;flex:none;">
-								<div style="position:absolute;top:3px;left:{netInternal ? '19px' : '3px'};width:14px;height:14px;border-radius:50%;background:#fff;transition:left 0.2s;"></div>
+							<div class="w-9 h-5 rounded-[10px] relative shrink-0 transition-[background] duration-200 {netInternal ? 'bg-[var(--grn)]' : 'bg-white/10'}">
+								<div class="absolute top-[3px] size-[14px] rounded-full bg-white transition-[left] duration-200" style:left={netInternal ? '19px' : '3px'}></div>
 							</div>
 							<div>
-								<div style="font-size:13px;font-weight:600;color:var(--tx);">{netInternal ? 'Internal (isolated)' : 'External'}</div>
-								<div style="font-size:12px;color:var(--tx-3);">{netInternal ? 'Containers cannot reach the internet.' : 'Containers can reach external hosts.'}</div>
+								<div class="text-[13px] font-semibold text-[var(--tx)]">{netInternal ? 'Internal (isolated)' : 'External'}</div>
+								<div class="text-[12px] text-[var(--tx-3)]">{netInternal ? 'Containers cannot reach the internet.' : 'Containers can reach external hosts.'}</div>
 							</div>
 						</button>
 					</div>
 
-					<!-- Create button -->
 					<button
 						onclick={createNetwork}
 						disabled={!canCreate || creating}
-						style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--grn);color:#07130c;border-radius:9px;padding:11px;font-size:14px;font-weight:700;box-shadow:0 2px 12px var(--grn-dim);{(!canCreate || creating) ? 'opacity:.4;cursor:not-allowed;' : 'cursor:pointer;'}"
+						class="w-full flex items-center justify-center gap-2 bg-[var(--grn)] text-[#07130c] rounded-[9px] py-[11px] text-[14px] font-bold shadow-[0_2px_12px_var(--grn-dim)] {(!canCreate || creating) ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}"
 					>
 						{#if creating}
-							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:bk-spin 1s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-[bk-spin_1s_linear_infinite]"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
 							Creating…
 						{:else}
 							Create network
@@ -323,43 +277,35 @@
 				</div>
 
 			{:else}
-				<!-- Success -->
-				<div style="text-align:center;padding:24px 0;">
-					<div style="width:56px;height:56px;border-radius:50%;background:var(--grn-dim);border:1px solid var(--grn-line);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+				<div class="text-center py-6">
+					<div class="size-14 rounded-full bg-[var(--grn-dim)] border border-[var(--grn-line)] flex items-center justify-center mx-auto mb-4">
 						<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--grn-2)" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
 					</div>
-					<div style="font-family:'Bricolage Grotesque',sans-serif;font-size:18px;font-weight:700;color:var(--tx);margin-bottom:6px;">Network created!</div>
-					<div style="font-size:13px;color:var(--tx-3);margin-bottom:28px;">
-						Your network is ready. Attach containers by selecting it at deploy time.
-					</div>
+					<div class="font-heading text-[18px] font-bold text-[var(--tx)] mb-[6px]">Network created!</div>
+					<div class="text-[13px] text-[var(--tx-3)] mb-7">Your network is ready. Attach containers by selecting it at deploy time.</div>
 
-					<!-- Network summary card -->
-					<div style="background:var(--card);border:1px solid var(--line);border-radius:10px;text-align:left;overflow:hidden;margin-bottom:24px;">
+					<div class="bg-[var(--card)] border border-[var(--line)] rounded-[10px] text-left overflow-hidden mb-6">
 						{#each [
-							{ label: 'Name',    value: netName || 'my-network', mono: true },
-							{ label: 'Driver',  value: netDriver, mono: true },
-							{ label: 'Subnet',  value: resolvedSubnet, mono: true },
-							{ label: 'Host',    value: netHost, mono: false },
+							{ label: 'Name',     value: netName || 'my-network', mono: true },
+							{ label: 'Driver',   value: netDriver, mono: true },
+							{ label: 'Subnet',   value: resolvedSubnet, mono: true },
+							{ label: 'Host',     value: netHost, mono: false },
 							{ label: 'Internal', value: netInternal ? 'Yes' : 'No', mono: false },
 						] as row (row.label)}
-							<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--line);">
-								<span style="font-size:12px;color:var(--tx-3);">{row.label}</span>
-								<span style="font-size:12.5px;color:var(--tx);{row.mono ? 'font-family:\'JetBrains Mono\',monospace;' : ''}">{row.value}</span>
+							<div class="flex items-center justify-between px-4 py-[10px] border-b border-b-[var(--line)]">
+								<span class="text-[12px] text-[var(--tx-3)]">{row.label}</span>
+								<span class="text-[12.5px] text-[var(--tx)] {row.mono ? 'font-mono-jb' : ''}">{row.value}</span>
 							</div>
 						{/each}
 					</div>
 
-					<button onclick={closePanel} style="width:100%;display:flex;align-items:center;justify-content:center;background:var(--grn);color:#07130c;border-radius:9px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 2px 12px var(--grn-dim);">
-						Done
-					</button>
+					<button onclick={closePanel} class="w-full flex items-center justify-center bg-[var(--grn)] text-[#07130c] rounded-[9px] py-[11px] text-[14px] font-bold cursor-pointer shadow-[0_2px_12px_var(--grn-dim)]">Done</button>
 				</div>
 			{/if}
-
 		</div>
 	</div>
 {/if}
 
-<!-- ── Snippets ────────────────────────────────────────────────────────── -->
 {#snippet NetworkIcon()}
 	<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx-3)" stroke-width="1.6">
 		<circle cx="12" cy="5" r="2"/>
@@ -368,30 +314,3 @@
 		<path d="M12 7v4M12 11l-5 6M12 11l5 6"/>
 	</svg>
 {/snippet}
-
-<style>
-	button {
-		all: unset;
-		box-sizing: border-box;
-		cursor: pointer;
-	}
-	input, select {
-		box-sizing: border-box;
-	}
-	input:focus, select:focus {
-		border-color: var(--grn) !important;
-	}
-	.net-row:hover {
-		background: rgba(255,255,255,.02);
-	}
-	.net-row:last-child {
-		border-bottom: none;
-	}
-	.inspect-btn {
-		opacity: 0;
-		transition: opacity 0.15s;
-	}
-	.net-row:hover .inspect-btn {
-		opacity: 1;
-	}
-</style>

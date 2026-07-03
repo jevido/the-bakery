@@ -142,20 +142,17 @@ WantedBy=default.target`);
 		deployPhase = 'done';
 	}
 
-	function stepNumStyle(i: number) {
-		if (i < step) return 'width:22px;height:22px;border-radius:50%;background:var(--grn);display:flex;align-items:center;justify-content:center;flex:none;';
-		if (i === step) return 'width:22px;height:22px;border-radius:50%;background:var(--grn);display:flex;align-items:center;justify-content:center;flex:none;';
-		return 'width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;flex:none;';
+	function stepNumClass(i: number) {
+		const base = 'size-[22px] rounded-full flex items-center justify-center shrink-0';
+		return i <= step ? `${base} bg-[var(--grn)]` : `${base} bg-white/[0.06]`;
 	}
-	function stepLabelStyle(i: number) {
-		if (i === step) return 'font-size:13px;font-weight:700;color:var(--tx);';
-		if (i < step) return 'font-size:13px;font-weight:600;color:var(--grn-2);';
-		return 'font-size:13px;color:var(--tx-3);';
+	function stepLabelClass(i: number) {
+		if (i === step) return 'text-[13px] font-bold text-[var(--tx)]';
+		if (i < step) return 'text-[13px] font-semibold text-[var(--grn-2)]';
+		return 'text-[13px] text-[var(--tx-3)]';
 	}
-	function stepNumColor(i: number) {
-		if (i < step) return 'color:#07130c;';
-		if (i === step) return 'color:#07130c;';
-		return 'color:var(--tx-3);';
+	function stepNumIconColor(i: number) {
+		return i <= step ? '#07130c' : 'var(--tx-3)';
 	}
 
 	const reviewRows = $derived([
@@ -168,7 +165,7 @@ WantedBy=default.target`);
 		{ k: 'Env vars', v: `${wEnv.length} variables` },
 	]);
 
-	const inputStyle = 'background:var(--card-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--tx);width:100%;box-sizing:border-box;';
+	const inputCls = 'bg-[var(--card-2)] border border-[var(--line)] rounded-[8px] px-3 py-[10px] font-mono-jb text-[13px] w-full';
 </script>
 
 <svelte:window onkeydown={handleKey} />
@@ -177,67 +174,67 @@ WantedBy=default.target`);
 	<div
 		onclick={handleBackdrop}
 		role="presentation"
-		style="position:fixed;inset:0;z-index:50;background:rgba(6,9,7,.72);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:28px;"
+		class="fixed inset-0 z-50 bg-[rgba(6,9,7,.72)] backdrop-blur-[6px] flex items-center justify-center p-7"
 	>
-		<div style="width:960px;max-width:100%;height:640px;max-height:92vh;background:var(--panel);border:1px solid var(--line-2);border-radius:18px;box-shadow:0 30px 80px rgba(0,0,0,.5);display:flex;overflow:hidden;animation:bk-fadeup .22s ease;">
+		<div class="w-[960px] max-w-full h-[640px] max-h-[92vh] bg-[var(--panel)] border border-[var(--line-2)] rounded-[18px] shadow-[0_30px_80px_rgba(0,0,0,.5)] flex overflow-hidden animate-[bk-fadeup_.22s_ease]">
 
 			<!-- Left step rail -->
-			<div style="width:238px;flex:none;background:var(--sidebar);border-right:1px solid var(--line);padding:22px 18px;display:flex;flex-direction:column;">
-				<div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:17px;margin-bottom:3px;">New app</div>
-				<div style="font-size:12px;color:var(--tx-2);margin-bottom:22px;">Repo → live in six steps.</div>
+			<div class="w-[238px] shrink-0 bg-[var(--sidebar)] border-r border-r-[var(--line)] p-[22px_18px] flex flex-col">
+				<div class="font-heading font-bold text-[17px] mb-[3px]">New app</div>
+				<div class="text-[12px] text-[var(--tx-2)] mb-[22px]">Repo → live in six steps.</div>
 
 				{#each wSteps as s, i (i)}
-					<div style="display:flex;align-items:center;gap:11px;padding:8px 0;">
-						<div style={stepNumStyle(i)}>
+					<div class="flex items-center gap-[11px] py-2">
+						<div class={stepNumClass(i)}>
 							{#if i < step}
 								<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#07130c" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
 							{:else}
-								<span style="font-size:11px;font-weight:700;{stepNumColor(i)}">{s.num}</span>
+								<span class="text-[11px] font-bold" style:color={stepNumIconColor(i)}>{s.num}</span>
 							{/if}
 						</div>
-						<div style={stepLabelStyle(i)}>{s.label}</div>
+						<div class={stepLabelClass(i)}>{s.label}</div>
 					</div>
 				{/each}
 
-				<div style="margin-top:auto;font-size:11px;color:var(--tx-3);line-height:1.5;">
-					Deploying to <b style="color:var(--tx-2);">{guild?.name ?? guildId}</b> via Podman Quadlets. No Dockerfiles required.
+				<div class="mt-auto text-[11px] text-[var(--tx-3)] leading-[1.5]">
+					Deploying to <b class="text-[var(--tx-2)]">{guild?.name ?? guildId}</b> via Podman Quadlets. No Dockerfiles required.
 				</div>
 			</div>
 
 			<!-- Right content -->
-			<div style="flex:1;min-width:0;display:flex;flex-direction:column;">
+			<div class="flex-1 min-w-0 flex flex-col">
 
 				<!-- Header -->
-				<div style="flex:none;padding:22px 28px 8px;display:flex;align-items:flex-start;justify-content:space-between;">
+				<div class="shrink-0 pt-[22px] px-7 pb-2 flex items-start justify-between">
 					<div>
-						<div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:20px;">{stepHeads[step].title}</div>
-						<div style="font-size:13px;color:var(--tx-2);margin-top:2px;">{stepHeads[step].sub}</div>
+						<div class="font-heading font-bold text-[20px]">{stepHeads[step].title}</div>
+						<div class="text-[13px] text-[var(--tx-2)] mt-0.5">{stepHeads[step].sub}</div>
 					</div>
-					<button onclick={close} aria-label="Close" style="width:32px;height:32px;flex:none;border-radius:9px;background:var(--card-2);border:none;display:flex;align-items:center;justify-content:center;color:var(--tx-2);cursor:pointer;">
+					<button onclick={close} aria-label="Close" class="size-8 shrink-0 rounded-[9px] bg-[var(--card-2)] flex items-center justify-center text-[var(--tx-2)] cursor-pointer">
 						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg>
 					</button>
 				</div>
 
 				<!-- Step content -->
-				<div style="flex:1;overflow-y:auto;padding:12px 28px 20px;">
+				<div class="flex-1 overflow-y-auto px-7 pt-3 pb-5">
 
 					<!-- STEP 0: SOURCE -->
 					{#if step === 0}
-						<div style="display:flex;align-items:center;gap:11px;background:var(--grn-dim);border:1px solid var(--grn-line);border-radius:10px;padding:11px 14px;margin-bottom:16px;">
+						<div class="flex items-center gap-[11px] bg-[var(--grn-dim)] border border-[var(--grn-line)] rounded-[10px] px-[14px] py-[11px] mb-4">
 							<svg width="20" height="20" viewBox="0 0 24 24" fill="var(--tx)"><path d="M12 1.5A10.5 10.5 0 001.5 12c0 4.6 3 8.5 7.2 9.9.5.1.7-.2.7-.5v-1.9c-2.9.6-3.5-1.2-3.5-1.2-.5-1.2-1.2-1.5-1.2-1.5-.9-.6.1-.6.1-.6 1 .1 1.6 1 1.6 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.7-1.4-2.3-.3-4.8-1.2-4.8-5.2 0-1.1.4-2 1-2.8-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.7 1a9.4 9.4 0 015 0c1.9-1.3 2.7-1 2.7-1 .5 1.4.2 2.4.1 2.7.6.8 1 1.7 1 2.8 0 4-2.5 4.9-4.8 5.2.4.3.7 1 .7 2v2.9c0 .3.2.6.7.5A10.5 10.5 0 0022.5 12 10.5 10.5 0 0012 1.5z"/></svg>
-							<div style="flex:1;">
-								<div style="font-size:13px;font-weight:600;color:var(--tx);">Bakery GitHub App installed on <span style="font-family:'JetBrains Mono',monospace;">sourdough-labs</span></div>
-								<div style="font-size:11.5px;color:var(--tx-2);">Reading 5 private repositories · last synced 2m ago</div>
+							<div class="flex-1">
+								<div class="text-[13px] font-semibold text-[var(--tx)]">Bakery GitHub App installed on <span class="font-mono-jb">sourdough-labs</span></div>
+								<div class="text-[11.5px] text-[var(--tx-2)]">Reading 5 private repositories · last synced 2m ago</div>
 							</div>
-							<span style="font-size:12px;color:var(--grn-2);font-weight:600;cursor:pointer;">Configure</span>
+							<span class="text-[12px] text-[var(--grn-2)] font-semibold cursor-pointer">Configure</span>
 						</div>
 
-						<div style="display:flex;align-items:center;gap:9px;background:var(--card-2);border:1px solid var(--line);border-radius:9px;padding:9px 12px;color:var(--tx-3);margin-bottom:10px;">
+						<div class="flex items-center gap-[9px] bg-[var(--card-2)] border border-[var(--line)] rounded-[9px] px-3 py-[9px] text-[var(--tx-3)] mb-[10px]">
 							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
 							<input
 								bind:value={repoSearch}
 								placeholder="Search repositories…"
-								style="flex:1;background:transparent;border:none;font-size:13px;color:var(--tx);outline:none;"
+								class="flex-1 bg-transparent border-none text-[13px] text-[var(--tx)] outline-none"
 							/>
 						</div>
 
@@ -245,19 +242,19 @@ WantedBy=default.target`);
 							{@const sel = wRepo === r.id}
 							<button
 								onclick={() => wRepo = r.id}
-								style="display:flex;align-items:center;gap:12px;width:100%;padding:11px 13px;border-radius:9px;margin-bottom:6px;cursor:pointer;background:{sel ? 'var(--grn-dim)' : 'var(--card-2)'};border:1px solid {sel ? 'var(--grn-line)' : 'var(--line)'};"
+								class="flex items-center gap-3 w-full px-[13px] py-[11px] rounded-[9px] mb-[6px] cursor-pointer border {sel ? 'bg-[var(--grn-dim)] border-[var(--grn-line)]' : 'bg-[var(--card-2)] border-[var(--line)]'}"
 							>
-								<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--tx-2)" stroke-width="1.8" style="flex:none;"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>
-								<div style="flex:1;min-width:0;text-align:left;">
-									<div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{r.name}</div>
+								<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--tx-2)" stroke-width="1.8" class="shrink-0"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>
+								<div class="flex-1 min-w-0 text-left">
+									<div class="font-mono-jb text-[13px] font-medium text-[var(--tx)] whitespace-nowrap overflow-hidden text-ellipsis">{r.name}</div>
 								</div>
-								<div style="display:flex;align-items:center;gap:6px;">
-									<div style="width:9px;height:9px;border-radius:50%;background:{r.langColor};"></div>
-									<span style="font-size:11.5px;color:var(--tx-2);">{r.lang}</span>
+								<div class="flex items-center gap-[6px]">
+									<div class="size-[9px] rounded-full" style:background={r.langColor}></div>
+									<span class="text-[11.5px] text-[var(--tx-2)]">{r.lang}</span>
 								</div>
-								<span style="font-size:11.5px;color:var(--tx-3);width:96px;text-align:right;">{r.updated}</span>
-								<div style="width:18px;height:18px;border-radius:50%;border:2px solid {sel ? 'var(--grn)' : 'var(--tx-3)'};display:flex;align-items:center;justify-content:center;flex:none;">
-									{#if sel}<div style="width:8px;height:8px;border-radius:50%;background:var(--grn);"></div>{/if}
+								<span class="text-[11.5px] text-[var(--tx-3)] w-24 text-right">{r.updated}</span>
+								<div class="size-[18px] rounded-full border-2 flex items-center justify-center shrink-0" style:border-color={sel ? 'var(--grn)' : 'var(--tx-3)'}>
+									{#if sel}<div class="size-2 rounded-full bg-[var(--grn)]"></div>{/if}
 								</div>
 							</button>
 						{/each}
@@ -269,32 +266,32 @@ WantedBy=default.target`);
 							{@const sel = wHost === h.name}
 							<button
 								onclick={() => wHost = h.name}
-								style="display:flex;flex-direction:column;width:100%;padding:14px;border-radius:12px;margin-bottom:10px;cursor:pointer;background:{sel ? 'var(--grn-dim)' : 'var(--card-2)'};border:1px solid {sel ? 'var(--grn-line)' : 'var(--line)'};"
+								class="flex flex-col w-full p-[14px] rounded-[12px] mb-[10px] cursor-pointer border {sel ? 'bg-[var(--grn-dim)] border-[var(--grn-line)]' : 'bg-[var(--card-2)] border-[var(--line)]'}"
 							>
-								<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-									<div style="width:38px;height:38px;border-radius:10px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--grn);flex:none;">
+								<div class="flex items-center gap-3 mb-3">
+									<div class="size-[38px] rounded-[10px] bg-[var(--card)] border border-[var(--line)] flex items-center justify-center text-[var(--grn)] shrink-0">
 										<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="6" rx="1.6"/><rect x="3" y="14" width="18" height="6" rx="1.6"/></svg>
 									</div>
-									<div style="flex:1;text-align:left;">
-										<div style="font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;color:var(--tx);">{h.name}</div>
-										<div style="font-size:11.5px;color:var(--tx-2);">{h.spec} · {h.apps} apps</div>
+									<div class="flex-1 text-left">
+										<div class="font-mono-jb text-[14px] font-semibold text-[var(--tx)]">{h.name}</div>
+										<div class="text-[11.5px] text-[var(--tx-2)]">{h.spec} · {h.apps} apps</div>
 									</div>
-									<div style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--grn);">
-										<div style="width:7px;height:7px;border-radius:50%;background:var(--grn);"></div>online
+									<div class="flex items-center gap-[6px] text-[11.5px] text-[var(--grn)]">
+										<div class="size-[7px] rounded-full bg-[var(--grn)]"></div>online
 									</div>
-									<div style="width:18px;height:18px;border-radius:50%;border:2px solid {sel ? 'var(--grn)' : 'var(--tx-3)'};display:flex;align-items:center;justify-content:center;flex:none;">
-										{#if sel}<div style="width:8px;height:8px;border-radius:50%;background:var(--grn);"></div>{/if}
+									<div class="size-[18px] rounded-full border-2 flex items-center justify-center shrink-0" style:border-color={sel ? 'var(--grn)' : 'var(--tx-3)'}>
+										{#if sel}<div class="size-2 rounded-full bg-[var(--grn)]"></div>{/if}
 									</div>
 								</div>
-								<div style="display:flex;gap:16px;">
+								<div class="flex gap-4">
 									{#each [['CPU', h.cpu], ['MEM', h.mem], ['DISK', h.disk]] as [label, val] (label)}
-										<div style="flex:1;">
-											<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;">
-												<span style="color:var(--tx-3);">{label}</span>
-												<span style="font-family:'JetBrains Mono',monospace;color:var(--tx-2);">{val}%</span>
+										<div class="flex-1">
+											<div class="flex justify-between text-[11px] mb-1">
+												<span class="text-[var(--tx-3)]">{label}</span>
+												<span class="font-mono-jb text-[var(--tx-2)]">{val}%</span>
 											</div>
-											<div style="height:5px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden;">
-												<div style="width:{val}%;height:100%;background:{Number(val) > 80 ? '#f0836b' : 'var(--grn)'};border-radius:3px;"></div>
+											<div class="h-[5px] rounded-[3px] bg-white/[0.07] overflow-hidden">
+												<div class="h-full rounded-[3px]" style:width="{val}%" style:background={Number(val) > 80 ? '#f0836b' : 'var(--grn)'}></div>
 											</div>
 										</div>
 									{/each}
@@ -302,97 +299,102 @@ WantedBy=default.target`);
 							</button>
 						{/each}
 
-						<button style="width:100%;border:1.5px dashed var(--line-2);border-radius:12px;padding:14px;display:flex;align-items:center;gap:11px;color:var(--tx-2);cursor:pointer;background:transparent;">
-							<div style="width:32px;height:32px;border-radius:9px;background:var(--card);display:flex;align-items:center;justify-content:center;color:var(--grn);flex:none;">
+						<button class="w-full border-[1.5px] border-dashed border-[var(--line-2)] rounded-[12px] p-[14px] flex items-center gap-[11px] text-[var(--tx-2)] cursor-pointer bg-transparent">
+							<div class="size-8 rounded-[9px] bg-[var(--card)] flex items-center justify-center text-[var(--grn)] shrink-0">
 								<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
 							</div>
-							<div style="text-align:left;">
-								<div style="font-size:13px;font-weight:600;color:var(--tx);">Add a new host</div>
-								<div style="font-size:11.5px;">Register another machine's Podman socket</div>
+							<div class="text-left">
+								<div class="text-[13px] font-semibold text-[var(--tx)]">Add a new host</div>
+								<div class="text-[11.5px]">Register another machine's Podman socket</div>
 							</div>
 						</button>
 					{/if}
 
 					<!-- STEP 2: QUADLET -->
 					{#if step === 2}
-						<div style="display:flex;align-items:center;gap:9px;font-size:13px;color:var(--grn);margin-bottom:14px;">
+						<div class="flex items-center gap-[9px] text-[13px] text-[var(--grn)] mb-[14px]">
 							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M20 6L9 17l-5-5"/></svg>
-							Found 2 Podman Quadlet files in <span style="font-family:'JetBrains Mono',monospace;color:var(--grn-2);">{wRepo ?? 'repo'}</span>
+							Found 2 Podman Quadlet files in <span class="font-mono-jb text-[var(--grn-2)]">{wRepo ?? 'repo'}</span>
 						</div>
 
 						{#each quadletOptions as q, i (i)}
 							{@const sel = wQuadlet === i}
 							<button
 								onclick={() => wQuadlet = i}
-								style="display:flex;align-items:center;gap:12px;width:100%;padding:11px 14px;border-radius:9px;margin-bottom:7px;cursor:pointer;background:{sel ? 'var(--grn-dim)' : 'var(--card-2)'};border:1px solid {sel ? 'var(--grn-line)' : 'var(--line)'};"
+								class="flex items-center gap-3 w-full px-[14px] py-[11px] rounded-[9px] mb-[7px] cursor-pointer border {sel ? 'bg-[var(--grn-dim)] border-[var(--grn-line)]' : 'bg-[var(--card-2)] border-[var(--line)]'}"
 							>
-								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx-2)" stroke-width="1.7" style="flex:none;"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><path d="M13 2v7h7"/></svg>
-								<div style="flex:1;min-width:0;text-align:left;">
-									<div style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--tx);">{q.path}</div>
-									<div style="font-size:11px;color:var(--tx-3);margin-top:1px;">{q.note}</div>
+								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx-2)" stroke-width="1.7" class="shrink-0"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><path d="M13 2v7h7"/></svg>
+								<div class="flex-1 min-w-0 text-left">
+									<div class="font-mono-jb text-[13px] text-[var(--tx)]">{q.path}</div>
+									<div class="text-[11px] text-[var(--tx-3)] mt-[1px]">{q.note}</div>
 								</div>
-								<span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;padding:3px 9px;border-radius:6px;background:{sel ? 'var(--grn-dim)' : 'rgba(255,255,255,.06)'};color:{sel ? 'var(--grn)' : 'var(--tx-3)'};">{q.tag}</span>
-								<div style="width:18px;height:18px;border-radius:50%;border:2px solid {sel ? 'var(--grn)' : 'var(--tx-3)'};display:flex;align-items:center;justify-content:center;flex:none;">
-									{#if sel}<div style="width:8px;height:8px;border-radius:50%;background:var(--grn);"></div>{/if}
+								<span class="font-mono-jb text-[10.5px] px-[9px] py-[3px] rounded-[6px] {sel ? 'bg-[var(--grn-dim)] text-[var(--grn)]' : 'bg-white/[0.06] text-[var(--tx-3)]'}">{q.tag}</span>
+								<div class="size-[18px] rounded-full border-2 flex items-center justify-center shrink-0" style:border-color={sel ? 'var(--grn)' : 'var(--tx-3)'}>
+									{#if sel}<div class="size-2 rounded-full bg-[var(--grn)]"></div>{/if}
 								</div>
 							</button>
 						{/each}
 
-						<div style="font-size:11.5px;color:var(--tx-3);margin:14px 0 8px;">Preview · {quadletOptions[wQuadlet]?.path}</div>
-						<pre style="font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.8;background:#080c09;border:1px solid var(--line);border-radius:11px;padding:16px 18px;overflow-x:auto;color:var(--tx);margin:0;white-space:pre-wrap;">{quadletPreview}</pre>
+						<div class="text-[11.5px] text-[var(--tx-3)] mt-[14px] mb-2">Preview · {quadletOptions[wQuadlet]?.path}</div>
+						<pre class="font-mono-jb text-[12px] leading-[1.8] bg-[#080c09] border border-[var(--line)] rounded-[11px] px-[18px] py-4 overflow-x-auto text-[var(--tx)] m-0 whitespace-pre-wrap [tab-size:2]">{quadletPreview}</pre>
 					{/if}
 
 					<!-- STEP 3: DOMAIN & PROXY -->
 					{#if step === 3}
-						<div style="font-size:12.5px;color:var(--tx-2);margin-bottom:6px;">Domain</div>
-						<div style="display:flex;align-items:center;background:var(--card-2);border:1px solid var(--line);border-radius:9px;overflow:hidden;margin-bottom:6px;">
-							<span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--tx-3);padding:0 0 0 13px;">https://</span>
+						<div class="text-[12.5px] text-[var(--tx-2)] mb-[6px]">Domain</div>
+						<div class="flex items-center bg-[var(--card-2)] border border-[var(--line)] rounded-[9px] overflow-hidden mb-[6px]">
+							<span class="font-mono-jb text-[13px] text-[var(--tx-3)] pl-[13px]">https://</span>
 							<input
 								bind:value={wDomain}
 								placeholder="api.sourdough.dev"
-								style="flex:1;background:transparent;border:none;padding:12px 13px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--tx);outline:none;"
+								class="flex-1 bg-transparent border-none px-[13px] py-3 font-mono-jb text-[13px] text-[var(--tx)] outline-none"
 							/>
 						</div>
-						<div style="font-size:11.5px;color:var(--tx-3);margin-bottom:20px;">Point an A / CNAME record at your host, then Caddy provisions TLS automatically.</div>
+						<div class="text-[11.5px] text-[var(--tx-3)] mb-5">Point an A / CNAME record at your host, then Caddy provisions TLS automatically.</div>
 
-						<div style="background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;">
-							<div style="display:flex;align-items:center;gap:12px;">
-								<div style="flex:1;">
-									<div style="font-size:13.5px;font-weight:700;">Add a Caddy reverse proxy</div>
-									<div style="font-size:12px;color:var(--tx-2);margin-top:2px;">Route the domain to your app's port with automatic HTTPS.</div>
+						<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] p-[16px_18px]">
+							<div class="flex items-center gap-3">
+								<div class="flex-1">
+									<div class="text-[13.5px] font-bold">Add a Caddy reverse proxy</div>
+									<div class="text-[12px] text-[var(--tx-2)] mt-0.5">Route the domain to your app's port with automatic HTTPS.</div>
 								</div>
 								<button
 									onclick={() => wProxy = !wProxy}
 									aria-label="Toggle Caddy reverse proxy"
-									style="width:40px;height:23px;border-radius:12px;background:{wProxy ? 'var(--grn)' : 'rgba(255,255,255,.1)'};border:none;position:relative;cursor:pointer;flex:none;transition:background .2s;"
+									class="relative w-10 h-[23px] rounded-[12px] border-none cursor-pointer shrink-0 transition-[background] duration-200 {wProxy ? 'bg-[var(--grn)]' : 'bg-white/10'}"
 								>
-									<div style="width:17px;height:17px;border-radius:50%;background:#fff;position:absolute;top:3px;left:{wProxy ? '20px' : '3px'};transition:left .2s;"></div>
+									<div
+										class="absolute top-[3px] size-[17px] rounded-full bg-white transition-[left] duration-200"
+										style:left={wProxy ? '20px' : '3px'}
+									></div>
 								</button>
 							</div>
 
 							{#if wProxy}
-								<div style="border-top:1px solid var(--line);margin-top:14px;padding-top:14px;">
-									<div style="display:flex;gap:14px;margin-bottom:14px;">
-										<div style="flex:1;">
-											<div style="font-size:12px;color:var(--tx-2);margin-bottom:6px;">Container port</div>
-											<input bind:value={wPort} style={inputStyle} />
+								<div class="border-t border-t-[var(--line)] mt-[14px] pt-[14px]">
+									<div class="flex gap-[14px] mb-[14px]">
+										<div class="flex-1">
+											<div class="text-[12px] text-[var(--tx-2)] mb-[6px]">Container port</div>
+											<input bind:value={wPort} class="{inputCls} text-[var(--tx)]" />
 										</div>
-										<div style="flex:1;">
-											<div style="font-size:12px;color:var(--tx-2);margin-bottom:6px;">TLS</div>
+										<div class="flex-1">
+											<div class="text-[12px] text-[var(--tx-2)] mb-[6px]">TLS</div>
 											<button
 												onclick={() => wTls = !wTls}
-												style="display:flex;align-items:center;gap:8px;background:var(--card-2);border:1px solid var(--line);border-radius:8px;padding:11px 12px;cursor:pointer;font-size:13px;width:100%;"
+												class="flex items-center gap-2 bg-[var(--card-2)] border border-[var(--line)] rounded-[8px] px-3 py-[11px] cursor-pointer text-[13px] w-full"
 											>
-												<div style="width:16px;height:16px;border-radius:4px;border:1.5px solid {wTls ? 'var(--grn)' : 'var(--tx-3)'};background:{wTls ? 'var(--grn)' : 'transparent'};display:flex;align-items:center;justify-content:center;flex:none;">
+												<div
+													class="size-4 rounded-[4px] flex items-center justify-center shrink-0 border-[1.5px] {wTls ? 'border-[var(--grn)] bg-[var(--grn)]' : 'border-[var(--tx-3)] bg-transparent'}"
+												>
 													{#if wTls}<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#07130c" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>{/if}
 												</div>
-												<span style="color:var(--tx);">Automatic (Let's Encrypt)</span>
+												<span class="text-[var(--tx)]">Automatic (Let's Encrypt)</span>
 											</button>
 										</div>
 									</div>
 									{#if wDomain}
-										<div style="font-family:'JetBrains Mono',monospace;font-size:12px;background:#080c09;border:1px solid var(--line);border-radius:9px;padding:12px 14px;color:var(--tx-2);">
-											<span style="color:var(--grn-2);">{wDomain}</span> → reverse_proxy <span style="color:var(--amber);">127.0.0.1:{wPort}</span>
+										<div class="font-mono-jb text-[12px] bg-[#080c09] border border-[var(--line)] rounded-[9px] px-[14px] py-3 text-[var(--tx-2)]">
+											<span class="text-[var(--grn-2)]">{wDomain}</span> → reverse_proxy <span class="text-[var(--amber)]">127.0.0.1:{wPort}</span>
 										</div>
 									{/if}
 								</div>
@@ -402,36 +404,36 @@ WantedBy=default.target`);
 
 					<!-- STEP 4: ENVIRONMENT -->
 					{#if step === 4}
-						<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-							<div style="font-size:12.5px;color:var(--tx-2);">Injected via the quadlet's <span style="font-family:'JetBrains Mono',monospace;color:var(--grn-2);">EnvironmentFile</span>. Mark sensitive values as secrets.</div>
-							<button style="background:var(--card-2);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:7px 11px;font-size:12px;font-weight:600;cursor:pointer;">Import .env</button>
+						<div class="flex items-center justify-between mb-3">
+							<div class="text-[12.5px] text-[var(--tx-2)]">Injected via the quadlet's <span class="font-mono-jb text-[var(--grn-2)]">EnvironmentFile</span>. Mark sensitive values as secrets.</div>
+							<button class="bg-[var(--card-2)] border border-[var(--line)] text-[var(--tx)] rounded-[8px] px-[11px] py-[7px] text-[12px] font-semibold cursor-pointer">Import .env</button>
 						</div>
 
-						<div style="display:grid;grid-template-columns:1fr 1.5fr 92px 34px;gap:9px;padding:0 2px 8px;font-size:11px;font-weight:700;letter-spacing:.05em;color:var(--tx-3);">
+						<div class="grid grid-cols-[1fr_1.5fr_92px_34px] gap-[9px] px-0.5 pb-2 text-[11px] font-bold tracking-[.05em] text-[var(--tx-3)]">
 							<div>KEY</div><div>VALUE</div><div>TYPE</div><div></div>
 						</div>
 
 						{#each wEnv as e, i (i)}
-							<div style="display:grid;grid-template-columns:1fr 1.5fr 92px 34px;gap:9px;margin-bottom:8px;align-items:center;">
+							<div class="grid grid-cols-[1fr_1.5fr_92px_34px] gap-[9px] mb-2 items-center">
 								<input
 									value={e.key}
 									oninput={(ev) => updateEnvKey(i, (ev.target as HTMLInputElement).value)}
-									style="{inputStyle}color:var(--grn-2);"
+									class="{inputCls} text-[var(--grn-2)]"
 								/>
 								<input
 									value={e.value}
 									oninput={(ev) => updateEnvVal(i, (ev.target as HTMLInputElement).value)}
 									type={e.secret ? 'password' : 'text'}
-									style={inputStyle}
+									class="{inputCls} text-[var(--tx)]"
 								/>
 								<button
 									onclick={() => toggleSecret(i)}
-									style="padding:0 10px;height:38px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:{e.secret ? 'rgba(224,168,62,.14)' : 'rgba(255,255,255,.05)'};border:1px solid {e.secret ? 'rgba(224,168,62,.3)' : 'var(--line)'};color:{e.secret ? '#efc060' : 'var(--tx-3)'};"
+									class="h-[38px] px-[10px] rounded-[8px] text-[12px] font-semibold cursor-pointer border {e.secret ? 'bg-[rgba(224,168,62,.14)] border-[rgba(224,168,62,.3)] text-[#efc060]' : 'bg-white/5 border-[var(--line)] text-[var(--tx-3)]'}"
 								>{e.secret ? 'secret' : 'variable'}</button>
 								<button
 									onclick={() => removeEnv(i)}
 									aria-label="Remove variable"
-									style="display:flex;align-items:center;justify-content:center;color:var(--tx-3);cursor:pointer;height:38px;border-radius:8px;background:transparent;border:none;"
+									class="flex items-center justify-center text-[var(--tx-3)] cursor-pointer h-[38px] rounded-[8px] bg-transparent border-none"
 								>
 									<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
 								</button>
@@ -440,7 +442,7 @@ WantedBy=default.target`);
 
 						<button
 							onclick={addEnv}
-							style="display:inline-flex;align-items:center;gap:7px;color:var(--grn-2);font-size:13px;font-weight:600;cursor:pointer;margin-top:6px;background:none;border:none;"
+							class="inline-flex items-center gap-[7px] text-[var(--grn-2)] text-[13px] font-semibold cursor-pointer mt-[6px] bg-none border-none"
 						>
 							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M12 5v14M5 12h14"/></svg>
 							Add variable
@@ -450,41 +452,41 @@ WantedBy=default.target`);
 					<!-- STEP 5: REVIEW & DEPLOY -->
 					{#if step === 5}
 						{#if deployPhase === 'idle'}
-							<div style="background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:18px;">
+							<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] overflow-hidden mb-[18px]">
 								{#each reviewRows as row (row.k)}
-									<div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line);">
-										<span style="font-size:12.5px;color:var(--tx-2);width:120px;flex:none;">{row.k}</span>
-										<span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--tx);flex:1;">{row.v}</span>
+									<div class="flex items-center gap-3 px-[18px] py-3 border-b border-b-[var(--line)]">
+										<span class="text-[12.5px] text-[var(--tx-2)] w-[120px] shrink-0">{row.k}</span>
+										<span class="font-mono-jb text-[13px] text-[var(--tx)] flex-1">{row.v}</span>
 									</div>
 								{/each}
 							</div>
 							<button
 								onclick={deploy}
-								style="width:100%;background:var(--grn);color:#07130c;border:none;border-radius:11px;padding:15px;font-size:15px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;"
+								class="w-full bg-[var(--grn)] text-[#07130c] border-none rounded-[11px] py-[15px] text-[15px] font-bold cursor-pointer flex items-center justify-center gap-[9px]"
 							>
-								<span style="font-size:18px;">🥖</span>
+								<span class="text-[18px]">🥖</span>
 								Bake it — deploy {appName}
 							</button>
 						{:else}
-							<div style="font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.9;background:#080c09;border:1px solid var(--line);border-radius:12px;padding:18px 20px;min-height:280px;">
+							<div class="font-mono-jb text-[12.5px] leading-[1.9] bg-[#080c09] border border-[var(--line)] rounded-[12px] p-[18px_20px] min-h-[280px]">
 								{#each deployLog as l, li (li)}
-									<div style="color:{l.color};">{l.text}</div>
+									<div style:color={l.color}>{l.text}</div>
 								{/each}
 								{#if deployPhase === 'running'}
-									<div style="display:flex;align-items:center;gap:8px;color:var(--tx-3);margin-top:4px;">
-										<div style="width:10px;height:10px;border-radius:50%;border:2px solid var(--grn);border-top-color:transparent;animation:bk-spin .7s linear infinite;"></div>
+									<div class="flex items-center gap-2 text-[var(--tx-3)] mt-1">
+										<div class="size-[10px] rounded-full border-2 border-[var(--grn)] border-t-transparent animate-[bk-spin_.7s_linear_infinite]"></div>
 										working…
 									</div>
 								{/if}
 							</div>
 							{#if deployPhase === 'done'}
-								<div style="margin-top:12px;display:flex;align-items:center;gap:10px;color:var(--grn);font-weight:700;font-size:14px;padding:12px 0;">
+								<div class="mt-3 flex items-center gap-[10px] text-[var(--grn)] font-bold text-[14px] py-3">
 									<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>
 									{appName} is fresh and serving traffic.
 								</div>
 								<button
 									onclick={close}
-									style="width:100%;background:var(--grn);color:#07130c;border:none;border-radius:11px;padding:14px;font-size:14.5px;font-weight:700;cursor:pointer;"
+									class="w-full bg-[var(--grn)] text-[#07130c] border-none rounded-[11px] py-[14px] text-[14.5px] font-bold cursor-pointer"
 								>Open {appName} →</button>
 							{/if}
 						{/if}
@@ -493,17 +495,17 @@ WantedBy=default.target`);
 
 				<!-- Footer nav -->
 				{#if !(step === 5 && deployPhase !== 'idle')}
-					<div style="flex:none;border-top:1px solid var(--line);padding:14px 28px;display:flex;align-items:center;gap:12px;">
+					<div class="shrink-0 border-t border-t-[var(--line)] px-7 py-[14px] flex items-center gap-3">
 						<button
 							onclick={back}
-							style="padding:9px 16px;border-radius:9px;font-size:13.5px;font-weight:600;cursor:{step > 0 ? 'pointer' : 'not-allowed'};opacity:{step > 0 ? 1 : 0.35};background:var(--card-2);border:1px solid var(--line);color:var(--tx-2);"
+							class="px-4 py-[9px] rounded-[9px] text-[13.5px] font-semibold bg-[var(--card-2)] border border-[var(--line)] text-[var(--tx-2)] {step > 0 ? 'cursor-pointer opacity-100' : 'cursor-not-allowed opacity-35'}"
 						>Back</button>
-						<div style="flex:1;"></div>
-						<span style="font-size:12px;color:var(--tx-3);">Step {step + 1} of 6</span>
+						<div class="flex-1"></div>
+						<span class="text-[12px] text-[var(--tx-3)]">Step {step + 1} of 6</span>
 						{#if step < 5}
 							<button
 								onclick={next}
-								style="padding:9px 20px;border-radius:9px;font-size:13.5px;font-weight:700;cursor:{canContinue ? 'pointer' : 'not-allowed'};background:{canContinue ? 'var(--grn)' : 'rgba(63,185,132,.25)'};color:{canContinue ? '#07130c' : 'rgba(63,185,132,.5)'};border:none;transition:background .15s;"
+								class="px-5 py-[9px] rounded-[9px] text-[13.5px] font-bold border-none transition-[background] duration-150 {canContinue ? 'bg-[var(--grn)] text-[#07130c] cursor-pointer' : 'bg-[rgba(63,185,132,.25)] text-[rgba(63,185,132,.5)] cursor-not-allowed'}"
 							>{step === 4 ? 'Review' : 'Continue'}</button>
 						{/if}
 					</div>
@@ -512,9 +514,3 @@ WantedBy=default.target`);
 		</div>
 	</div>
 {/if}
-
-<style>
-	button { all: unset; box-sizing: border-box; }
-	input:focus { outline: none; border-color: var(--grn-line) !important; }
-	pre { tab-size: 2; }
-</style>

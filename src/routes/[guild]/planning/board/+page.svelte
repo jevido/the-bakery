@@ -47,34 +47,34 @@
 	};
 </script>
 
-<div style="padding: 22px 28px;">
-	<div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:23px;margin-bottom:18px;">Board</div>
+<div class="px-7 py-[22px]">
+	<div class="font-heading font-bold text-[23px] mb-[18px]">Board</div>
 
-	<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:13px;align-items:start;">
+	<div class="grid grid-cols-4 gap-[13px] items-start">
 		{#each columns as col}
 			<div>
 				<!-- Column header -->
-				<div style="display:flex;align-items:center;gap:8px;margin-bottom:11px;padding:0 4px;">
-					<div style="width:9px;height:9px;border-radius:50%;background:{col.color};flex:none;"></div>
-					<span style="font-size:13px;font-weight:700;color:var(--tx-2);">{col.label}</span>
-					<span style="font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:12px;background:var(--card);border:1px solid var(--line);color:var(--tx-3);margin-left:auto;">{col.cards.length}</span>
+				<div class="flex items-center gap-2 mb-[11px] px-1">
+					<div class="size-[9px] rounded-full shrink-0" style:background={col.color}></div>
+					<span class="text-[13px] font-bold text-[var(--tx-2)]">{col.label}</span>
+					<span class="text-[11.5px] font-bold px-2 py-[2px] rounded-[12px] bg-[var(--card)] border border-[var(--line)] text-[var(--tx-3)] ml-auto">{col.cards.length}</span>
 				</div>
 
 				<!-- Cards -->
-				<div style="display:flex;flex-direction:column;gap:8px;">
+				<div class="flex flex-col gap-2">
 					{#each col.cards as card}
 						{@const pb = priBadge[card.priority]}
-						<div style="background:var(--card);border:1px solid var(--line);border-radius:11px;padding:13px 14px;cursor:pointer;">
-							<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px;">
-								<span style="font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:6px;background:{tagColor[card.tag] ?? 'rgba(255,255,255,.06)'};color:{tagText[card.tag] ?? 'var(--tx-3)'};">{card.tag}</span>
-								<span style="font-size:10.5px;font-weight:600;padding:3px 8px;border-radius:6px;background:{pb.bg};color:{pb.c};">{card.priority}</span>
+						<div class="bg-[var(--card)] border border-[var(--line)] rounded-[11px] p-[13px_14px] cursor-pointer">
+							<div class="flex items-center justify-between gap-2 mb-[9px]">
+								<span class="text-[10.5px] font-bold px-2 py-[3px] rounded-[6px]" style:background={tagColor[card.tag] ?? 'rgba(255,255,255,.06)'} style:color={tagText[card.tag] ?? 'var(--tx-3)'}>{card.tag}</span>
+								<span class="text-[10.5px] font-semibold px-2 py-[3px] rounded-[6px]" style:background={pb.bg} style:color={pb.c}>{card.priority}</span>
 							</div>
-							<div style="font-size:13.5px;font-weight:600;line-height:1.4;">{card.title}</div>
+							<div class="text-[13.5px] font-semibold leading-[1.4]">{card.title}</div>
 						</div>
 					{/each}
 
 					<!-- Add card button -->
-					<button style="display:flex;align-items:center;gap:6px;padding:9px 12px;background:transparent;border:1px dashed rgba(255,255,255,.08);border-radius:10px;cursor:pointer;color:var(--tx-3);font-size:12.5px;">
+					<button class="flex items-center gap-[6px] w-full px-3 py-[9px] bg-transparent border border-dashed border-white/[0.08] rounded-[10px] cursor-pointer text-[var(--tx-3)] text-[12.5px]">
 						<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
 						Add card
 					</button>
@@ -83,7 +83,3 @@
 		{/each}
 	</div>
 </div>
-
-<style>
-	button { all: unset; box-sizing: border-box; width: 100%; }
-</style>

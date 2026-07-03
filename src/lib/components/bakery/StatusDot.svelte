@@ -7,12 +7,9 @@
 </script>
 
 <div
-	style="
-		width: {size}px;
-		height: {size}px;
-		border-radius: 50%;
-		background: {meta.dot};
-		flex: none;
-		animation: {meta.pulse ? 'bk-pulse 2s infinite' : meta.spin ? 'bk-pulse 1s infinite' : 'none'};
-	"
+	class="shrink-0 rounded-full"
+	style:width="{size}px"
+	style:height="{size}px"
+	style:background={meta.dot}
+	style:animation={meta.pulse ? 'bk-pulse 2s infinite' : meta.spin ? 'bk-pulse 1s infinite' : 'none'}
 ></div>

@@ -11,17 +11,12 @@
 	const meta = $derived(statusMeta(status));
 </script>
 
-<div style="
-	width: {size}px;
-	height: {size}px;
-	flex: none;
-	border-radius: {radius}px;
-	background: {meta.bg};
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-family: 'Bricolage Grotesque', sans-serif;
-	font-weight: 700;
-	font-size: {Math.round(size * 0.41)}px;
-	color: {meta.c};
-">{initial}</div>
+<div
+	class="shrink-0 flex items-center justify-center font-heading font-bold"
+	style:width="{size}px"
+	style:height="{size}px"
+	style:border-radius="{radius}px"
+	style:background={meta.bg}
+	style:color={meta.c}
+	style:font-size="{Math.round(size * 0.41)}px"
+>{initial}</div>
