@@ -129,3 +129,13 @@
 		@apply font-sans;
 	}
 }
+
+/* Bakery app animations & scrollbar */
+@keyframes bk-pulse { 0%, 100% { opacity: 1 } 50% { opacity: .35 } }
+@keyframes bk-spin { to { transform: rotate(360deg) } }
+@keyframes bk-blink { 0%, 100% { opacity: 1 } 50% { opacity: 0 } }
+@keyframes bk-fadeup { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+
+.bakery-shell ::-webkit-scrollbar { width: 9px; height: 9px }
+.bakery-shell ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.09); border-radius: 6px }
+.bakery-shell ::-webkit-scrollbar-track { background: transparent }
