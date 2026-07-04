@@ -6,11 +6,13 @@
 	import GuildSidebar from '$lib/components/bakery/GuildSidebar.svelte';
 	import TopBar from '$lib/components/bakery/TopBar.svelte';
 	import DeployDialog from '$lib/components/bakery/DeployDialog.svelte';
+	import GuildJourneyDialog from '$lib/components/bakery/GuildJourneyDialog.svelte';
 
 	let { children } = $props();
 
 	const guildId = $derived(page.params.guild ?? '');
 	let deployOpen = $state(false);
+	let guildJourneyOpen = $state(false);
 	let ctaAction = $state<(() => void) | undefined>(undefined);
 
 	setContext('bakery:cta', {
@@ -31,7 +33,7 @@
 </script>
 
 <div class="bakery-shell flex h-screen w-screen overflow-hidden bg-[var(--main)] text-[var(--tx)] font-bakery antialiased">
-	<AppRail {guildId} />
+	<AppRail {guildId} onOpenJourney={() => (guildJourneyOpen = true)} />
 	<GuildSidebar {guildId} {module} activeSection={section} />
 
 	<div class="flex-1 min-w-0 flex flex-col bg-[var(--main)]">
@@ -42,6 +44,7 @@
 	</div>
 
 	<DeployDialog bind:open={deployOpen} {guildId} />
+	<GuildJourneyDialog bind:open={guildJourneyOpen} />
 </div>
 
 <Toaster theme="dark" position="bottom-right" richColors />

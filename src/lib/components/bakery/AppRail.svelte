@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { GUILD_LIST } from '$lib/data/bakery';
 	import { goto } from '$app/navigation';
+	import { guildStore } from '$lib/stores/guilds.svelte';
 
-	let { guildId }: { guildId: string } = $props();
+	let { guildId, onOpenJourney }: { guildId: string; onOpenJourney: () => void } = $props();
 
 	function selectGuild(id: string) {
 		goto(`/${id}/deploy/overview`);
@@ -23,7 +23,7 @@
 	<div class="w-8 h-0.5 bg-white/[0.09] rounded-sm my-0.5"></div>
 
 	<!-- Guild list -->
-	{#each GUILD_LIST as gd}
+	{#each guildStore.list as gd (gd.id)}
 		{@const active = gd.id === guildId}
 		<div
 			title={gd.name}
@@ -53,7 +53,11 @@
 	<!-- Add guild -->
 	<div
 		title="Create or join a guild"
-		class="size-12 rounded-[15px] bg-white/5 text-[var(--grn-2)] flex items-center justify-center text-[26px] font-normal cursor-pointer"
+		role="button"
+		tabindex="0"
+		onclick={onOpenJourney}
+		onkeydown={(e) => e.key === 'Enter' && onOpenJourney()}
+		class="size-12 rounded-[15px] bg-white/5 text-[var(--grn-2)] flex items-center justify-center text-[26px] font-normal cursor-pointer hover:bg-white/[0.08] transition-colors"
 	>+</div>
 
 	<!-- Discover -->
