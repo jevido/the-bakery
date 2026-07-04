@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { getContext, onMount, onDestroy } from 'svelte';
+	import { toast } from 'svelte-sonner';
 	import { SOURCES, REPOS, sourceMeta } from '$lib/data/bakery';
 
 	const guildId    = $derived(page.params.guild ?? '');
@@ -44,6 +46,16 @@
 
 	function closePanel() { panelOpen = false; }
 
+	const cta = getContext<{ register(fn: () => void): void; unregister(): void }>('bakery:cta');
+	onMount(() => cta?.register(openPanel));
+	onDestroy(() => cta?.unregister());
+
+	function finishConnection() {
+		const label = shName || 'GitHub App';
+		step = 'done';
+		toast.success('Source connected', { description: `${label} is now linked` });
+	}
+
 	async function testConnection() {
 		testing = true;
 		tested = false;
@@ -77,11 +89,6 @@
 				{/if}
 			</div>
 		</div>
-		<div class="flex-1"></div>
-		<button onclick={openPanel} class="flex items-center gap-[7px] bg-[var(--grn)] text-[#07130c] rounded-[9px] px-[14px] py-2 text-[13.5px] font-bold cursor-pointer shadow-[0_2px_12px_var(--grn-dim)]">
-			<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-			Add source
-		</button>
 	</div>
 
 	{#if sources.length === 0}
@@ -292,7 +299,7 @@
 				</button>
 
 				<div class="mt-[14px] text-center">
-					<button onclick={() => step = 'done'} class="text-[12px] text-[var(--tx-3)] cursor-pointer underline">I've already installed it — continue</button>
+					<button onclick={finishConnection} class="text-[12px] text-[var(--tx-3)] cursor-pointer underline">I've already installed it — continue</button>
 				</div>
 
 			{:else if step === 'selfhosted'}
@@ -346,7 +353,7 @@
 					</div>
 
 					<button
-						onclick={() => step = 'done'}
+						onclick={finishConnection}
 						disabled={!canConnect}
 						class="w-full flex items-center justify-center gap-2 bg-[var(--grn)] text-[#07130c] rounded-[9px] py-[11px] text-[14px] font-bold shadow-[0_2px_12px_var(--grn-dim)] {!canConnect ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}"
 					>

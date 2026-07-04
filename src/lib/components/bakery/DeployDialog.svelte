@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { toast } from 'svelte-sonner';
 	import { GUILDS, REPOS } from '$lib/data/bakery';
 
 	let {
@@ -94,9 +96,21 @@ WantedBy=default.target`);
 		{ title: 'Review & deploy', sub: 'Everything looks good — bake it.' },
 	];
 
-	function close() { open = false; }
+	function close() {
+		if (deployPhase === 'running') {
+			if (!confirm('Deployment is in progress. Close anyway?')) return;
+		} else if (step > 0 && deployPhase === 'idle') {
+			if (!confirm('Your progress will be lost. Close the deploy wizard?')) return;
+		}
+		open = false;
+	}
 	function handleBackdrop(e: MouseEvent) { if (e.target === e.currentTarget) close(); }
 	function handleKey(e: KeyboardEvent) { if (e.key === 'Escape') close(); }
+
+	function openDeployedApp() {
+		open = false;
+		goto(`/${guildId}/deploy/projects`);
+	}
 	function next() { if (canContinue && step < 5) step++; }
 	function back() { if (step > 0) step--; }
 
@@ -140,6 +154,7 @@ WantedBy=default.target`);
 			deployLog = [...deployLog, line];
 		}
 		deployPhase = 'done';
+		toast.success(`${appName} is live!`, { description: `Deployed to ${wHost ?? 'your host'}` });
 	}
 
 	function stepNumClass(i: number) {
@@ -176,7 +191,12 @@ WantedBy=default.target`);
 		role="presentation"
 		class="fixed inset-0 z-50 bg-[rgba(6,9,7,.72)] backdrop-blur-[6px] flex items-center justify-center p-7"
 	>
-		<div class="w-[960px] max-w-full h-[640px] max-h-[92vh] bg-[var(--panel)] border border-[var(--line-2)] rounded-[18px] shadow-[0_30px_80px_rgba(0,0,0,.5)] flex overflow-hidden animate-[bk-fadeup_.22s_ease]">
+		<div
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="deploy-dialog-title"
+			class="w-[960px] max-w-full h-[640px] max-h-[92vh] bg-[var(--panel)] border border-[var(--line-2)] rounded-[18px] shadow-[0_30px_80px_rgba(0,0,0,.5)] flex overflow-hidden animate-[bk-fadeup_.22s_ease]"
+		>
 
 			<!-- Left step rail -->
 			<div class="w-[238px] shrink-0 bg-[var(--sidebar)] border-r border-r-[var(--line)] p-[22px_18px] flex flex-col">
@@ -207,7 +227,7 @@ WantedBy=default.target`);
 				<!-- Header -->
 				<div class="shrink-0 pt-[22px] px-7 pb-2 flex items-start justify-between">
 					<div>
-						<div class="font-heading font-bold text-[20px]">{stepHeads[step].title}</div>
+						<div id="deploy-dialog-title" class="font-heading font-bold text-[20px]">{stepHeads[step].title}</div>
 						<div class="text-[13px] text-[var(--tx-2)] mt-0.5">{stepHeads[step].sub}</div>
 					</div>
 					<button onclick={close} aria-label="Close" class="size-8 shrink-0 rounded-[9px] bg-[var(--card-2)] flex items-center justify-center text-[var(--tx-2)] cursor-pointer">
@@ -485,7 +505,7 @@ WantedBy=default.target`);
 									{appName} is fresh and serving traffic.
 								</div>
 								<button
-									onclick={close}
+									onclick={openDeployedApp}
 									class="w-full bg-[var(--grn)] text-[#07130c] border-none rounded-[11px] py-[14px] text-[14.5px] font-bold cursor-pointer"
 								>Open {appName} →</button>
 							{/if}

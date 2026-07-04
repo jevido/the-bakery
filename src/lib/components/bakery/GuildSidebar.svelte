@@ -2,6 +2,7 @@
 	import { GUILDS, MEMBERS } from '$lib/data/bakery';
 	import { goto } from '$app/navigation';
 	import type { Snippet } from 'svelte';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 
 	let {
 		guildId,
@@ -23,6 +24,7 @@
 	let guildMenuOpen = $state(false);
 	let moduleMenuOpen = $state(false);
 	let sidebarEl = $state<HTMLElement | null>(null);
+	let leaveDialogOpen = $state(false);
 
 	function toggleGuildMenu() { guildMenuOpen = !guildMenuOpen; moduleMenuOpen = false; }
 	function toggleModuleMenu() { moduleMenuOpen = !moduleMenuOpen; guildMenuOpen = false; }
@@ -57,13 +59,26 @@
 	const badgeStyle = 'text-[11px] font-bold px-[7px] py-[1px] rounded-[20px] bg-white/[0.07] text-[var(--tx-2)]';
 
 	const guildMenuItems = [
-		{ icon: 'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z', label: 'Invite People', color: 'var(--tx)' },
-		{ icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z', label: 'Guild Settings', color: 'var(--tx)' },
-		{ icon: 'M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z', label: 'Leave Guild', color: '#f0836b' },
+		{ icon: 'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z', label: 'Invite People', color: 'var(--tx)', action: () => nav('guild/members') },
+		{ icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z', label: 'Guild Settings', color: 'var(--tx)', action: () => nav('guild/settings') },
+		{ icon: 'M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z', label: 'Leave Guild', color: '#f0836b', action: () => { leaveDialogOpen = true; closeAll(); } },
 	];
 </script>
 
 <svelte:window onclick={handleWindowClick} />
+
+<AlertDialog.Root bind:open={leaveDialogOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Leave {guild?.name}?</AlertDialog.Title>
+			<AlertDialog.Description>You will lose access to all projects and resources in this guild. You can only rejoin with an invite code.</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Action>Leave guild</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
 
 <div bind:this={sidebarEl} class="w-[248px] shrink-0 bg-[var(--sidebar)] flex flex-col border-r border-r-[var(--line)] z-[1] relative">
 	<!-- Guild header -->
@@ -89,8 +104,8 @@
 			<div class="absolute left-[10px] right-[10px] top-[50px] z-[39] bg-[var(--panel)] border border-[var(--line-2)] rounded-[11px] p-[6px] shadow-[0_18px_46px_rgba(0,0,0,.55)]">
 				{#each guildMenuItems as m}
 					<div
-						onclick={closeAll}
-						onkeydown={(e) => e.key === 'Enter' && closeAll()}
+						onclick={m.action}
+						onkeydown={(e) => e.key === 'Enter' && m.action()}
 						role="button"
 						tabindex="0"
 						class="flex items-center gap-[10px] px-[10px] py-[9px] rounded-[8px] cursor-pointer hover:bg-white/5"
@@ -285,12 +300,16 @@
 			<div class="text-[11px] text-[var(--tx-3)]">Guild Master</div>
 		</div>
 		<div class="flex gap-0.5 text-[var(--tx-2)]">
-			<div class="size-7 flex items-center justify-center rounded-[7px] cursor-pointer">
+			<button
+				onclick={() => nav('guild/settings')}
+				aria-label="Guild settings"
+				class="size-7 flex items-center justify-center rounded-[7px] cursor-pointer hover:bg-white/5"
+			>
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
 					<circle cx="12" cy="12" r="3.2"/>
 					<path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
 				</svg>
-			</div>
+			</button>
 		</div>
 	</div>
 </div>

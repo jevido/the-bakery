@@ -1,8 +1,11 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { GUILDS } from '$lib/data/bakery';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
+
 	const guildId = $derived(page.params.guild ?? '');
 	const guild = $derived(GUILDS[guildId]);
+	let deleteDialogOpen = $state(false);
 </script>
 
 <div class="px-7 py-[22px] max-w-[560px]">
@@ -25,6 +28,22 @@
 	<div class="bg-[rgba(229,101,75,.08)] border border-[rgba(229,101,75,.2)] rounded-[13px] p-[18px]">
 		<div class="text-[14px] font-bold text-[#f0836b] mb-1">Danger zone</div>
 		<div class="text-[12.5px] text-[var(--tx-2)] mb-[14px]">These actions are irreversible. Please be certain before proceeding.</div>
-		<button class="px-4 py-[9px] bg-[rgba(229,101,75,.14)] border border-[rgba(229,101,75,.3)] rounded-[8px] text-[#f0836b] text-[13px] font-bold cursor-pointer">Delete guild…</button>
+		<button
+			onclick={() => deleteDialogOpen = true}
+			class="px-4 py-[9px] bg-[rgba(229,101,75,.14)] border border-[rgba(229,101,75,.3)] rounded-[8px] text-[#f0836b] text-[13px] font-bold cursor-pointer"
+		>Delete guild…</button>
 	</div>
 </div>
+
+<AlertDialog.Root bind:open={deleteDialogOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Delete {guild?.name}?</AlertDialog.Title>
+			<AlertDialog.Description>This action is permanent and cannot be undone. All apps, hosts, members, and settings will be irreversibly removed.</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Action>Delete guild</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>

@@ -53,7 +53,7 @@
 
 	import { goto } from '$app/navigation';
 	function openApp(id: string) {
-		goto(`/${guildId}/deploy/apps/${id}`);
+		goto(`/${guildId}/deploy/projects/${id}`);
 	}
 </script>
 
@@ -113,7 +113,7 @@
 		<div class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] overflow-hidden">
 			<div class="flex items-center justify-between px-[18px] pt-[15px] pb-2">
 				<span class="text-[14px] font-bold">Top workloads</span>
-				<a href="/{guildId}/deploy/apps" class="text-[12.5px] text-[var(--grn-2)] no-underline font-semibold">View all →</a>
+				<a href="/{guildId}/deploy/projects" class="text-[12.5px] text-[var(--grn-2)] no-underline font-semibold">View all →</a>
 			</div>
 			{#each workloads as w}
 				<div

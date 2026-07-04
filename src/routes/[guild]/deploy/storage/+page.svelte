@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { getContext, onMount, onDestroy } from 'svelte';
+	import { toast } from 'svelte-sonner';
 	import { VOLUMES, GUILDS, volumeDriverMeta, type VolumeDriver } from '$lib/data/bakery';
 
 	const guildId   = $derived(page.params.guild ?? '');
@@ -45,11 +47,16 @@
 
 	function closePanel() { panelOpen = false; }
 
+	const cta = getContext<{ register(fn: () => void): void; unregister(): void }>('bakery:cta');
+	onMount(() => cta?.register(openPanel));
+	onDestroy(() => cta?.unregister());
+
 	async function createVolume() {
 		creating = true;
 		await new Promise((r) => setTimeout(r, 800));
 		creating = false;
 		formStep = 'done';
+		toast.success('Volume created', { description: `${volName} is ready on ${volHost}` });
 	}
 
 	const panelInputCls = 'w-full bg-[var(--card)] border border-[var(--line-2)] rounded-[8px] px-3 py-[9px] text-[13.5px] text-[var(--tx)] font-mono-jb';
@@ -70,11 +77,6 @@
 				{/if}
 			</div>
 		</div>
-		<div class="flex-1"></div>
-		<button onclick={openPanel} class="flex items-center gap-[7px] bg-[var(--grn)] text-[#07130c] rounded-[9px] px-[14px] py-2 text-[13.5px] font-bold cursor-pointer shadow-[0_2px_12px_var(--grn-dim)]">
-			<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-			Add volume
-		</button>
 	</div>
 
 	{#if volumes.length === 0}

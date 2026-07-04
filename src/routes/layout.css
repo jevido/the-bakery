@@ -135,6 +135,11 @@
 		all: unset;
 		box-sizing: border-box;
 	}
+	.bakery-shell button:focus-visible {
+		outline: 2px solid var(--grn);
+		outline-offset: 2px;
+		border-radius: 6px;
+	}
 	.bakery-shell input,
 	.bakery-shell select {
 		box-sizing: border-box;

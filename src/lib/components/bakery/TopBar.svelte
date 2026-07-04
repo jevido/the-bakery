@@ -71,14 +71,16 @@
 		<span class="ml-auto font-mono-jb text-[10.5px] bg-white/[0.06] px-[5px] py-[1px] rounded-[4px]">⌘K</span>
 	</div>
 
-	<button
-		onclick={onDeploy}
-		onkeydown={handleKeydown}
-		class="flex items-center gap-[7px] bg-[var(--grn)] text-white rounded-[9px] px-[14px] py-2 text-[13.5px] font-bold cursor-pointer shadow-[0_2px_12px_var(--grn-dim)]"
-	>
-		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
-			<path d="M12 5v14M5 12h14"/>
-		</svg>
-		{ctaLabel}
-	</button>
+	{#if onDeploy}
+		<button
+			onclick={onDeploy}
+			onkeydown={handleKeydown}
+			class="flex items-center gap-[7px] bg-[var(--grn)] text-white rounded-[9px] px-[14px] py-2 text-[13.5px] font-bold cursor-pointer shadow-[0_2px_12px_var(--grn-dim)]"
+		>
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+				<path d="M12 5v14M5 12h14"/>
+			</svg>
+			{ctaLabel}
+		</button>
+	{/if}
 </div>
