@@ -211,6 +211,17 @@
 				<span class="flex-1">Storage</span>
 			</button>
 
+			<button onclick={() => nav('deploy/hosts')} class={ns('hosts')}>
+				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+					<rect x="2" y="4" width="20" height="7" rx="1.5"/>
+					<rect x="2" y="13" width="20" height="7" rx="1.5"/>
+					<circle cx="6" cy="7.5" r="1"/>
+					<circle cx="6" cy="16.5" r="1"/>
+				</svg>
+				<span class="flex-1">Hosts</span>
+				<span class={badgeStyle}>{hostCount}</span>
+			</button>
+
 		{:else if module === 'guild'}
 			<div class="text-[10px] font-bold tracking-[.09em] text-[var(--tx-3)] px-[6px] pt-2 pb-[6px]">GUILD</div>
 
