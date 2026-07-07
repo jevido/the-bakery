@@ -1,28 +1,20 @@
-import {
-	ORIGIN,
-	BETTER_AUTH_SECRET,
-	GITHUB_CLIENT_ID,
-	GITHUB_CLIENT_SECRET
-} from '$app/env/private';
-
 import { betterAuth } from 'better-auth/minimal';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { sveltekitCookies } from 'better-auth/svelte-kit';
 import { organization } from 'better-auth/plugins/organization';
 import { getRequestEvent } from '$app/server';
 import { db } from '$lib/server/db';
-import { ac, roles } from '$lib/server/auth/permissions';
-import { ROLES } from '$lib/data/bakery';
+import { ac, roles } from '$lib/auth/permissions';
 
 export const auth = betterAuth({
-	baseURL: ORIGIN,
-	secret: BETTER_AUTH_SECRET,
+	baseURL: process.env.ORIGIN,
+	secret: process.env.BETTER_AUTH_SECRET,
 	database: drizzleAdapter(db, { provider: 'pg' }),
 	emailAndPassword: { enabled: true },
 	socialProviders: {
 		github: {
-			clientId: GITHUB_CLIENT_ID,
-			clientSecret: GITHUB_CLIENT_SECRET
+			clientId: process.env.GITHUB_CLIENT_ID ?? '',
+			clientSecret: process.env.GITHUB_CLIENT_SECRET ?? ''
 		}
 	},
 	plugins: [
@@ -31,33 +23,15 @@ export const auth = betterAuth({
 			roles,
 			// The mock roles use "guild-master" where Better Auth defaults to "owner".
 			creatorRole: 'guild-master',
+			// Guild Master/Head Baker/Baker/Apprentice are the 4 static roles above —
+			// no organizationRole DB rows needed for them. dynamicAccessControl only
+			// persists *custom* roles a guild creates beyond those 4 (Phase 01 task 14).
 			dynamicAccessControl: { enabled: true },
 			schema: {
 				organizationRole: {
 					additionalFields: {
 						color: { type: 'string' },
 						note: { type: 'string' }
-					}
-				}
-			},
-			organizationHooks: {
-				// Seed the 4 default positions (Guild Master/Head Baker/Baker/Apprentice)
-				// on every new guild, matching bakery.ts's ROLES/ROLE_PERMS.
-				afterCreateOrganization: async ({ organization: org }) => {
-					const event = getRequestEvent();
-					for (const role of ROLES) {
-						await auth.api.createOrgRole({
-							headers: event.request.headers,
-							body: {
-								organizationId: org.id,
-								role: role.id,
-								permission: roles[role.id as keyof typeof roles].statements as Record<
-									string,
-									string[]
-								>,
-								additionalFields: { color: role.color, note: role.note }
-							}
-						});
 					}
 				}
 			}
