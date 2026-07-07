@@ -47,9 +47,8 @@
 	const port = $derived(app?.port === '—' ? '3000' : (app?.port ?? '3000'));
 </script>
 
-{#if !app}
-	<div class="p-10 text-[var(--tx-2)]">Project not found.</div>
-{:else}
+<svelte:head><title>{app!.name} · {guild!.name} — The Bakery</title></svelte:head>
+
 <div>
 	<!-- App header -->
 	<div class="px-7 pt-5 pb-0">
@@ -323,4 +322,3 @@
 
 	</div>
 </div>
-{/if}
