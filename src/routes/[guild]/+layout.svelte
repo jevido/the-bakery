@@ -8,12 +8,11 @@
 	import DeployDialog from '$lib/components/bakery/DeployDialog.svelte';
 	import GuildJourneyDialog from '$lib/components/bakery/GuildJourneyDialog.svelte';
 	import NotFound from '$lib/components/bakery/NotFound.svelte';
-	import { GUILDS } from '$lib/data/bakery';
 
-	let { children } = $props();
+	let { children, data } = $props();
 
 	const guildId = $derived(page.params.guild ?? '');
-	const guild = $derived(GUILDS[guildId]);
+	const guild = $derived(data.organization);
 	const guildName = $derived(guild?.name ?? guildId);
 	let deployOpen = $state(false);
 	let guildJourneyOpen = $state(false);
