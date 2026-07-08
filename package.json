@@ -65,5 +65,8 @@
 		"typescript-eslint": "^8.60.1",
 		"vaul-svelte": "^1.0.0-next.7",
 		"vite": "^8.0.16"
+	},
+	"dependencies": {
+		"zod": "^4.4.3"
 	}
 }

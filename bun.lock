@@ -4,6 +4,9 @@
   "workspaces": {
     "": {
       "name": "the-bakery",
+      "dependencies": {
+        "zod": "^4.4.3",
+      },
       "devDependencies": {
         "@better-auth/cli": "~1.4.21",
         "@eslint/js": "^10.0.1",
