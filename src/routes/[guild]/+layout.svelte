@@ -25,7 +25,7 @@
 
 	// Derive module and section from URL
 	const pathParts = $derived(page.url.pathname.split('/').filter(Boolean));
-	const module = $derived((pathParts[1] === 'planning' ? 'planning' : pathParts[1] === 'guild' ? 'guild' : 'deploy') as 'deploy' | 'planning' | 'guild');
+	const module = $derived((pathParts[1] === 'planning' ? 'planning' : 'deploy') as 'deploy' | 'planning');
 	const section = $derived(pathParts[2] ?? 'overview');
 
 	const sectionLabels: Record<string, string> = {

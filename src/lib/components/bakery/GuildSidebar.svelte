@@ -11,7 +11,7 @@
 		children,
 	}: {
 		guildId: string;
-		module: 'deploy' | 'planning' | 'guild';
+		module: 'deploy' | 'planning';
 		activeSection: string;
 		children?: Snippet;
 	} = $props();
@@ -48,10 +48,9 @@
 	const moduleIcons: Record<string, string> = {
 		deploy: 'M20 7l-8-4-8 4v10l8 4 8-4V7zM4 7l8 4 8-4M12 21V11',
 		planning: 'M3 4h18v4H3zM3 12h18v4H3zM3 20h18',
-		guild: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75',
 	};
-	const moduleNames: Record<string, string> = { deploy: 'Deploy', planning: 'Planning', guild: 'Guild' };
-	const moduleDescs: Record<string, string> = { deploy: 'Projects, sources & infra', planning: 'Board, cycles & sprints', guild: 'Members, roles & settings' };
+	const moduleNames: Record<string, string> = { deploy: 'Deploy', planning: 'Planning' };
+	const moduleDescs: Record<string, string> = { deploy: 'Projects, sources, infra & guild', planning: 'Board, cycles & sprints' };
 
 	const appCount = $derived(apps.length);
 	const hostCount = $derived(guild?.hosts?.length ?? 0);
@@ -59,8 +58,8 @@
 	const badgeStyle = 'text-[11px] font-bold px-[7px] py-[1px] rounded-[20px] bg-white/[0.07] text-[var(--tx-2)]';
 
 	const guildMenuItems = [
-		{ icon: 'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z', label: 'Invite People', color: 'var(--tx)', action: () => nav('guild/members') },
-		{ icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z', label: 'Guild Settings', color: 'var(--tx)', action: () => nav('guild/settings') },
+		{ icon: 'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z', label: 'Invite People', color: 'var(--tx)', action: () => nav('deploy/members') },
+		{ icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z', label: 'Guild Settings', color: 'var(--tx)', action: () => nav('deploy/settings') },
 		{ icon: 'M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z', label: 'Leave Guild', color: '#f0836b', action: () => { leaveDialogOpen = true; closeAll(); } },
 	];
 </script>
@@ -102,7 +101,7 @@
 
 		{#if guildMenuOpen}
 			<div class="absolute left-[10px] right-[10px] top-[50px] z-[39] bg-[var(--panel)] border border-[var(--line-2)] rounded-[11px] p-[6px] shadow-[0_18px_46px_rgba(0,0,0,.55)]">
-				{#each guildMenuItems as m}
+				{#each guildMenuItems as m (m.label)}
 					<div
 						onclick={m.action}
 						onkeydown={(e) => e.key === 'Enter' && m.action()}
@@ -141,8 +140,8 @@
 
 		{#if moduleMenuOpen}
 			<div class="absolute left-3 right-3 top-[64px] z-[30] bg-[var(--panel)] border border-[var(--line-2)] rounded-[11px] p-[6px] shadow-[0_16px_44px_rgba(0,0,0,.55)]">
-				{#each (['deploy', 'planning', 'guild'] as const) as m}
-					{@const defaultSection = m === 'deploy' ? 'overview' : m === 'planning' ? 'board' : 'members'}
+				{#each (['deploy', 'planning'] as const) as m (m)}
+					{@const defaultSection = m === 'deploy' ? 'overview' : 'board'}
 					<div
 						onclick={() => { nav(`${m}/${defaultSection}`); }}
 						onkeydown={(e) => e.key === 'Enter' && nav(`${m}/${defaultSection}`)}
@@ -222,10 +221,9 @@
 				<span class={badgeStyle}>{hostCount}</span>
 			</button>
 
-		{:else if module === 'guild'}
-			<div class="text-[10px] font-bold tracking-[.09em] text-[var(--tx-3)] px-[6px] pt-2 pb-[6px]">GUILD</div>
+			<div class="text-[10px] font-bold tracking-[.09em] text-[var(--tx-3)] px-[6px] pt-4 pb-[6px]">GUILD</div>
 
-			<button onclick={() => nav('guild/members')} class={ns('members')}>
+			<button onclick={() => nav('deploy/members')} class={ns('members')}>
 				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
 					<circle cx="8" cy="9" r="3"/>
 					<circle cx="16.5" cy="10" r="2.4"/>
@@ -235,7 +233,7 @@
 				<span class={badgeStyle}>{memberCount}</span>
 			</button>
 
-			<button onclick={() => nav('guild/roles')} class={ns('roles')}>
+			<button onclick={() => nav('deploy/roles')} class={ns('roles')}>
 				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
 					<path d="M12 3l7 3v5c0 4.2-3 7.5-7 9-4-1.5-7-4.8-7-9V6l7-3z"/>
 				</svg>
@@ -244,7 +242,7 @@
 
 			<div class="text-[10px] font-bold tracking-[.09em] text-[var(--tx-3)] px-[6px] pt-4 pb-[6px]">SETTINGS</div>
 
-			<button onclick={() => nav('guild/settings')} class={ns('settings')}>
+			<button onclick={() => nav('deploy/settings')} class={ns('settings')}>
 				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
 					<circle cx="12" cy="12" r="3.2"/>
 					<path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/>
@@ -312,7 +310,7 @@
 		</div>
 		<div class="flex gap-0.5 text-[var(--tx-2)]">
 			<button
-				onclick={() => nav('guild/settings')}
+				onclick={() => nav('deploy/settings')}
 				aria-label="Guild settings"
 				class="size-7 flex items-center justify-center rounded-[7px] cursor-pointer hover:bg-white/5"
 			>

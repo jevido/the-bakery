@@ -15,7 +15,7 @@
 
 	const guild = $derived(GUILDS[guildId]);
 	const guildName = $derived(guild?.name ?? guildId);
-	const moduleName = $derived(module === 'deploy' ? 'Deploy' : module === 'guild' ? 'Guild' : 'Planning');
+	const moduleName = $derived(module === 'deploy' ? 'Deploy' : 'Planning');
 
 	const sectionLabels: Record<string, string> = {
 		overview: 'Dashboard',
