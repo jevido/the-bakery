@@ -24,11 +24,11 @@
 
 	<!-- Guild list -->
 	{#each guildStore.list as gd (gd.id)}
-		{@const active = gd.id === guildId}
+		{@const active = gd.slug === guildId}
 		<div
 			title={gd.name}
-			onclick={() => selectGuild(gd.id)}
-			onkeydown={(e) => e.key === 'Enter' && selectGuild(gd.id)}
+			onclick={() => selectGuild(gd.slug)}
+			onkeydown={(e) => e.key === 'Enter' && selectGuild(gd.slug)}
 			role="button"
 			tabindex="0"
 			class="relative size-12 cursor-pointer flex items-center justify-center"
@@ -46,7 +46,7 @@
 				style:background={active ? 'linear-gradient(150deg, var(--grn-2), var(--grn))' : 'var(--card-2)'}
 				style:color={active ? '#07130c' : 'var(--tx)'}
 				style:border={active ? 'none' : '1px solid var(--line)'}
-			>{gd.letter}</div>
+			>{gd.name.trim()[0]?.toUpperCase() ?? '?'}</div>
 		</div>
 	{/each}
 

@@ -1,20 +1,21 @@
-import { GUILDS, type Guild } from '$lib/data/bakery';
+import { page } from '$app/state';
 
+export interface GuildSummary {
+	id: string;
+	name: string;
+	slug: string;
+	color: string;
+}
+
+/**
+ * Thin reactive wrapper around the root layout's `organizations` load data
+ * (src/routes/+layout.server.ts, real Better Auth organizations for the
+ * current user). No local mutation — creating/joining a guild triggers a
+ * reload via `invalidateAll()` instead.
+ */
 class GuildStore {
-	guilds = $state<Record<string, Guild>>({ ...GUILDS });
-
-	get list() {
-		return Object.values(this.guilds);
-	}
-
-	add(guild: Guild) {
-		this.guilds[guild.id] = guild;
-		// mutate original so non-reactive pages that import GUILDS directly can find it
-		GUILDS[guild.id] = guild;
-	}
-
-	findByInvite(code: string) {
-		return this.list.find((g) => g.invite.toLowerCase() === code.toLowerCase()) ?? null;
+	get list(): GuildSummary[] {
+		return (page.data.organizations ?? []) as GuildSummary[];
 	}
 }
 
