@@ -67,3 +67,35 @@ export const roles = {
 	baker,
 	apprentice
 };
+
+/** The custom (non-Better-Auth-builtin) resources — what dynamic/custom roles are scoped to. */
+export const CUSTOM_ROLE_RESOURCES = ['guild', 'apps', 'hosts'] as const;
+export type CustomRoleResource = (typeof CUSTOM_ROLE_RESOURCES)[number];
+
+/** Maps each permission id from the mock PERM_GROUPS catalogue to the
+ * access-control resource it lives under in this statement. Shared by
+ * guild-context.ts's requireGuild() and any UI rendering the permission
+ * catalogue (e.g. the roles page). */
+export const PERMISSION_RESOURCE: Record<string, CustomRoleResource> = {
+	view_guild: 'guild',
+	manage_guild: 'guild',
+	manage_roles: 'guild',
+	manage_members: 'guild',
+	audit_log: 'guild',
+	view_apps: 'apps',
+	create_apps: 'apps',
+	deploy_apps: 'apps',
+	manage_env: 'apps',
+	view_secrets: 'apps',
+	delete_apps: 'apps',
+	view_hosts: 'hosts',
+	manage_hosts: 'hosts',
+	manage_domains: 'hosts'
+};
+
+/** Flattens a static role's guild/apps/hosts grants into one set of permission ids. */
+export function staticRolePermissionIds(roleKey: keyof typeof roles): Set<string> {
+	const statements = roles[roleKey].statements as Record<string, readonly string[] | undefined>;
+	const ids = CUSTOM_ROLE_RESOURCES.flatMap((resource) => statements[resource] ?? []);
+	return new Set(ids);
+}

@@ -1,7 +1,10 @@
 import { error, redirect } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
 import { auth } from '$lib/server/auth';
-import { roles } from '$lib/auth/permissions';
+import { roles, PERMISSION_RESOURCE } from '$lib/auth/permissions';
+import { db } from '$lib/server/db';
+import { organizationRole } from '$lib/server/db/schema';
+import { eq, and } from 'drizzle-orm';
 
 /**
  * Every guild-scoped `load`/action/`+server.ts` handler (hosts, apps, sources,
@@ -11,27 +14,6 @@ import { roles } from '$lib/auth/permissions';
  * guild-level data isolation across the whole app — do not re-implement the
  * slug → organization lookup ad hoc in individual routes.
  */
-
-type PermissionResource = 'guild' | 'apps' | 'hosts';
-
-/** Maps each permission id from the mock PERM_GROUPS catalogue to the
- * access-control resource it lives under in src/lib/auth/permissions.ts. */
-const PERMISSION_RESOURCE: Record<string, PermissionResource> = {
-	view_guild: 'guild',
-	manage_guild: 'guild',
-	manage_roles: 'guild',
-	manage_members: 'guild',
-	audit_log: 'guild',
-	view_apps: 'apps',
-	create_apps: 'apps',
-	deploy_apps: 'apps',
-	manage_env: 'apps',
-	view_secrets: 'apps',
-	delete_apps: 'apps',
-	view_hosts: 'hosts',
-	manage_hosts: 'hosts',
-	manage_domains: 'hosts'
-};
 
 export async function requireGuild(event: RequestEvent, opts?: { permission?: string }) {
 	if (!event.locals.user || !event.locals.session) {
@@ -54,9 +36,28 @@ export async function requireGuild(event: RequestEvent, opts?: { permission?: st
 
 	if (opts?.permission) {
 		const resource = PERMISSION_RESOURCE[opts.permission];
-		const role = roles[member.role as keyof typeof roles];
-		const authorized = resource && role?.authorize({ [resource]: [opts.permission] } as never);
-		if (!authorized?.success) {
+		const staticRole = roles[member.role as keyof typeof roles];
+
+		let authorized = resource
+			? (staticRole?.authorize({ [resource]: [opts.permission] } as never).success ?? false)
+			: false;
+
+		// member.role isn't one of the 4 static defaults — it's a custom role
+		// created via dynamicAccessControl (Phase 01 task 14). Those aren't in
+		// the static `roles` map at all, so check the real organizationRole
+		// grant directly rather than always denying.
+		if (!authorized && !staticRole && resource) {
+			const [customRole] = await db
+				.select()
+				.from(organizationRole)
+				.where(and(eq(organizationRole.organizationId, organization.id), eq(organizationRole.role, member.role)));
+			if (customRole) {
+				const permission = JSON.parse(customRole.permission) as Record<string, string[]>;
+				authorized = (permission[resource] ?? []).includes(opts.permission);
+			}
+		}
+
+		if (!authorized) {
 			error(403, 'You do not have permission to do that.');
 		}
 	}
