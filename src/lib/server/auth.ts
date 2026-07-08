@@ -28,6 +28,14 @@ export const auth = betterAuth({
 			// persists *custom* roles a guild creates beyond those 4 (Phase 01 task 14).
 			dynamicAccessControl: { enabled: true },
 			schema: {
+				organization: {
+					additionalFields: {
+						// Bakery's existing invite-code join UX, distinct from Better
+						// Auth's own email-based `invitation` flow.
+						inviteCode: { type: 'string', required: true, unique: true },
+						color: { type: 'string', required: true }
+					}
+				},
 				organizationRole: {
 					additionalFields: {
 						color: { type: 'string' },

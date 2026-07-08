@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { GUILDS } from '$lib/data/bakery';
-	const guildId = $derived(page.params.guild ?? '');
-	const guild = $derived(GUILDS[guildId]);
+	// Full settings form wiring (name edit, invite regenerate, delete) is
+	// Phase 01 task 15 — this only sources the invite code from the real
+	// organization instead of the mock, per task 09.
+	const guild = $derived(page.data.organization as { name: string; inviteCode: string } | undefined);
 </script>
 
 <div class="px-7 py-[22px] max-w-[560px]">
@@ -16,7 +17,7 @@
 			<input id="guild-name" value={guild?.name ?? ''} class="w-full bg-[var(--card-2)] border border-[var(--line-2)] rounded-[8px] px-[13px] py-[10px] text-[14px] text-[var(--tx)]" />
 			<label for="invite-code" class="block text-[13px] font-semibold text-[var(--tx-2)] mb-[6px] mt-[14px]">Invite code</label>
 			<div class="flex gap-2">
-				<input id="invite-code" value={guild?.invite ?? ''} readonly class="flex-1 bg-[var(--card-2)] border border-[var(--line-2)] rounded-[8px] px-[13px] py-[10px] font-mono-jb text-[13px] text-[var(--tx-2)]" />
+				<input id="invite-code" value={guild?.inviteCode ?? ''} readonly class="flex-1 bg-[var(--card-2)] border border-[var(--line-2)] rounded-[8px] px-[13px] py-[10px] font-mono-jb text-[13px] text-[var(--tx-2)]" />
 				<button class="px-[14px] py-[10px] bg-[var(--card-2)] border border-[var(--line)] rounded-[8px] text-[13px] text-[var(--tx-2)] cursor-pointer font-semibold">Regenerate</button>
 			</div>
 		</div>

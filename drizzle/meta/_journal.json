@@ -8,6 +8,13 @@
       "when": 1783462847840,
       "tag": "0000_ancient_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1783545110770,
+      "tag": "0001_workable_rafael_vega",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import * as Dialog from '$lib/components/ui/dialog';
-	import { guildStore } from '$lib/stores/guilds.svelte';
 
 	let { open = $bindable(false) }: { open: boolean } = $props();
 
@@ -11,50 +10,101 @@
 	];
 
 	type Mode = 'choice' | 'create' | 'join';
+	type FoundGuild = { name: string; slug: string; color: string };
 
 	let mode = $state<Mode>('choice');
 	let name = $state('');
 	let color = $state(PALETTE[0]);
+	let creating = $state(false);
+	let createError = $state('');
+
 	let inviteCode = $state('');
-	let foundGuild = $state<ReturnType<typeof guildStore.findByInvite>>(null);
+	let foundGuild = $state<FoundGuild | null>(null);
+	let finding = $state(false);
+	let joining = $state(false);
 	let findError = $state('');
 
 	const letter = $derived(name.trim()[0]?.toUpperCase() ?? '?');
-	const canCreate = $derived(name.trim().length > 0);
+	const canCreate = $derived(name.trim().length > 0 && !creating);
 
 	function resetForm() {
 		mode = 'choice';
 		name = '';
 		color = PALETTE[0];
+		creating = false;
+		createError = '';
 		inviteCode = '';
 		foundGuild = null;
+		finding = false;
+		joining = false;
 		findError = '';
 	}
 
-	function findGuild() {
-		const found = guildStore.findByInvite(inviteCode.trim());
-		foundGuild = found;
-		findError = found ? '' : 'No guild found with that invite code.';
+	async function findGuild() {
+		const code = inviteCode.trim();
+		if (!code) return;
+		finding = true;
+		findError = '';
+		foundGuild = null;
+		try {
+			const res = await fetch(`/api/guilds/join?code=${encodeURIComponent(code)}`);
+			if (!res.ok) {
+				const body = await res.json().catch(() => null);
+				findError = body?.message ?? 'No guild found with that invite code.';
+				return;
+			}
+			foundGuild = await res.json();
+		} finally {
+			finding = false;
+		}
 	}
 
-	function createGuild() {
+	async function createGuild() {
 		if (!canCreate) return;
-		const base =
-			name
-				.toLowerCase()
-				.replace(/\s+/g, '-')
-				.replace(/[^a-z0-9-]/g, '') || 'guild';
-		const id = guildStore.guilds[base] ? `${base}-${Date.now().toString(36)}` : base;
-		const invite = `${id}-${Math.floor(Math.random() * 90 + 10)}`;
-		guildStore.add({ id, name: name.trim(), letter, color, invite, apps: [], hosts: [] });
-		goto(`/${id}/deploy/overview`);
-		open = false;
+		creating = true;
+		createError = '';
+		try {
+			const res = await fetch('/api/guilds', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ name: name.trim(), color })
+			});
+			if (!res.ok) {
+				const body = await res.json().catch(() => null);
+				createError = body?.message ?? 'Could not create guild.';
+				return;
+			}
+			const { slug } = await res.json();
+			await invalidateAll();
+			await goto(`/${slug}/deploy/overview`);
+			open = false;
+		} finally {
+			creating = false;
+		}
 	}
 
-	function joinGuild() {
+	async function joinGuild() {
 		if (!foundGuild) return;
-		goto(`/${foundGuild.id}/deploy/overview`);
-		open = false;
+		joining = true;
+		findError = '';
+		try {
+			const res = await fetch('/api/guilds/join', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ inviteCode: inviteCode.trim() })
+			});
+			if (!res.ok) {
+				const body = await res.json().catch(() => null);
+				findError = body?.message ?? 'Could not join guild.';
+				return;
+			}
+			const { slug } = await res.json();
+			await invalidateAll();
+			await goto(`/${slug}/deploy/overview`);
+			open = false;
+		} finally {
+			joining = false;
+		}
 	}
 </script>
 
@@ -184,16 +234,22 @@
 						<p class="text-[13px] font-semibold text-[var(--tx)] truncate">
 							{name.trim() || 'Your guild name'}
 						</p>
-						<p class="text-[11px] text-[var(--tx-3)]">New guild · 0 apps</p>
+						<p class="text-[11px] text-[var(--tx-3)]">New guild</p>
 					</div>
 				</div>
+
+				{#if createError}
+					<div class="p-3 rounded-[10px] bg-red-500/10 border border-red-500/20 mb-5">
+						<p class="text-[12px] text-red-400">{createError}</p>
+					</div>
+				{/if}
 
 				<div class="flex justify-end">
 					<button
 						onclick={createGuild}
 						disabled={!canCreate}
 						class="px-4 py-2 rounded-[8px] bg-[var(--grn)] text-[#07130c] text-[13px] font-semibold hover:bg-[var(--grn-2)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-					>Create guild →</button>
+					>{creating ? 'Creating…' : 'Create guild →'}</button>
 				</div>
 			</div>
 		{:else}
@@ -228,8 +284,9 @@
 						/>
 						<button
 							onclick={findGuild}
-							class="px-3 h-9 rounded-[8px] bg-[var(--card-2)] border border-[var(--line)] text-[var(--tx-2)] text-[13px] hover:border-[var(--line-2)] hover:text-[var(--tx)] transition-colors shrink-0"
-						>Find</button>
+							disabled={finding}
+							class="px-3 h-9 rounded-[8px] bg-[var(--card-2)] border border-[var(--line)] text-[var(--tx-2)] text-[13px] hover:border-[var(--line-2)] hover:text-[var(--tx)] transition-colors shrink-0 disabled:opacity-40"
+						>{finding ? '…' : 'Find'}</button>
 					</div>
 				</div>
 
@@ -242,12 +299,10 @@
 							style:background="{foundGuild.color}22"
 							style:color={foundGuild.color}
 							style:border="1px solid {foundGuild.color}44"
-						>{foundGuild.letter}</div>
+						>{foundGuild.name.trim()[0]?.toUpperCase() ?? '?'}</div>
 						<div class="min-w-0">
 							<p class="text-[13px] font-semibold text-[var(--tx)] truncate">{foundGuild.name}</p>
-							<p class="text-[11px] text-[var(--tx-3)]">
-								{foundGuild.id} · {foundGuild.apps.length} apps
-							</p>
+							<p class="text-[11px] text-[var(--tx-3)]">{foundGuild.slug}</p>
 						</div>
 						<svg
 							class="ml-auto text-[var(--ok)] shrink-0"
@@ -270,9 +325,9 @@
 				<div class="flex justify-end">
 					<button
 						onclick={joinGuild}
-						disabled={!foundGuild}
+						disabled={!foundGuild || joining}
 						class="px-4 py-2 rounded-[8px] bg-[var(--grn)] text-[#07130c] text-[13px] font-semibold hover:bg-[var(--grn-2)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-					>Join guild →</button>
+					>{joining ? 'Joining…' : 'Join guild →'}</button>
 				</div>
 			</div>
 		{/if}
