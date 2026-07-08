@@ -3,19 +3,16 @@
 
 	let {
 		guildId,
-		module,
 		section,
 		onDeploy,
 	}: {
 		guildId: string;
-		module: string;
 		section: string;
 		onDeploy?: () => void;
 	} = $props();
 
 	const guild = $derived(GUILDS[guildId]);
 	const guildName = $derived(guild?.name ?? guildId);
-	const moduleName = $derived(module === 'deploy' ? 'Deploy' : 'Planning');
 
 	const sectionLabels: Record<string, string> = {
 		overview: 'Dashboard',
@@ -26,10 +23,6 @@
 		members: 'Members',
 		roles: 'Roles',
 		settings: 'Guild Settings',
-		board: 'Board',
-		'my-work': 'My Work',
-		cycles: 'Cycles',
-		views: 'Views',
 	};
 
 	const ctaLabels: Record<string, string> = {
@@ -40,7 +33,6 @@
 		storage: 'Add volume',
 		members: 'Invite member',
 		roles: 'Create role',
-		board: 'New task',
 	};
 
 	const crumb = $derived(sectionLabels[section] ?? section);
@@ -55,7 +47,7 @@
 	<div class="flex items-center gap-2 text-[14px] min-w-0">
 		<span class="text-[var(--tx-3)]">{guildName}</span>
 		<span class="text-[var(--tx-3)]">/</span>
-		<span class="text-[var(--tx-2)]">{moduleName}</span>
+		<span class="text-[var(--tx-2)]">Deploy</span>
 		<span class="text-[var(--tx-3)]">/</span>
 		<span class="text-[var(--tx)] font-semibold whitespace-nowrap overflow-hidden text-ellipsis">{crumb}</span>
 	</div>

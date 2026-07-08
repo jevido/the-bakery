@@ -23,24 +23,19 @@
 		unregister() { ctaAction = undefined; },
 	});
 
-	// Derive module and section from URL
 	const pathParts = $derived(page.url.pathname.split('/').filter(Boolean));
-	const module = $derived((pathParts[1] === 'planning' ? 'planning' : 'deploy') as 'deploy' | 'planning');
 	const section = $derived(pathParts[2] ?? 'overview');
 
 	const sectionLabels: Record<string, string> = {
 		overview: 'Dashboard', projects: 'Projects', hosts: 'Hosts',
 		sources: 'Sources', networks: 'Networks', storage: 'Storage',
 		members: 'Members', roles: 'Roles', settings: 'Guild Settings',
-		board: 'Board', 'my-work': 'My Work', cycles: 'Cycles', views: 'Views',
 	};
 	const crumb = $derived(sectionLabels[section] ?? section);
 	const pageTitle = $derived(`${crumb} · ${guildName} — The Bakery`);
 
 	const onDeploy = $derived(
-		module !== 'deploy' ? undefined :
-		(section === 'overview' || section === 'projects') ? () => deployOpen = true :
-		ctaAction
+		(section === 'overview' || section === 'projects') ? () => deployOpen = true : ctaAction
 	);
 </script>
 
@@ -48,10 +43,10 @@
 
 <div class="bakery-shell flex h-screen w-screen overflow-hidden bg-[var(--main)] text-[var(--tx)] font-bakery antialiased">
 	<AppRail {guildId} onOpenJourney={() => (guildJourneyOpen = true)} />
-	<GuildSidebar {guildId} {module} activeSection={section} />
+	<GuildSidebar {guildId} activeSection={section} />
 
 	<div class="flex-1 min-w-0 flex flex-col bg-[var(--main)]">
-		<TopBar {guildId} {module} {section} {onDeploy} />
+		<TopBar {guildId} {section} {onDeploy} />
 		<div class="flex-1 overflow-y-auto">
 			{#if guild}
 				{@render children()}

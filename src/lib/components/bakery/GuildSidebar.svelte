@@ -6,12 +6,10 @@
 
 	let {
 		guildId,
-		module,
 		activeSection,
 		children,
 	}: {
 		guildId: string;
-		module: 'deploy' | 'planning';
 		activeSection: string;
 		children?: Snippet;
 	} = $props();
@@ -22,13 +20,11 @@
 	const apps = $derived(guild?.apps ?? []);
 
 	let guildMenuOpen = $state(false);
-	let moduleMenuOpen = $state(false);
 	let sidebarEl = $state<HTMLElement | null>(null);
 	let leaveDialogOpen = $state(false);
 
-	function toggleGuildMenu() { guildMenuOpen = !guildMenuOpen; moduleMenuOpen = false; }
-	function toggleModuleMenu() { moduleMenuOpen = !moduleMenuOpen; guildMenuOpen = false; }
-	function closeAll() { guildMenuOpen = false; moduleMenuOpen = false; }
+	function toggleGuildMenu() { guildMenuOpen = !guildMenuOpen; }
+	function closeAll() { guildMenuOpen = false; }
 
 	function handleWindowClick(e: MouseEvent) {
 		if (sidebarEl && !sidebarEl.contains(e.target as Node)) closeAll();
@@ -44,13 +40,6 @@
 	const navBase = 'flex items-center gap-[11px] px-[10px] py-2 rounded-[8px] cursor-pointer text-[13.5px] font-medium text-[var(--tx-2)] mb-0.5 w-full text-left hover:bg-white/5';
 	const navOn = 'flex items-center gap-[11px] px-[10px] py-2 rounded-[8px] cursor-pointer text-[13.5px] font-semibold text-[var(--grn)] mb-0.5 w-full text-left bg-[var(--grn-dim)]';
 	function ns(s: string) { return isActive(s) ? navOn : navBase; }
-
-	const moduleIcons: Record<string, string> = {
-		deploy: 'M20 7l-8-4-8 4v10l8 4 8-4V7zM4 7l8 4 8-4M12 21V11',
-		planning: 'M3 4h18v4H3zM3 12h18v4H3zM3 20h18',
-	};
-	const moduleNames: Record<string, string> = { deploy: 'Deploy', planning: 'Planning' };
-	const moduleDescs: Record<string, string> = { deploy: 'Projects, sources, infra & guild', planning: 'Board, cycles & sprints' };
 
 	const appCount = $derived(apps.length);
 	const hostCount = $derived(guild?.hosts?.length ?? 0);
@@ -119,181 +108,91 @@
 		{/if}
 	</div>
 
-	<!-- Module dropdown -->
-	<div class="px-3 pt-3 pb-[6px] relative">
-		<div class="text-[10px] font-bold tracking-[.09em] text-[var(--tx-3)] px-[6px] pb-[7px]">MODULE</div>
-		<div
-			onclick={toggleModuleMenu}
-			onkeydown={(e) => e.key === 'Enter' && toggleModuleMenu()}
-			role="button"
-			tabindex="0"
-			class="flex items-center gap-[9px] px-[11px] py-[9px] rounded-[9px] bg-[var(--card)] border border-[var(--line-2)] cursor-pointer"
-		>
-			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--grn)" stroke-width="1.9">
-				<path d={moduleIcons[module]}/>
-			</svg>
-			<div class="text-[13.5px] font-bold text-[var(--tx)] flex-1">{moduleNames[module]}</div>
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tx-2)" stroke-width="2">
-				<path d="M8 9l4-4 4 4M8 15l4 4 4-4"/>
-			</svg>
-		</div>
-
-		{#if moduleMenuOpen}
-			<div class="absolute left-3 right-3 top-[64px] z-[30] bg-[var(--panel)] border border-[var(--line-2)] rounded-[11px] p-[6px] shadow-[0_16px_44px_rgba(0,0,0,.55)]">
-				{#each (['deploy', 'planning'] as const) as m (m)}
-					{@const defaultSection = m === 'deploy' ? 'overview' : 'board'}
-					<div
-						onclick={() => { nav(`${m}/${defaultSection}`); }}
-						onkeydown={(e) => e.key === 'Enter' && nav(`${m}/${defaultSection}`)}
-						role="button"
-						tabindex="0"
-						class="flex items-center gap-[10px] px-[11px] py-[10px] rounded-[8px] cursor-pointer"
-						class:bg-[var(--grn-dim)]={module === m}
-					>
-						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={module === m ? 'var(--grn)' : 'var(--tx-2)'} stroke-width="1.8" class="shrink-0">
-							<path d={moduleIcons[m]}/>
-						</svg>
-						<div class="flex-1 min-w-0">
-							<div class="text-[13.5px] font-semibold" style:color={module === m ? 'var(--grn)' : 'var(--tx)'}>{moduleNames[m]}</div>
-							<div class="text-[11px] text-[var(--tx-3)]">{moduleDescs[m]}</div>
-						</div>
-					</div>
-				{/each}
-			</div>
-		{/if}
-	</div>
-
 	<!-- Nav -->
 	<div class="flex-1 overflow-y-auto px-3 pb-3 pt-[10px]">
-		{#if module === 'deploy'}
-			<button onclick={() => nav('deploy/overview')} class={ns('overview')}>
-				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-					<rect x="3" y="3" width="7" height="9" rx="1.5"/>
-					<rect x="14" y="3" width="7" height="5" rx="1.5"/>
-					<rect x="14" y="12" width="7" height="9" rx="1.5"/>
-					<rect x="3" y="16" width="7" height="5" rx="1.5"/>
-				</svg>
-				<span class="flex-1">Dashboard</span>
-			</button>
+		<button onclick={() => nav('deploy/overview')} class={ns('overview')}>
+			<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+				<rect x="3" y="3" width="7" height="9" rx="1.5"/>
+				<rect x="14" y="3" width="7" height="5" rx="1.5"/>
+				<rect x="14" y="12" width="7" height="9" rx="1.5"/>
+				<rect x="3" y="16" width="7" height="5" rx="1.5"/>
+			</svg>
+			<span class="flex-1">Dashboard</span>
+		</button>
 
-			<button onclick={() => nav('deploy/projects')} class={ns('projects')}>
-				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-					<path d="M4 6a2 2 0 012-2h4l2 2h6a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2z"/>
-				</svg>
-				<span class="flex-1">Projects</span>
-			</button>
+		<button onclick={() => nav('deploy/projects')} class={ns('projects')}>
+			<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+				<path d="M4 6a2 2 0 012-2h4l2 2h6a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2z"/>
+			</svg>
+			<span class="flex-1">Projects</span>
+		</button>
 
-			<button onclick={() => nav('deploy/sources')} class={ns('sources')}>
-				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-					<polyline points="16 18 22 12 16 6"/>
-					<polyline points="8 6 2 12 8 18"/>
-				</svg>
-				<span class="flex-1">Sources</span>
-			</button>
+		<button onclick={() => nav('deploy/sources')} class={ns('sources')}>
+			<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+				<polyline points="16 18 22 12 16 6"/>
+				<polyline points="8 6 2 12 8 18"/>
+			</svg>
+			<span class="flex-1">Sources</span>
+		</button>
 
-			<button onclick={() => nav('deploy/networks')} class={ns('networks')}>
-				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-					<circle cx="12" cy="5" r="2"/>
-					<circle cx="5" cy="19" r="2"/>
-					<circle cx="19" cy="19" r="2"/>
-					<path d="M12 7v4M12 11l-5 6M12 11l5 6"/>
-				</svg>
-				<span class="flex-1">Networks</span>
-			</button>
+		<button onclick={() => nav('deploy/networks')} class={ns('networks')}>
+			<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+				<circle cx="12" cy="5" r="2"/>
+				<circle cx="5" cy="19" r="2"/>
+				<circle cx="19" cy="19" r="2"/>
+				<path d="M12 7v4M12 11l-5 6M12 11l5 6"/>
+			</svg>
+			<span class="flex-1">Networks</span>
+		</button>
 
-			<button onclick={() => nav('deploy/storage')} class={ns('storage')}>
-				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-					<ellipse cx="12" cy="6" rx="7" ry="3"/>
-					<path d="M5 6v12c0 1.6 3.1 3 7 3s7-1.4 7-3V6"/>
-					<path d="M5 12c0 1.6 3.1 3 7 3s7-1.4 7-3"/>
-				</svg>
-				<span class="flex-1">Storage</span>
-			</button>
+		<button onclick={() => nav('deploy/storage')} class={ns('storage')}>
+			<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+				<ellipse cx="12" cy="6" rx="7" ry="3"/>
+				<path d="M5 6v12c0 1.6 3.1 3 7 3s7-1.4 7-3V6"/>
+				<path d="M5 12c0 1.6 3.1 3 7 3s7-1.4 7-3"/>
+			</svg>
+			<span class="flex-1">Storage</span>
+		</button>
 
-			<button onclick={() => nav('deploy/hosts')} class={ns('hosts')}>
-				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-					<rect x="2" y="4" width="20" height="7" rx="1.5"/>
-					<rect x="2" y="13" width="20" height="7" rx="1.5"/>
-					<circle cx="6" cy="7.5" r="1"/>
-					<circle cx="6" cy="16.5" r="1"/>
-				</svg>
-				<span class="flex-1">Hosts</span>
-				<span class={badgeStyle}>{hostCount}</span>
-			</button>
+		<button onclick={() => nav('deploy/hosts')} class={ns('hosts')}>
+			<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+				<rect x="2" y="4" width="20" height="7" rx="1.5"/>
+				<rect x="2" y="13" width="20" height="7" rx="1.5"/>
+				<circle cx="6" cy="7.5" r="1"/>
+				<circle cx="6" cy="16.5" r="1"/>
+			</svg>
+			<span class="flex-1">Hosts</span>
+			<span class={badgeStyle}>{hostCount}</span>
+		</button>
 
-			<div class="text-[10px] font-bold tracking-[.09em] text-[var(--tx-3)] px-[6px] pt-4 pb-[6px]">GUILD</div>
+		<div class="text-[10px] font-bold tracking-[.09em] text-[var(--tx-3)] px-[6px] pt-4 pb-[6px]">GUILD</div>
 
-			<button onclick={() => nav('deploy/members')} class={ns('members')}>
-				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-					<circle cx="8" cy="9" r="3"/>
-					<circle cx="16.5" cy="10" r="2.4"/>
-					<path d="M2.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5M15 19c0-2 .8-3.4 2.2-4.2"/>
-				</svg>
-				<span class="flex-1">Members</span>
-				<span class={badgeStyle}>{memberCount}</span>
-			</button>
+		<button onclick={() => nav('deploy/members')} class={ns('members')}>
+			<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+				<circle cx="8" cy="9" r="3"/>
+				<circle cx="16.5" cy="10" r="2.4"/>
+				<path d="M2.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5M15 19c0-2 .8-3.4 2.2-4.2"/>
+			</svg>
+			<span class="flex-1">Members</span>
+			<span class={badgeStyle}>{memberCount}</span>
+		</button>
 
-			<button onclick={() => nav('deploy/roles')} class={ns('roles')}>
-				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-					<path d="M12 3l7 3v5c0 4.2-3 7.5-7 9-4-1.5-7-4.8-7-9V6l7-3z"/>
-				</svg>
-				<span class="flex-1">Roles</span>
-			</button>
+		<button onclick={() => nav('deploy/roles')} class={ns('roles')}>
+			<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+				<path d="M12 3l7 3v5c0 4.2-3 7.5-7 9-4-1.5-7-4.8-7-9V6l7-3z"/>
+			</svg>
+			<span class="flex-1">Roles</span>
+		</button>
 
-			<div class="text-[10px] font-bold tracking-[.09em] text-[var(--tx-3)] px-[6px] pt-4 pb-[6px]">SETTINGS</div>
+		<div class="text-[10px] font-bold tracking-[.09em] text-[var(--tx-3)] px-[6px] pt-4 pb-[6px]">SETTINGS</div>
 
-			<button onclick={() => nav('deploy/settings')} class={ns('settings')}>
-				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-					<circle cx="12" cy="12" r="3.2"/>
-					<path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/>
-				</svg>
-				<span class="flex-1">Guild Settings</span>
-			</button>
-
-		{:else}
-			<div class="text-[10px] font-bold tracking-[.09em] text-[var(--tx-3)] px-[6px] pt-2 pb-[6px]">PLANNING</div>
-
-			<button onclick={() => nav('planning/board')} class={ns('board')}>
-				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-					<rect x="3" y="4" width="18" height="16" rx="2"/>
-					<path d="M9 4v16M15 4v16"/>
-				</svg>
-				<span class="flex-1">Board</span>
-			</button>
-
-			<button onclick={() => nav('planning/my-work')} class={ns('my-work')}>
-				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-					<circle cx="12" cy="8" r="3.2"/>
-					<path d="M5 20c0-3.4 3.1-6 7-6s7 2.6 7 6"/>
-				</svg>
-				<span class="flex-1">My Work</span>
-				<span class={badgeStyle}>4</span>
-			</button>
-
-			<button onclick={() => nav('planning/projects')} class={ns('projects')}>
-				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-					<path d="M4 6a2 2 0 012-2h4l2 2h6a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2z"/>
-				</svg>
-				<span class="flex-1">Projects</span>
-				<span class={badgeStyle}>3</span>
-			</button>
-
-			<button onclick={() => nav('planning/cycles')} class={ns('cycles')}>
-				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-					<path d="M21 12a9 9 0 11-3-6.7L21 8"/>
-					<path d="M21 3v5h-5"/>
-				</svg>
-				<span class="flex-1">Cycles</span>
-			</button>
-
-			<button onclick={() => nav('planning/views')} class={ns('views')}>
-				<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-					<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/>
-					<circle cx="12" cy="12" r="3"/>
-				</svg>
-				<span class="flex-1">Views</span>
-			</button>
-		{/if}
+		<button onclick={() => nav('deploy/settings')} class={ns('settings')}>
+			<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+				<circle cx="12" cy="12" r="3.2"/>
+				<path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/>
+			</svg>
+			<span class="flex-1">Guild Settings</span>
+		</button>
 	</div>
 
 	<!-- User panel -->
