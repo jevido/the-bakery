@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { GUILDS, statusMeta } from '$lib/data/bakery';
+	import { GUILD_RESOURCES, statusMeta } from '$lib/data/bakery';
 	import StatusDot from '$lib/components/bakery/StatusDot.svelte';
 	import AppIcon from '$lib/components/bakery/AppIcon.svelte';
 	import { goto } from '$app/navigation';
 
 	const guildId = $derived(page.params.guild ?? '');
-	const guild = $derived(GUILDS[guildId]);
-	const apps = $derived(guild?.apps ?? []);
+	const resources = $derived(GUILD_RESOURCES[guildId]);
+	const apps = $derived(resources?.apps ?? []);
 
 	let filter = $state<'all' | 'running' | 'issues'>('all');
 
@@ -19,7 +19,7 @@
 
 	const runCount = $derived(apps.filter((a) => a.status === 'running').length);
 	const buildCount = $derived(apps.filter((a) => a.status === 'building').length);
-	const hostCount = $derived(guild?.hosts?.length ?? 0);
+	const hostCount = $derived(resources?.hosts?.length ?? 0);
 
 	function filterCls(f: typeof filter) {
 		return f === filter

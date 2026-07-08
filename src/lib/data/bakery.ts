@@ -28,48 +28,6 @@ export interface Host {
 	online: boolean;
 }
 
-export interface Guild {
-	id: string;
-	name: string;
-	letter: string;
-	color: string;
-	invite: string;
-	apps: App[];
-	hosts: Host[];
-}
-
-export interface Member {
-	name: string;
-	handle: string;
-	role: string;
-	initials: string;
-	avBg: string;
-	avColor: string;
-	master?: boolean;
-	joinedAt?: string;
-}
-
-export interface Role {
-	id: string;
-	name: string;
-	color: string;
-	count: number;
-	master?: boolean;
-	note: string;
-}
-
-export interface Perm {
-	id: string;
-	label: string;
-	desc: string;
-	danger?: boolean;
-}
-
-export interface PermGroup {
-	name: string;
-	perms: Perm[];
-}
-
 export interface Template {
 	name: string;
 	tag: string;
@@ -79,13 +37,22 @@ export interface Template {
 	desc: string;
 }
 
-export const GUILDS: Record<string, Guild> = {
+/**
+ * Apps and hosts remain mocked until Phase 02 (hosts/agent) and Phase 03
+ * (sources/build pipeline) land — unlike guilds/members/roles (now real,
+ * see Phase 01), there's no backing data for these yet. Keyed by the same
+ * guild slugs the original demo data used ('sourdough'/'northwind'); a
+ * real guild created with a different slug simply has no mock apps/hosts
+ * until those phases exist — this is a known, deliberate limitation, not
+ * a bug introduced by removing the old Guild/GUILDS mock.
+ */
+export interface GuildResources {
+	apps: App[];
+	hosts: Host[];
+}
+
+export const GUILD_RESOURCES: Record<string, GuildResources> = {
 	sourdough: {
-		id: 'sourdough',
-		name: 'Sourdough Labs',
-		letter: 'S',
-		color: '#3fb984',
-		invite: 'warm-rye-42',
 		apps: [
 			{ id: 'crumb-api', name: 'crumb-api', type: 'Node · API', status: 'running', host: 'oven-01', domain: 'api.sourdough.dev', cpu: 12, mem: '240 MB', deployed: '4m ago', port: '3000', initial: 'C', unit: 'crumb-api', quadletPath: 'deploy/crumb-api.container' },
 			{ id: 'loaf-web', name: 'loaf-web', type: 'SvelteKit', status: 'running', host: 'oven-01', domain: 'loaf.sourdough.dev', cpu: 6, mem: '180 MB', deployed: '2h ago', port: '3000', initial: 'L', unit: 'loaf-web', quadletPath: 'deploy/loaf-web.container' },
@@ -100,11 +67,6 @@ export const GUILDS: Record<string, Guild> = {
 		],
 	},
 	northwind: {
-		id: 'northwind',
-		name: 'Northwind Co',
-		letter: 'N',
-		color: '#5b8def',
-		invite: 'nw-prod-7',
 		apps: [
 			{ id: 'nw-gateway', name: 'nw-gateway', type: 'Go · API', status: 'running', host: 'prod-eu-1', domain: 'api.northwind.co', cpu: 18, mem: '320 MB', deployed: '1h ago', port: '8080', initial: 'G', unit: 'nw-gateway', quadletPath: 'infra/gateway.container' },
 			{ id: 'nw-dashboard', name: 'nw-dashboard', type: 'Next.js', status: 'running', host: 'prod-eu-1', domain: 'app.northwind.co', cpu: 9, mem: '280 MB', deployed: '5h ago', port: '3000', initial: 'D', unit: 'nw-dashboard', quadletPath: 'infra/dashboard.container' },
@@ -117,64 +79,6 @@ export const GUILDS: Record<string, Guild> = {
 			{ name: 'staging-1', location: 'Hetzner · Nuremberg', spec: 'AMD · 2 vCPU · 4 GB', apps: 1, podman: '5.0', cpu: 4, mem: 12, disk: 33, online: true },
 		],
 	},
-};
-
-export const GUILD_LIST = Object.values(GUILDS);
-
-export const MEMBERS: Record<string, Member[]> = {
-	sourdough: [
-		{ name: 'Rye', handle: '@rye', role: 'Guild Master', initials: 'RY', avBg: 'linear-gradient(140deg,#d98a4a,#b5632c)', avColor: '#1a0f07', master: true, joinedAt: 'Jan 2024' },
-		{ name: 'Poppy', handle: '@poppy', role: 'Head Baker', initials: 'PO', avBg: 'linear-gradient(140deg,#b98ce6,#8b5fd0)', avColor: '#150a24', joinedAt: 'Feb 2024' },
-		{ name: 'Sesame', handle: '@sesame', role: 'Head Baker', initials: 'SE', avBg: 'linear-gradient(140deg,#7aa6f5,#4f79d8)', avColor: '#0a1226', joinedAt: 'Feb 2024' },
-		{ name: 'Basil', handle: '@basil', role: 'Baker', initials: 'BA', avBg: 'linear-gradient(140deg,#52cc96,#2f9e6c)', avColor: '#07130c', joinedAt: 'Mar 2024' },
-		{ name: 'Olive', handle: '@olive', role: 'Baker', initials: 'OL', avBg: 'linear-gradient(140deg,#c7c34a,#9a962f)', avColor: '#161503', joinedAt: 'Apr 2024' },
-		{ name: 'Wheat', handle: '@wheat', role: 'Apprentice', initials: 'WH', avBg: 'linear-gradient(140deg,#8a9aa5,#5f6f7a)', avColor: '#0a1013', joinedAt: 'May 2024' },
-	],
-	northwind: [
-		{ name: 'Rye', handle: '@rye', role: 'Baker', initials: 'RY', avBg: 'linear-gradient(140deg,#d98a4a,#b5632c)', avColor: '#1a0f07', joinedAt: 'Mar 2024' },
-		{ name: 'Marta', handle: '@marta', role: 'Guild Master', initials: 'MA', avBg: 'linear-gradient(140deg,#7aa6f5,#4f79d8)', avColor: '#0a1226', master: true, joinedAt: 'Jan 2024' },
-		{ name: 'Devs', handle: '@devteam', role: 'Head Baker', initials: 'DV', avBg: 'linear-gradient(140deg,#b98ce6,#8b5fd0)', avColor: '#150a24', joinedAt: 'Jan 2024' },
-	],
-};
-
-export const ROLES: Role[] = [
-	{ id: 'guild-master', name: 'Guild Master', color: '#e0a83e', count: 1, master: true, note: 'The founder of the guild. Sits above every position and cannot be edited or deleted.' },
-	{ id: 'head-baker', name: 'Head Baker', color: '#a978e6', count: 2, note: 'Trusted maintainers. Manage apps, hosts, and all positions beneath them.' },
-	{ id: 'baker', name: 'Baker', color: '#3fb984', count: 3, note: 'Developers. Deploy apps and manage environments, but cannot touch roles or hosts.' },
-	{ id: 'apprentice', name: 'Apprentice', color: '#5b8def', count: 4, note: 'Read-only access. Perfect for stakeholders watching the ovens.' },
-];
-
-export const PERM_GROUPS: PermGroup[] = [
-	{ name: 'GENERAL', perms: [
-		{ id: 'view_guild', label: 'View Guild', desc: 'See the guild and its modules' },
-		{ id: 'manage_guild', label: 'Manage Guild', desc: 'Edit name, invites, and settings' },
-		{ id: 'manage_roles', label: 'Manage Roles', desc: 'Create and edit positions below your own' },
-		{ id: 'manage_members', label: 'Manage Members', desc: 'Assign roles, kick, and ban' },
-		{ id: 'audit_log', label: 'View Audit Log', desc: 'Review every action taken in the guild' },
-	]},
-	{ name: 'APPS', perms: [
-		{ id: 'view_apps', label: 'View Apps', desc: 'See apps and their status' },
-		{ id: 'create_apps', label: 'Create Apps', desc: 'Deploy new apps from a repo' },
-		{ id: 'deploy_apps', label: 'Deploy & Redeploy', desc: 'Trigger deployments and rollbacks' },
-		{ id: 'manage_env', label: 'Manage Environment', desc: 'Edit variables and secrets' },
-		{ id: 'view_secrets', label: 'View Secrets', desc: 'Reveal masked secret values' },
-		{ id: 'delete_apps', label: 'Delete Apps', desc: 'Permanently remove an app' },
-	]},
-	{ name: 'INFRASTRUCTURE', perms: [
-		{ id: 'view_hosts', label: 'View Hosts', desc: 'See connected machines' },
-		{ id: 'manage_hosts', label: 'Manage Hosts', desc: 'Add, remove, and configure hosts' },
-		{ id: 'manage_domains', label: 'Manage Domains & Proxy', desc: 'Edit domains and Caddy routes' },
-	]},
-	{ name: 'DANGER', perms: [
-		{ id: 'administrator', label: 'Administrator', desc: 'All permissions. Grant with caution.', danger: true },
-	]},
-];
-
-export const ROLE_PERMS: Record<string, string[]> = {
-	'guild-master': ['administrator'],
-	'head-baker': ['view_guild', 'manage_roles', 'manage_members', 'audit_log', 'view_apps', 'create_apps', 'deploy_apps', 'manage_env', 'view_secrets', 'delete_apps', 'view_hosts', 'manage_hosts', 'manage_domains'],
-	'baker': ['view_guild', 'view_apps', 'create_apps', 'deploy_apps', 'manage_env', 'view_hosts', 'manage_domains'],
-	'apprentice': ['view_guild', 'view_apps', 'view_hosts'],
 };
 
 export const TEMPLATES: Template[] = [

@@ -2,11 +2,10 @@
 	import { page } from '$app/state';
 	import { getContext, onMount, onDestroy } from 'svelte';
 	import { toast } from 'svelte-sonner';
-	import { GUILDS } from '$lib/data/bakery';
+	import { GUILD_RESOURCES } from '$lib/data/bakery';
 
 	const guildId = $derived(page.params.guild ?? '');
-	const guild = $derived(GUILDS[guildId]);
-	const hosts = $derived(guild?.hosts ?? []);
+	const hosts = $derived(GUILD_RESOURCES[guildId]?.hosts ?? []);
 	const onlineCount = $derived(hosts.filter((h) => h.online).length);
 
 	let filter = $state<'all' | 'online' | 'offline'>('all');

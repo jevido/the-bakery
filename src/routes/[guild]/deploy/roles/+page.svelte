@@ -2,8 +2,9 @@
 	import { getContext, onMount, onDestroy } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
-	import { ROLES, PERM_GROUPS } from '$lib/data/bakery';
 	import {
+		ROLES,
+		PERM_GROUPS,
 		roles as roleAc,
 		staticRolePermissionIds,
 		PERMISSION_RESOURCE,

@@ -1,18 +1,13 @@
 <script lang="ts">
-	import { GUILDS } from '$lib/data/bakery';
-
 	let {
-		guildId,
+		guildName,
 		section,
 		onDeploy,
 	}: {
-		guildId: string;
+		guildName: string;
 		section: string;
 		onDeploy?: () => void;
 	} = $props();
-
-	const guild = $derived(GUILDS[guildId]);
-	const guildName = $derived(guild?.name ?? guildId);
 
 	const sectionLabels: Record<string, string> = {
 		overview: 'Dashboard',

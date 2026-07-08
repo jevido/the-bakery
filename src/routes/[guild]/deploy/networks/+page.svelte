@@ -2,11 +2,11 @@
 	import { page } from '$app/state';
 	import { getContext, onMount, onDestroy } from 'svelte';
 	import { toast } from 'svelte-sonner';
-	import { NETWORKS, GUILDS, networkDriverMeta, type NetworkDriver } from '$lib/data/bakery';
+	import { NETWORKS, GUILD_RESOURCES, networkDriverMeta, type NetworkDriver } from '$lib/data/bakery';
 
 	const guildId = $derived(page.params.guild ?? '');
 	const networks = $derived(NETWORKS[guildId] ?? []);
-	const hosts = $derived(GUILDS[guildId]?.hosts ?? []);
+	const hosts = $derived(GUILD_RESOURCES[guildId]?.hosts ?? []);
 	const totalApps = $derived(
 		networks.reduce((n, net) => n + net.connectedApps.length, 0)
 	);

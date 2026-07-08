@@ -1,23 +1,25 @@
 <script lang="ts">
-	import { GUILDS, MEMBERS } from '$lib/data/bakery';
+	import { GUILD_RESOURCES } from '$lib/data/bakery';
 	import { goto } from '$app/navigation';
 	import type { Snippet } from 'svelte';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 
 	let {
 		guildId,
+		guildName,
+		memberCount,
 		activeSection,
 		children,
 	}: {
 		guildId: string;
+		guildName: string;
+		memberCount: number;
 		activeSection: string;
 		children?: Snippet;
 	} = $props();
 
-	const guild = $derived(GUILDS[guildId]);
-	const members = $derived(MEMBERS[guildId] ?? []);
-	const memberCount = $derived(members.length);
-	const apps = $derived(guild?.apps ?? []);
+	const resources = $derived(GUILD_RESOURCES[guildId]);
+	const apps = $derived(resources?.apps ?? []);
 
 	let guildMenuOpen = $state(false);
 	let sidebarEl = $state<HTMLElement | null>(null);
@@ -42,7 +44,7 @@
 	function ns(s: string) { return isActive(s) ? navOn : navBase; }
 
 	const appCount = $derived(apps.length);
-	const hostCount = $derived(guild?.hosts?.length ?? 0);
+	const hostCount = $derived(resources?.hosts?.length ?? 0);
 
 	const badgeStyle = 'text-[11px] font-bold px-[7px] py-[1px] rounded-[20px] bg-white/[0.07] text-[var(--tx-2)]';
 
@@ -58,7 +60,7 @@
 <AlertDialog.Root bind:open={leaveDialogOpen}>
 	<AlertDialog.Content>
 		<AlertDialog.Header>
-			<AlertDialog.Title>Leave {guild?.name}?</AlertDialog.Title>
+			<AlertDialog.Title>Leave {guildName}?</AlertDialog.Title>
 			<AlertDialog.Description>You will lose access to all projects and resources in this guild. You can only rejoin with an invite code.</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
@@ -80,7 +82,7 @@
 		>
 			<div class="min-w-0">
 				<div class="font-heading font-bold text-[15px] text-[var(--tx)] whitespace-nowrap overflow-hidden text-ellipsis">
-					{guild?.name ?? guildId}
+					{guildName}
 				</div>
 			</div>
 			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx-2)" stroke-width="2">

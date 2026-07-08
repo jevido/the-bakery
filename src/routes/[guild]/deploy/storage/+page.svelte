@@ -2,11 +2,11 @@
 	import { page } from '$app/state';
 	import { getContext, onMount, onDestroy } from 'svelte';
 	import { toast } from 'svelte-sonner';
-	import { VOLUMES, GUILDS, volumeDriverMeta, type VolumeDriver } from '$lib/data/bakery';
+	import { VOLUMES, GUILD_RESOURCES, volumeDriverMeta, type VolumeDriver } from '$lib/data/bakery';
 
 	const guildId   = $derived(page.params.guild ?? '');
 	const volumes   = $derived(VOLUMES[guildId] ?? []);
-	const hosts     = $derived(GUILDS[guildId]?.hosts ?? []);
+	const hosts     = $derived(GUILD_RESOURCES[guildId]?.hosts ?? []);
 	const totalSize = $derived(volumes.map((v) => v.size).join(' · '));
 
 	let filter = $state<'all' | 'local' | 'nfs' | 'tmpfs'>('all');

@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { GUILDS, statusMeta, quadletContent, APP_CONTAINERS, APP_DEPLOYMENTS, LOG_LINES, ENV_SETS } from '$lib/data/bakery';
+	import { GUILD_RESOURCES, statusMeta, quadletContent, APP_CONTAINERS, APP_DEPLOYMENTS, LOG_LINES, ENV_SETS } from '$lib/data/bakery';
 	import StatusDot from '$lib/components/bakery/StatusDot.svelte';
 	import AppIcon from '$lib/components/bakery/AppIcon.svelte';
 	import { goto } from '$app/navigation';
 
 	const guildId = $derived(page.params.guild ?? '');
+	const guildName = $derived(page.data.organization?.name ?? guildId);
 	const appId   = $derived(page.params.appId ?? '');
-	const guild   = $derived(GUILDS[guildId]);
-	const app     = $derived(guild?.apps.find((a) => a.id === appId));
+	const app     = $derived(GUILD_RESOURCES[guildId]?.apps.find((a) => a.id === appId));
 	const meta    = $derived(app ? statusMeta(app.status) : null);
 
 	type Tab = 'overview' | 'containers' | 'network' | 'deployments' | 'logs' | 'env' | 'domains' | 'quadlet';
@@ -47,7 +47,7 @@
 	const port = $derived(app?.port === '—' ? '3000' : (app?.port ?? '3000'));
 </script>
 
-<svelte:head><title>{app!.name} · {guild!.name} — The Bakery</title></svelte:head>
+<svelte:head><title>{app?.name ?? 'Project'} · {guildName} — The Bakery</title></svelte:head>
 
 <div>
 	<!-- App header -->

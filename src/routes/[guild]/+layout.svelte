@@ -14,6 +14,7 @@
 	const guildId = $derived(page.params.guild ?? '');
 	const guild = $derived(data.organization);
 	const guildName = $derived(guild?.name ?? guildId);
+	const memberCount = $derived(guild?.members?.length ?? 0);
 	let deployOpen = $state(false);
 	let guildJourneyOpen = $state(false);
 	let ctaAction = $state<(() => void) | undefined>(undefined);
@@ -43,10 +44,10 @@
 
 <div class="bakery-shell flex h-screen w-screen overflow-hidden bg-[var(--main)] text-[var(--tx)] font-bakery antialiased">
 	<AppRail {guildId} onOpenJourney={() => (guildJourneyOpen = true)} />
-	<GuildSidebar {guildId} activeSection={section} />
+	<GuildSidebar {guildId} {guildName} {memberCount} activeSection={section} />
 
 	<div class="flex-1 min-w-0 flex flex-col bg-[var(--main)]">
-		<TopBar {guildId} {section} {onDeploy} />
+		<TopBar {guildName} {section} {onDeploy} />
 		<div class="flex-1 overflow-y-auto">
 			{#if guild}
 				{@render children()}

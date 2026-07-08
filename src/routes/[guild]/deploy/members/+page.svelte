@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
-	import { ROLES } from '$lib/data/bakery';
-	import { roles as roleAc } from '$lib/auth/permissions';
+	import { ROLES, roles as roleAc } from '$lib/auth/permissions';
 
 	let { data } = $props();
 

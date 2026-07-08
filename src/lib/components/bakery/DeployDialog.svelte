@@ -1,15 +1,16 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
-	import { GUILDS, REPOS } from '$lib/data/bakery';
+	import { GUILD_RESOURCES, REPOS } from '$lib/data/bakery';
 
 	let {
 		open = $bindable(false),
 		guildId,
 	}: { open: boolean; guildId: string } = $props();
 
-	const guild = $derived(GUILDS[guildId]);
-	const hosts = $derived(guild?.hosts ?? []);
+	const guildName = $derived(page.data.organization?.name ?? guildId);
+	const hosts = $derived(GUILD_RESOURCES[guildId]?.hosts ?? []);
 
 	// ---- wizard state ----
 	let step = $state(0);
@@ -217,7 +218,7 @@ WantedBy=default.target`);
 				{/each}
 
 				<div class="mt-auto text-[11px] text-[var(--tx-3)] leading-[1.5]">
-					Deploying to <b class="text-[var(--tx-2)]">{guild?.name ?? guildId}</b> via Podman Quadlets. No Dockerfiles required.
+					Deploying to <b class="text-[var(--tx-2)]">{guildName}</b> via Podman Quadlets. No Dockerfiles required.
 				</div>
 			</div>
 

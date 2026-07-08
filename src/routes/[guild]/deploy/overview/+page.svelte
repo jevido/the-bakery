@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { GUILDS, ACTIVITY, statusMeta } from '$lib/data/bakery';
+	import { GUILD_RESOURCES, ACTIVITY, statusMeta } from '$lib/data/bakery';
 
 	const guildId = $derived(page.params.guild ?? '');
-	const guild = $derived(GUILDS[guildId]);
-	const apps = $derived(guild?.apps ?? []);
-	const hosts = $derived(guild?.hosts ?? []);
+	const guildName = $derived(page.data.organization?.name ?? guildId);
+	const resources = $derived(GUILD_RESOURCES[guildId]);
+	const apps = $derived(resources?.apps ?? []);
+	const hosts = $derived(resources?.hosts ?? []);
 
 	const primaryHost = $derived(hosts[0]);
 
@@ -61,8 +62,8 @@
 	<!-- Page header -->
 	<div class="flex items-start gap-3 mb-5">
 		<div class="flex-1 min-w-0">
-			<div class="font-heading font-bold text-[28px] tracking-[-0.01em]">{guild?.name} Dashboard</div>
-			<div class="text-[var(--tx-2)] text-[13.5px] mt-[3px]">Live overview of all containers and hosts in {guild?.name}</div>
+			<div class="font-heading font-bold text-[28px] tracking-[-0.01em]">{guildName} Dashboard</div>
+			<div class="text-[var(--tx-2)] text-[13.5px] mt-[3px]">Live overview of all containers and hosts in {guildName}</div>
 		</div>
 		<span class="font-mono-jb text-[11.5px] font-semibold px-[10px] py-[5px] rounded-[7px] bg-[var(--grn-dim)] text-[var(--grn)]">rootless</span>
 		<span class="font-mono-jb text-[11.5px] px-[10px] py-[5px] rounded-[7px] bg-[var(--card)] border border-[var(--line)] text-[var(--tx-2)]">podman 5.1.0</span>
