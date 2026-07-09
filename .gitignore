@@ -25,3 +25,6 @@ vite.config.ts.timestamp-*
 # Go agent build output
 /agent/bakery-agent
 /agent/agent
+
+# Manually-uploaded agent release binaries (see static/releases/README.md)
+/static/releases/bakery-agent-*
