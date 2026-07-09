@@ -28,3 +28,6 @@ vite.config.ts.timestamp-*
 
 # Manually-uploaded agent release binaries (see static/releases/README.md)
 /static/releases/bakery-agent-*
+
+# Generated registry htpasswd file (see registry-auth/README.md)
+/registry-auth/htpasswd

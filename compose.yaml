@@ -10,5 +10,22 @@ services:
       POSTGRES_DB: local
     volumes:
       - pgdata:/var/lib/postgresql
+  # Bakery-hosted private registry (task 08) — the distribution/distribution
+  # reference implementation, run as a plain compose service for local dev.
+  # Not yet Quadlet-ified since Bakery's own infra isn't containerized that
+  # way yet (Phase 05 does that); see registry-auth/README.md for auth setup.
+  registry:
+    image: registry:2
+    restart: always
+    ports:
+      - 5050:5000
+    environment:
+      REGISTRY_AUTH: htpasswd
+      REGISTRY_AUTH_HTPASSWD_REALM: Bakery Registry
+      REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
+    volumes:
+      - registry-data:/var/lib/registry
+      - ./registry-auth:/auth:ro
 volumes:
   pgdata:
+  registry-data:

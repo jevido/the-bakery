@@ -9,6 +9,7 @@ import { build, repo, app, source } from '$lib/server/db/schema';
 import { getInstallationAccessToken } from '$lib/server/github/app-auth';
 import { appendBuildLog } from './log';
 import { detectBuildFile, candidateBuildFilePaths } from './detect-build-file';
+import { registryImageRef, pushCredentials } from './registry';
 import type { Build } from './claim';
 
 class BuildFailure extends Error {}
@@ -105,9 +106,7 @@ export async function processBuild(buildRow: Build): Promise<void> {
 			await appendBuildLog(buildRow.id, `Detected ${detected.filename} at ${detected.path}`);
 		}
 
-		// Tagged locally for now — task 08 (registry) re-tags and pushes this
-		// to Bakery's registry, then overwrites `imageRef` with the pushed ref.
-		const imageRef = `localhost/bakery/${appRow.id}:${buildRow.commitSha.slice(0, 12)}`;
+		const imageRef = registryImageRef(appRow.organizationId, appRow.id, buildRow.commitSha);
 		await appendBuildLog(buildRow.id, `Building ${dockerfile} -> ${imageRef}...`);
 		await runStreamed(buildRow.id, 'podman', [
 			'build',
@@ -116,6 +115,18 @@ export async function processBuild(buildRow: Build): Promise<void> {
 			'-t',
 			imageRef,
 			buildContextDir
+		]);
+
+		await appendBuildLog(buildRow.id, `Pushing ${imageRef} to Bakery's registry...`);
+		// The dev/v1 registry (compose.yaml) is plain HTTP, not HTTPS — a
+		// production deployment sits behind Caddy TLS termination (Phase 05),
+		// at which point --tls-verify=false here should come out.
+		await runStreamed(buildRow.id, 'podman', [
+			'push',
+			'--tls-verify=false',
+			'--creds',
+			pushCredentials(),
+			imageRef
 		]);
 
 		await db
