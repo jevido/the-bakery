@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getContext, onMount, onDestroy } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
+	import { enhance as formEnhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
 	import { superForm } from 'sveltekit-superforms';
 	import { zodClient } from '$lib/forms/zod4-adapter';
@@ -12,12 +13,13 @@
 	const hosts = $derived(data.hosts ?? []);
 	const onlineCount = $derived(hosts.filter((h) => h.online).length);
 
-	let filter = $state<'all' | 'online' | 'offline'>('all');
+	let filter = $state<'all' | 'online' | 'offline' | 'revoked'>('all');
 
 	const filtered = $derived(
 		filter === 'all'      ? hosts
-		: filter === 'online' ? hosts.filter((h) => h.online)
-		: hosts.filter((h) => !h.online)
+		: filter === 'online' ? hosts.filter((h) => h.computedStatus === 'online')
+		: filter === 'revoked' ? hosts.filter((h) => h.computedStatus === 'revoked')
+		: hosts.filter((h) => h.computedStatus === 'offline' || h.computedStatus === 'pending')
 	);
 
 	function pct(v: number | null | undefined): number {
@@ -36,6 +38,22 @@
 
 	function barColor(pct: number) {
 		return pct > 70 ? '#e0a83e' : 'var(--grn)';
+	}
+
+	function statusDotColor(status: string) {
+		if (status === 'online') return 'var(--ok)';
+		if (status === 'revoked') return 'var(--tx-3)';
+		return 'var(--amber)'; // offline or pending
+	}
+
+	let revokeTarget = $state<{ id: string; name: string } | null>(null);
+	let revoking = $state(false);
+	function openRevokeConfirm(h: { id: string; name: string }) {
+		revokeTarget = h;
+	}
+	function closeRevokeConfirm() {
+		if (revoking) return;
+		revokeTarget = null;
 	}
 
 	const addHostSchema = z.object({
@@ -117,6 +135,7 @@
 			<button onclick={() => filter = 'all'} class={filterCls('all')}>All</button>
 			<button onclick={() => filter = 'online'} class={filterCls('online')}>Online</button>
 			<button onclick={() => filter = 'offline'} class={filterCls('offline')}>Offline</button>
+			<button onclick={() => filter = 'revoked'} class={filterCls('revoked')}>Revoked</button>
 		</div>
 	</div>
 
@@ -136,7 +155,10 @@
 			</button>
 		{:else}
 			{#each filtered as host (host.id)}
-				<div class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] p-6 group cursor-default">
+				<div
+					class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] p-6 group cursor-default"
+					class:opacity-60={host.computedStatus === 'revoked'}
+				>
 					<div class="flex items-start justify-between mb-3">
 						<div class="flex items-center gap-[10px] min-w-0">
 							<div class="size-[38px] rounded-[10px] bg-white/5 border border-[var(--line)] flex items-center justify-center shrink-0">
@@ -147,9 +169,20 @@
 								<div class="text-[11px] text-[var(--tx-3)] truncate">{host.location ?? '—'}</div>
 							</div>
 						</div>
-						<div class="flex items-center gap-[5px] shrink-0 ml-2">
-							<div class="size-[7px] rounded-full" style:background={host.online ? 'var(--ok)' : 'var(--err)'}></div>
-							<span class="text-[12px] text-[var(--tx-2)]">{host.computedStatus}</span>
+						<div class="flex items-center gap-[10px] shrink-0 ml-2">
+							<div class="flex items-center gap-[5px]">
+								<div class="size-[7px] rounded-full" style:background={statusDotColor(host.computedStatus)}></div>
+								<span class="text-[12px] text-[var(--tx-2)]">{host.computedStatus}</span>
+							</div>
+							{#if host.computedStatus !== 'revoked'}
+								<button
+									onclick={() => openRevokeConfirm({ id: host.id, name: host.name })}
+									aria-label="Revoke host"
+									class="text-[var(--tx-3)] hover:text-[#f0836b] cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+								>
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+								</button>
+							{/if}
 						</div>
 					</div>
 
@@ -168,7 +201,13 @@
 					</div>
 
 					<div class="flex items-center justify-between pt-[13px] border-t border-t-[var(--line)]">
-						<span class="text-[12px] text-[var(--tx-3)]">{host.agentVersion ? `Bakery v${host.agentVersion}` : 'Awaiting first check-in'}</span>
+						<span class="text-[12px] text-[var(--tx-3)]">
+							{host.computedStatus === 'revoked'
+								? 'Revoked — check-ins rejected'
+								: host.agentVersion
+									? `Bakery v${host.agentVersion}`
+									: 'Awaiting first check-in'}
+						</span>
 						<div class="flex items-center gap-[5px]">
 							<span class="text-[11px] text-[var(--tx-3)]">Podman</span>
 							<span class="font-mono-jb text-[11.5px] text-[var(--tx-2)]">{host.latestSample?.podmanVersion ? `v${host.latestSample.podmanVersion}` : '—'}</span>
@@ -282,6 +321,67 @@
 					<button onclick={closePanel} class="w-full flex items-center justify-center bg-[var(--grn)] text-[#07130c] rounded-[9px] py-[11px] text-[14px] font-bold cursor-pointer shadow-[0_2px_12px_var(--grn-dim)]">Done</button>
 				</div>
 			{/if}
+		</div>
+	</div>
+{/if}
+
+{#if revokeTarget}
+	<div
+		role="button"
+		tabindex="-1"
+		onclick={closeRevokeConfirm}
+		onkeydown={(e) => e.key === 'Escape' && closeRevokeConfirm()}
+		class="fixed inset-0 bg-black/55 z-[210] flex items-center justify-center"
+	>
+		<div
+			role="dialog"
+			aria-modal="true"
+			tabindex="-1"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
+			class="w-[400px] bg-[var(--panel)] border border-[var(--line)] rounded-[14px] p-6"
+		>
+			<div class="font-heading text-[16px] font-bold text-[var(--tx)] mb-2">Revoke {revokeTarget.name}?</div>
+			<div class="text-[13px] text-[var(--tx-3)] leading-[1.55] mb-6">
+				The agent's token will be invalidated immediately — its next check-in will be rejected. This
+				doesn't affect any other host. Historical metrics are kept.
+			</div>
+
+			<form
+				method="post"
+				action="?/revokeHost"
+				use:formEnhance={() => {
+					revoking = true;
+					return async ({ result, update }) => {
+						revoking = false;
+						if (result.type === 'success') {
+							toast.success('Host revoked', { description: `${revokeTarget?.name} can no longer check in` });
+							revokeTarget = null;
+						} else {
+							toast.error('Failed to revoke host');
+						}
+						await update();
+					};
+				}}
+				class="flex gap-[10px]"
+			>
+				<input type="hidden" name="hostId" value={revokeTarget.id} />
+				<button
+					type="button"
+					onclick={closeRevokeConfirm}
+					disabled={revoking}
+					class="flex-1 bg-[var(--card-2)] border border-[var(--line-2)] rounded-[9px] py-[10px] text-[13.5px] font-semibold text-[var(--tx)] cursor-pointer disabled:opacity-40"
+				>
+					Cancel
+				</button>
+				<button
+					type="submit"
+					disabled={revoking}
+					class="flex-1 bg-[#f0836b] text-[#2a0f08] rounded-[9px] py-[10px] text-[13.5px] font-bold cursor-pointer disabled:opacity-40"
+				>
+					{revoking ? 'Revoking…' : 'Revoke host'}
+				</button>
+			</form>
 		</div>
 	</div>
 {/if}
