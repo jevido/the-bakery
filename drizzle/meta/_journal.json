@@ -15,6 +15,13 @@
       "when": 1783545110770,
       "tag": "0001_workable_rafael_vega",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783616351778,
+      "tag": "0002_boring_spitfire",
+      "breakpoints": true
     }
   ]
 }
