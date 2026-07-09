@@ -590,9 +590,10 @@
 					>
 				</div>
 				<pre
-					class="font-mono-jb text-[12.5px] leading-[1.85] bg-[#080c09] border border-[var(--line)] rounded-[12px] px-5 py-[18px] overflow-x-auto text-[var(--tx)] m-0 [tab-size:2]">{quadletContent(
-						app
-					)}</pre>
+					class="font-mono-jb text-[12.5px] leading-[1.85] bg-[#080c09] border border-[var(--line)] rounded-[12px] px-5 py-[18px] overflow-x-auto text-[var(--tx)] m-0 [tab-size:2]">{data.realApp
+						? (data.realQuadletContent ??
+							'No successful build yet — the Quadlet unit is generated from the latest built image.')
+						: quadletContent(app)}</pre>
 			{/if}
 		</div>
 	</div>

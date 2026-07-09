@@ -5,6 +5,7 @@ import { requireGuild } from '$lib/server/guild-context';
 import { db } from '$lib/server/db';
 import { app, repo, source, build } from '$lib/server/db/schema';
 import { getLatestCommitSha } from '$lib/server/github/app-auth';
+import { quadletContent, versionedUnitName } from '$lib/server/deploy/quadlet';
 
 /**
  * `app.id` may be either a real UUID (created via task 10's "New app" flow)
@@ -36,7 +37,17 @@ export const load: PageServerLoad = async (event) => {
 		.where(eq(build.appId, appRow.id))
 		.orderBy(sql`${build.startedAt} desc nulls first`);
 
-	return { realApp: appRow, repo: repoRow, builds };
+	// The Quadlet unit needs a real image to reference — only a succeeded
+	// build has one (`build.imageRef` is set on push, task 08), so a still-
+	// building or never-built app has no real unit content to preview yet.
+	const latestSucceeded = builds.find((b) => b.status === 'succeeded' && b.imageRef);
+	let realQuadletContent: string | null = null;
+	if (latestSucceeded?.imageRef) {
+		const unitName = versionedUnitName(appRow.name, latestSucceeded.commitSha);
+		realQuadletContent = quadletContent(appRow, latestSucceeded.imageRef, unitName);
+	}
+
+	return { realApp: appRow, repo: repoRow, builds, realQuadletContent };
 };
 
 export const actions: Actions = {
