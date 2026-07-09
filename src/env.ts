@@ -20,6 +20,10 @@ export const variables = defineEnvVars({
 	GITHUB_APP_ID: {
 		description: 'The GitHub App ID, from the app settings page (github.com/settings/apps).'
 	},
+	GITHUB_APP_SLUG: {
+		description:
+			"The GitHub App's slug (from github.com/settings/apps/<slug>), used to build its install URL."
+	},
 	GITHUB_APP_PRIVATE_KEY: {
 		description:
 			'Base64-encoded PEM private key for the GitHub App, downloaded from the app settings page.'

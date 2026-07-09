@@ -1,8 +1,22 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import { getContext, onMount, onDestroy } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { SOURCES, REPOS, sourceMeta } from '$lib/data/bakery';
+
+	onMount(() => {
+		const url = new URL(page.url);
+		if (url.searchParams.has('github_connected')) {
+			toast.success('GitHub connected', { description: 'The installation is now linked to this guild.' });
+			url.searchParams.delete('github_connected');
+			goto(url, { replaceState: true, noScroll: true, keepFocus: true });
+		} else if (url.searchParams.has('github_error')) {
+			toast.error('GitHub connection failed', { description: url.searchParams.get('github_error') ?? undefined });
+			url.searchParams.delete('github_error');
+			goto(url, { replaceState: true, noScroll: true, keepFocus: true });
+		}
+	});
 
 	const guildId    = $derived(page.params.guild ?? '');
 	const sources    = $derived(SOURCES[guildId] ?? []);
@@ -293,14 +307,12 @@
 					{/each}
 				</div>
 
-				<button class="w-full flex items-center justify-center gap-2 bg-[var(--grn)] text-[#07130c] rounded-[9px] py-[11px] text-[14px] font-bold cursor-pointer shadow-[0_2px_12px_var(--grn-dim)]">
-					{@render ProviderIcon({ icon: 'github', size: 16, color: '#07130c' })}
-					Install on GitHub →
-				</button>
-
-				<div class="mt-[14px] text-center">
-					<button onclick={finishConnection} class="text-[12px] text-[var(--tx-3)] cursor-pointer underline">I've already installed it — continue</button>
-				</div>
+				<form method="POST" action="?/connectGithub">
+					<button type="submit" class="w-full flex items-center justify-center gap-2 bg-[var(--grn)] text-[#07130c] rounded-[9px] py-[11px] text-[14px] font-bold cursor-pointer shadow-[0_2px_12px_var(--grn-dim)]">
+						{@render ProviderIcon({ icon: 'github', size: 16, color: '#07130c' })}
+						Install on GitHub →
+					</button>
+				</form>
 
 			{:else if step === 'selfhosted'}
 				<div class="flex flex-col gap-4">
