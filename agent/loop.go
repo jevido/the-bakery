@@ -30,7 +30,7 @@ func run(ctx context.Context, cfg config) {
 }
 
 func doCheckin(ctx context.Context, httpClient *http.Client, cfg config) {
-	payload := collectPayload()
+	payload := collectPayload(ctx)
 
 	resp, err := checkin(ctx, httpClient, cfg, payload)
 	if err != nil {

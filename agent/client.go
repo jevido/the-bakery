@@ -30,17 +30,6 @@ type checkinResponse struct {
 	PendingCommands []json.RawMessage `json:"pendingCommands"`
 }
 
-func collectPayload() checkinPayload {
-	return checkinPayload{
-		CPUPct:         0,
-		MemPct:         0,
-		DiskPct:        0,
-		PodmanVersion:  "unknown",
-		ContainerCount: 0,
-		AgentVersion:   agentVersion,
-	}
-}
-
 func checkin(ctx context.Context, httpClient *http.Client, cfg config, payload checkinPayload) (*checkinResponse, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
