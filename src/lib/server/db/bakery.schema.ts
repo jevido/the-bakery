@@ -1,5 +1,15 @@
 import { relations } from 'drizzle-orm';
-import { pgTable, text, timestamp, uuid, real, integer, index, pgEnum } from 'drizzle-orm/pg-core';
+import {
+	pgTable,
+	text,
+	timestamp,
+	uuid,
+	real,
+	integer,
+	boolean,
+	index,
+	pgEnum
+} from 'drizzle-orm/pg-core';
 import { organization } from './auth.schema';
 
 export const hostStatus = pgEnum('host_status', ['pending', 'online', 'offline']);
@@ -47,7 +57,8 @@ export const hostRelations = relations(host, ({ one, many }) => ({
 		fields: [host.organizationId],
 		references: [organization.id]
 	}),
-	metricSamples: many(hostMetricSample)
+	metricSamples: many(hostMetricSample),
+	deployments: many(deployment)
 }));
 
 export const hostMetricSampleRelations = relations(hostMetricSample, ({ one }) => ({
@@ -171,7 +182,9 @@ export const appRelations = relations(app, ({ one, many }) => ({
 		fields: [app.hostId],
 		references: [host.id]
 	}),
-	builds: many(build)
+	builds: many(build),
+	deployments: many(deployment),
+	envVars: many(envVar)
 }));
 
 export const buildRelations = relations(build, ({ one, many }) => ({
@@ -183,13 +196,86 @@ export const buildRelations = relations(build, ({ one, many }) => ({
 		fields: [build.repoId],
 		references: [repo.id]
 	}),
-	logLines: many(buildLogLine)
+	logLines: many(buildLogLine),
+	deployments: many(deployment)
 }));
 
 export const buildLogLineRelations = relations(buildLogLine, ({ one }) => ({
 	build: one(build, {
 		fields: [buildLogLine.buildId],
 		references: [build.id]
+	})
+}));
+
+export const deploymentStatus = pgEnum('deployment_status', [
+	'starting_new',
+	'health_checking',
+	'flipping_proxy',
+	'stopping_old',
+	'running',
+	'failed',
+	'rolled_back'
+]);
+
+export const deployment = pgTable(
+	'deployment',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		appId: uuid('app_id')
+			.notNull()
+			.references(() => app.id, { onDelete: 'cascade' }),
+		buildId: uuid('build_id')
+			.notNull()
+			.references(() => build.id, { onDelete: 'cascade' }),
+		hostId: uuid('host_id').references(() => host.id, { onDelete: 'set null' }),
+		status: deploymentStatus('status').default('starting_new').notNull(),
+		startedAt: timestamp('started_at').defaultNow().notNull(),
+		finishedAt: timestamp('finished_at'),
+		// A user id (see auth.schema `user`), or the literal 'webhook' — not an FK
+		// since it's polymorphic between the two.
+		triggeredBy: text('triggered_by')
+	},
+	(table) => [
+		index('deployment_appId_idx').on(table.appId),
+		index('deployment_buildId_idx').on(table.buildId),
+		index('deployment_hostId_idx').on(table.hostId)
+	]
+);
+
+export const envVar = pgTable(
+	'env_var',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		appId: uuid('app_id')
+			.notNull()
+			.references(() => app.id, { onDelete: 'cascade' }),
+		key: text('key').notNull(),
+		valueCiphertext: text('value_ciphertext').notNull(),
+		isSecret: boolean('is_secret').default(false).notNull(),
+		updatedAt: timestamp('updated_at').defaultNow().notNull()
+	},
+	(table) => [index('envVar_appId_idx').on(table.appId)]
+);
+
+export const deploymentRelations = relations(deployment, ({ one }) => ({
+	app: one(app, {
+		fields: [deployment.appId],
+		references: [app.id]
+	}),
+	build: one(build, {
+		fields: [deployment.buildId],
+		references: [build.id]
+	}),
+	host: one(host, {
+		fields: [deployment.hostId],
+		references: [host.id]
+	})
+}));
+
+export const envVarRelations = relations(envVar, ({ one }) => ({
+	app: one(app, {
+		fields: [envVar.appId],
+		references: [app.id]
 	})
 }));
 
