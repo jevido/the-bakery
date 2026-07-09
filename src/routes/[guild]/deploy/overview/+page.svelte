@@ -1,42 +1,90 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { GUILD_RESOURCES, ACTIVITY, statusMeta } from '$lib/data/bakery';
+	import { AreaChart } from 'layerchart';
 
 	const guildId = $derived(page.params.guild ?? '');
 	const guildName = $derived(page.data.organization?.name ?? guildId);
 	const resources = $derived(GUILD_RESOURCES[guildId]);
 	const apps = $derived(resources?.apps ?? []);
-	const hosts = $derived(resources?.hosts ?? []);
 
-	const primaryHost = $derived(hosts[0]);
+	const primaryHost = $derived(page.data.primaryHost);
+	const primaryHostLatestSample = $derived(page.data.primaryHostLatestSample);
+	const primaryHostHistory = $derived(page.data.primaryHostHistory ?? []);
 
+	type MetricSample = (typeof primaryHostHistory)[number];
+
+	// Network I/O has no real backing metric yet (no schema field, no agent
+	// collection) — keep it synthetic until a later phase adds real network
+	// sampling. CPU/mem below are real, sourced from hostMetricSample.
 	function wobble(min: number, max: number, points: number, seed: number) {
 		return Array.from({ length: points }, (_, i) => {
 			return min + ((max - min) * Math.abs(Math.sin(i * 0.7 + seed) + Math.cos(i * 0.4 + seed))) / 2;
 		});
 	}
-	function genLine(vals: number[], w: number, h: number) {
-		const min = Math.min(...vals), max = Math.max(...vals);
-		const pts = vals.map((v, i) => {
-			const x = (i / (vals.length - 1)) * w;
-			const y = h - ((v - min) / (max - min || 1)) * (h - 8) - 4;
-			return `${x},${y}`;
-		});
-		return 'M' + pts.join('L');
+
+	function toSeries(history: MetricSample[], field: 'cpuPct' | 'memPct') {
+		return history.map((sample, i) => ({ i, value: sample[field] ?? 0 }));
 	}
-	function genArea(vals: number[], w: number, h: number) {
-		const line = genLine(vals, w, h);
-		return line + `L${w},${h}L0,${h}Z`;
+	function toWobbleSeries(vals: number[]) {
+		return vals.map((v, i) => ({ i, value: v }));
 	}
 
-	const cpuVals = $derived(wobble(25, primaryHost?.cpu ?? 40, 24, 1));
-	const memVals = $derived(wobble(20, primaryHost?.mem ?? 60, 24, 3));
-	const netVals = $derived(wobble(150, 500, 24, 7));
+	// First-vs-last sample in the loaded window — a real, if noisy, trend
+	// indicator rather than a decorative fixed percentage.
+	function trend(history: MetricSample[], field: 'cpuPct' | 'memPct') {
+		if (history.length < 2) return null;
+		const first = history[0][field] ?? 0;
+		const last = history[history.length - 1][field] ?? 0;
+		return last - first;
+	}
+	function deltaLabel(delta: number | null) {
+		if (delta === null) return '—';
+		return `${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(0)}%`;
+	}
+	function deltaColor(delta: number | null) {
+		if (delta === null) return '#5c6170';
+		return delta >= 0 ? '#5ee0ab' : '#5c6170';
+	}
+
+	const cpuSeries = $derived(toSeries(primaryHostHistory, 'cpuPct'));
+	const memSeries = $derived(toSeries(primaryHostHistory, 'memPct'));
+	const netVals = $derived(toWobbleSeries(wobble(150, 500, 24, 7)));
+
+	const cpuDelta = $derived(trend(primaryHostHistory, 'cpuPct'));
+	const memDelta = $derived(trend(primaryHostHistory, 'memPct'));
 
 	const metricCards = $derived([
-		{ label: 'CPU usage', big: String(primaryHost?.cpu ?? '—'), unit: '%', sub: `rootless · ${primaryHost?.spec?.split('·')[1]?.trim() ?? ''}`, delta: '▲ 4%', deltaColor: '#5ee0ab', color: '#3fb984', vals: cpuVals },
-		{ label: 'Memory', big: ((primaryHost?.mem ?? 0) / 10).toFixed(1), unit: '/ 16 GiB', sub: `${primaryHost?.mem ?? 0}% committed`, delta: '▼ 1%', deltaColor: '#5c6170', color: '#52cc96', vals: memVals },
-		{ label: 'Network I/O', big: '443', unit: 'KB/s', sub: '↓ in · ↑ out combined', delta: '▲ 12%', deltaColor: '#5ee0ab', color: '#8b5cf6', vals: netVals },
+		{
+			label: 'CPU usage',
+			big: primaryHostLatestSample?.cpuPct != null ? primaryHostLatestSample.cpuPct.toFixed(1) : '—',
+			unit: '%',
+			sub: primaryHost?.name ?? 'no hosts yet',
+			delta: deltaLabel(cpuDelta),
+			deltaColor: deltaColor(cpuDelta),
+			color: '#3fb984',
+			series: cpuSeries
+		},
+		{
+			label: 'Memory',
+			big: primaryHostLatestSample?.memPct != null ? primaryHostLatestSample.memPct.toFixed(1) : '—',
+			unit: '%',
+			sub: 'committed',
+			delta: deltaLabel(memDelta),
+			deltaColor: deltaColor(memDelta),
+			color: '#52cc96',
+			series: memSeries
+		},
+		{
+			label: 'Network I/O',
+			big: '443',
+			unit: 'KB/s',
+			sub: '↓ in · ↑ out combined',
+			delta: '▲ 12%',
+			deltaColor: '#5ee0ab',
+			color: '#8b5cf6',
+			series: netVals
+		}
 	]);
 
 	const statRow = $derived([
@@ -71,7 +119,7 @@
 
 	<!-- Metric cards -->
 	<div class="grid grid-cols-3 gap-[14px]">
-		{#each metricCards as m}
+		{#each metricCards as m (m.label)}
 			<div class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] pt-4 px-[18px] overflow-hidden" style:color={m.color}>
 				<div class="flex items-center justify-between">
 					<span class="text-[13px] font-semibold text-[var(--tx-2)] whitespace-nowrap">{m.label}</span>
@@ -82,10 +130,34 @@
 					<span class="text-[13px] text-[var(--tx-3)]">{m.unit}</span>
 				</div>
 				<div class="text-[11.5px] text-[var(--tx-3)] mt-[6px]">{m.sub}</div>
-				<svg viewBox="0 0 320 88" preserveAspectRatio="none" height="72" class="block mt-[10px] -mx-[18px] w-[calc(100%+36px)]">
-					<path d={genArea(m.vals, 320, 88)} fill="currentColor" fill-opacity="0.13" stroke="none"/>
-					<path d={genLine(m.vals, 320, 88)} fill="none" stroke="currentColor" stroke-width="2"/>
-				</svg>
+				<div class="h-[72px] mt-[10px] -mx-[18px] w-[calc(100%+36px)]">
+					{#if m.series.length > 1}
+						<AreaChart
+							data={m.series}
+							x="i"
+							y="value"
+							yDomain={[0, null]}
+							axis={false}
+							grid={false}
+							legend={false}
+							rule={false}
+							tooltipContext={false}
+							highlight={false}
+							padding={{ top: 4, bottom: 4 }}
+							props={{
+								area: {
+									fillOpacity: 0.13,
+									fill: 'currentColor',
+									line: { stroke: 'currentColor', 'stroke-width': 2 }
+								}
+							}}
+						/>
+					{:else}
+						<div class="h-full flex items-center text-[11px] text-[var(--tx-3)]">
+							Not enough history yet
+						</div>
+					{/if}
+				</div>
 			</div>
 		{/each}
 	</div>
