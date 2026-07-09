@@ -14,7 +14,16 @@ import (
 func run(ctx context.Context, cfg config) {
 	httpClient := newHTTPClient()
 
-	doCheckin(ctx, httpClient, cfg)
+	cycle := 0
+	tick := func() {
+		doCheckin(ctx, httpClient, cfg)
+		if cycle%updateCheckEveryNCycles == 0 {
+			checkForUpdate(ctx, httpClient, cfg)
+		}
+		cycle++
+	}
+
+	tick()
 
 	ticker := time.NewTicker(cfg.interval)
 	defer ticker.Stop()
@@ -24,7 +33,7 @@ func run(ctx context.Context, cfg config) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			doCheckin(ctx, httpClient, cfg)
+			tick()
 		}
 	}
 }

@@ -11,8 +11,11 @@ import (
 	"time"
 )
 
-// agentVersion is reported to the control plane on every check-in.
-const agentVersion = "0.1.0-dev"
+// agentVersion is reported to the control plane on every check-in and
+// compared against agentRelease rows to decide whether to self-update. A
+// var (not const) so real builds can override it via
+// `-ldflags "-X main.agentVersion=1.2.3"`.
+var agentVersion = "0.1.0-dev"
 
 // checkinPayload mirrors src/lib/server/agent/protocol.ts. Field names are
 // wire-format contract shared with already-deployed agent binaries; keep

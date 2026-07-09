@@ -56,3 +56,21 @@ export const hostMetricSampleRelations = relations(hostMetricSample, ({ one }) =
 		references: [host.id]
 	})
 }));
+
+/**
+ * Manually seeded for now — no CI/release pipeline yet (Phase 02 task 12).
+ * The Go agent polls GET /api/v1/agent/version?platform=... and self-updates
+ * when the latest row's version differs from its own compiled-in version.
+ */
+export const agentRelease = pgTable(
+	'agent_release',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		version: text('version').notNull(),
+		platform: text('platform').notNull(),
+		downloadUrl: text('download_url').notNull(),
+		sha256: text('sha256').notNull(),
+		releasedAt: timestamp('released_at').defaultNow().notNull()
+	},
+	(table) => [index('agentRelease_platform_releasedAt_idx').on(table.platform, table.releasedAt)]
+);
