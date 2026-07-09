@@ -43,19 +43,35 @@ export function environmentFileContent(envVars: EnvVar[]): string {
 }
 
 /**
+ * Zero-downtime rollover (task 06) briefly runs the old and new units side
+ * by side. Both would collide binding the same host port if the host port
+ * were fixed like `APP_CONTAINER_PORT` — so each unit gets its own,
+ * deterministically derived from its (already-unique) unit name. This is a
+ * v1 stand-in for Phase 05's reverse proxy, which will make the host port
+ * an internal implementation detail instead of something callers need to
+ * know (see task 06 Notes on the soft co-dependency with Phase 05).
+ */
+export function publishedPort(unitName: string): number {
+	let hash = 0;
+	for (let i = 0; i < unitName.length; i++) {
+		hash = (hash * 31 + unitName.charCodeAt(i)) >>> 0;
+	}
+	return 20000 + (hash % 10000);
+}
+
+/**
  * Real Quadlet `.container` unit content for a deploy — the actual payload
  * sent to and executed by agents (task 05), replacing `bakery.ts`'s mock
  * `quadletContent()`.
  */
 export function quadletContent(appRow: App, imageRef: string, unitName: string): string {
-	const port = APP_CONTAINER_PORT;
 	return `[Unit]
 Description=${appRow.name}
 After=network-online.target
 
 [Container]
 Image=${imageRef}
-PublishPort=${port}:${port}
+PublishPort=${publishedPort(unitName)}:${APP_CONTAINER_PORT}
 EnvironmentFile=${environmentFilePath(unitName)}
 AutoUpdate=registry
 

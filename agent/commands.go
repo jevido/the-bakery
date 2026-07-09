@@ -16,14 +16,17 @@ import (
 )
 
 const commandTimeout = 30 * time.Second
+const healthCheckTimeout = 20 * time.Second
+const healthCheckInterval = 500 * time.Millisecond
 
 // deployPayload/unitNamePayload mirror the `payload` shapes documented in
 // src/lib/server/agent/protocol.ts — wire-format contract, not to be changed
 // unilaterally on either side.
 type deployPayload struct {
-	UnitName       string `json:"unitName"`
-	UnitContent    string `json:"unitContent"`
-	EnvFileContent string `json:"envFileContent"`
+	UnitName        string `json:"unitName"`
+	UnitContent     string `json:"unitContent"`
+	EnvFileContent  string `json:"envFileContent"`
+	HealthCheckPort int    `json:"healthCheckPort"`
 }
 
 type unitNamePayload struct {
@@ -120,7 +123,46 @@ func executeDeploy(ctx context.Context, rawPayload json.RawMessage) error {
 		return fmt.Errorf("start %s.service: %w", p.UnitName, err)
 	}
 
+	// The control plane's zero-downtime rollover (task 06) treats a `deploy`
+	// command's success as proof the new unit is not just started but
+	// reachable — it decides whether to stop the old unit based on this
+	// outcome alone, so the health probe result has to ride in the same
+	// completion report rather than a separate round trip.
+	if p.HealthCheckPort > 0 {
+		if err := probeHealth(ctx, p.HealthCheckPort); err != nil {
+			return fmt.Errorf("unit started but health check failed: %w", err)
+		}
+	}
+
 	return nil
+}
+
+// probeHealth polls the unit's published port until it accepts a connection
+// and responds, or healthCheckTimeout elapses. Any HTTP response — even a
+// 404/500 — proves the process is up and accepting connections; Bakery
+// doesn't assume apps expose a dedicated health endpoint in v1.
+func probeHealth(ctx context.Context, port int) error {
+	ctx, cancel := context.WithTimeout(ctx, healthCheckTimeout)
+	defer cancel()
+
+	url := fmt.Sprintf("http://localhost:%d/", port)
+	client := &http.Client{Timeout: 3 * time.Second}
+
+	var lastErr error
+	for {
+		resp, err := client.Get(url)
+		if err == nil {
+			resp.Body.Close()
+			return nil
+		}
+		lastErr = err
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timed out waiting for %s to become reachable: %w", url, lastErr)
+		case <-time.After(healthCheckInterval):
+		}
+	}
 }
 
 func executeUnitAction(ctx context.Context, rawPayload json.RawMessage, action string) error {
