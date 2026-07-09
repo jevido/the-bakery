@@ -15,15 +15,25 @@ import { eq, and } from 'drizzle-orm';
  * slug → organization lookup ad hoc in individual routes.
  */
 
-export async function requireGuild(event: RequestEvent, opts?: { permission?: string }) {
+export async function requireGuild(
+	event: RequestEvent,
+	opts?: { permission?: string; organizationId?: string }
+) {
 	if (!event.locals.user || !event.locals.session) {
 		redirect(302, '/login');
 	}
 
+	// Guild-slug routes (`[guild]/...`) resolve by slug; routes scoped by some
+	// other id (e.g. `api/v1/builds/[id]`, which only knows a build id until
+	// it looks up the owning app) can pass the organizationId directly
+	// instead, once they've resolved it, so they still go through this same
+	// membership/permission check rather than reimplementing it.
 	const organization = await auth.api
 		.getFullOrganization({
 			headers: event.request.headers,
-			query: { organizationSlug: event.params.guild }
+			query: opts?.organizationId
+				? { organizationId: opts.organizationId }
+				: { organizationSlug: event.params.guild }
 		})
 		.catch(() => null);
 
@@ -50,7 +60,12 @@ export async function requireGuild(event: RequestEvent, opts?: { permission?: st
 			const [customRole] = await db
 				.select()
 				.from(organizationRole)
-				.where(and(eq(organizationRole.organizationId, organization.id), eq(organizationRole.role, member.role)));
+				.where(
+					and(
+						eq(organizationRole.organizationId, organization.id),
+						eq(organizationRole.role, member.role)
+					)
+				);
 			if (customRole) {
 				const permission = JSON.parse(customRole.permission) as Record<string, string[]>;
 				authorized = (permission[resource] ?? []).includes(opts.permission);
