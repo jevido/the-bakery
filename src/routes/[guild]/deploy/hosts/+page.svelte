@@ -74,7 +74,7 @@
 	});
 
 	$effect(() => {
-		if (formStep === 'waiting' && createdHost?.status === 'online') {
+		if (formStep === 'waiting' && createdHost?.computedStatus === 'online') {
 			formStep = 'done';
 			toast.success('Host connected', { description: `Bakery agent checked in on ${createdHostName}` });
 		}
@@ -149,7 +149,7 @@
 						</div>
 						<div class="flex items-center gap-[5px] shrink-0 ml-2">
 							<div class="size-[7px] rounded-full" style:background={host.online ? 'var(--ok)' : 'var(--err)'}></div>
-							<span class="text-[12px] text-[var(--tx-2)]">{host.online ? 'online' : host.status === 'pending' ? 'pending' : 'offline'}</span>
+							<span class="text-[12px] text-[var(--tx-2)]">{host.computedStatus}</span>
 						</div>
 					</div>
 

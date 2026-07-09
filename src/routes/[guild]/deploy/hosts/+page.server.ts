@@ -8,25 +8,13 @@ import { requireGuild } from '$lib/server/guild-context';
 import { db } from '$lib/server/db';
 import { host, hostMetricSample } from '$lib/server/db/schema';
 import { issueHostToken } from '$lib/server/hosts/tokens';
+import { computeHostStatus } from '$lib/server/hosts/status';
 
 const addHostSchema = z.object({
 	name: z.string().trim().min(1, 'Host name is required').max(100),
 	location: z.string().trim().max(200).optional(),
 	spec: z.string().trim().max(200).optional()
 });
-
-// No background sweeper exists yet, so "offline" is computed at read time
-// from lastSeenAt rather than trusting the stored `status` column, which is
-// only ever updated by the check-in endpoint (task 06) and would otherwise
-// go stale the moment an agent stops checking in. Formalized into a shared
-// helper in task 07 — kept local to this load for now.
-const CHECKIN_INTERVAL_MS = 60_000;
-const OFFLINE_THRESHOLD_MS = CHECKIN_INTERVAL_MS * 3;
-
-function isEffectivelyOnline(h: { status: string; lastSeenAt: Date | null }): boolean {
-	if (h.status !== 'online' || !h.lastSeenAt) return false;
-	return Date.now() - h.lastSeenAt.getTime() < OFFLINE_THRESHOLD_MS;
-}
 
 export const load: PageServerLoad = async (event) => {
 	const { organization } = await requireGuild(event, { permission: 'view_hosts' });
@@ -51,11 +39,15 @@ export const load: PageServerLoad = async (event) => {
 		if (!latestSampleByHost.has(sample.hostId)) latestSampleByHost.set(sample.hostId, sample);
 	}
 
-	const hosts = hostRows.map((h) => ({
-		...h,
-		online: isEffectivelyOnline(h),
-		latestSample: latestSampleByHost.get(h.id) ?? null
-	}));
+	const hosts = hostRows.map((h) => {
+		const computedStatus = computeHostStatus(h);
+		return {
+			...h,
+			computedStatus,
+			online: computedStatus === 'online',
+			latestSample: latestSampleByHost.get(h.id) ?? null
+		};
+	});
 
 	const form = await superValidate(zod(addHostSchema));
 
