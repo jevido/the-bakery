@@ -4,6 +4,7 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { organization, source } from '$lib/server/db/schema';
 import { verifyGithubInstallState } from '$lib/server/github/install-state';
+import { syncReposForSource } from '$lib/server/github/sync-repos';
 
 export const GET: RequestHandler = async (event) => {
 	const state = event.url.searchParams.get('state');
@@ -30,18 +31,27 @@ export const GET: RequestHandler = async (event) => {
 
 	// Re-installs/updates redeliver this same callback with the same
 	// installation_id — keep it idempotent instead of inserting duplicates.
-	const [existing] = await db
+	let [sourceRow] = await db
 		.select({ id: source.id })
 		.from(source)
 		.where(eq(source.githubInstallationId, installationId));
 
-	if (!existing) {
-		await db.insert(source).values({
-			organizationId: verified.organizationId,
-			provider: 'github_app',
-			githubInstallationId: installationId
-		});
+	if (!sourceRow) {
+		[sourceRow] = await db
+			.insert(source)
+			.values({
+				organizationId: verified.organizationId,
+				provider: 'github_app',
+				githubInstallationId: installationId
+			})
+			.returning({ id: source.id });
 	}
+
+	// Best-effort: sync now so the sources page has real repos on first
+	// visit instead of requiring a manual refresh. A failure here (GitHub
+	// API hiccup, etc.) shouldn't block the redirect — the sources page's
+	// "Refresh" action (task 05) covers retrying.
+	await syncReposForSource(sourceRow.id, installationId).catch(() => null);
 
 	redirect(302, `/${org.slug}/deploy/sources?github_connected=1`);
 };

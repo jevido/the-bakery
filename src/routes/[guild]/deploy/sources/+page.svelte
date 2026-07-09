@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { getContext, onMount, onDestroy } from 'svelte';
 	import { toast } from 'svelte-sonner';
-	import { SOURCES, REPOS, sourceMeta } from '$lib/data/bakery';
+	import { enhance } from '$app/forms';
+	import { sourceMeta } from '$lib/data/bakery';
+
+	let { data } = $props();
 
 	onMount(() => {
 		const url = new URL(page.url);
@@ -18,9 +21,21 @@
 		}
 	});
 
-	const guildId    = $derived(page.params.guild ?? '');
-	const sources    = $derived(SOURCES[guildId] ?? []);
-	const totalRepos = $derived(sources.reduce((n, s) => n + s.repoCount, 0));
+	const sources    = $derived(data.sources);
+	const totalRepos = $derived(sources.reduce((n, s) => n + s.repos.length, 0));
+
+	function relativeTime(date: Date): string {
+		const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+		if (seconds < 60) return 'just now';
+		const minutes = Math.floor(seconds / 60);
+		if (minutes < 60) return `${minutes}m ago`;
+		const hours = Math.floor(minutes / 60);
+		if (hours < 24) return `${hours}h ago`;
+		const days = Math.floor(hours / 24);
+		if (days < 30) return `${days}d ago`;
+		const months = Math.floor(days / 30);
+		return `${months} month${months !== 1 ? 's' : ''} ago`;
+	}
 
 	let filter = $state<'all' | 'github' | 'selfhosted'>('all');
 
@@ -29,6 +44,8 @@
 		: filter === 'github' ? sources.filter((s) => s.provider === 'github_app')
 		: sources.filter((s) => s.provider !== 'github_app')
 	);
+
+	let refreshingSourceId = $state<string | null>(null);
 
 	function filterCls(f: typeof filter) {
 		return f === filter
@@ -172,12 +189,10 @@
 							{@render ProviderIcon({ icon: s.provider === 'github_app' ? 'github' : s.provider, size: 17 })}
 						</div>
 						<div class="min-w-0">
-							<div class="text-[14px] font-semibold text-[var(--tx)] whitespace-nowrap overflow-hidden text-ellipsis">{s.name}</div>
-							{#if s.host}
-								<div class="font-mono-jb text-[11px] text-[var(--tx-3)] whitespace-nowrap overflow-hidden text-ellipsis">{s.host}</div>
-							{:else}
-								<div class="font-mono-jb text-[11px] text-[var(--tx-3)]">github.com</div>
-							{/if}
+							<div class="text-[14px] font-semibold text-[var(--tx)] whitespace-nowrap overflow-hidden text-ellipsis">
+								Installation #{s.githubInstallationId}
+							</div>
+							<div class="font-mono-jb text-[11px] text-[var(--tx-3)]">github.com</div>
 						</div>
 					</div>
 
@@ -185,12 +200,36 @@
 						<span class="text-[12px] font-semibold rounded-[5px] px-2 py-[3px]" style:color={m.color} style:background={m.bg}>{m.label}</span>
 					</div>
 
-					<div class="font-mono-jb text-[13px] text-[var(--tx-2)]">{s.repoCount}</div>
+					<div class="font-mono-jb text-[13px] text-[var(--tx-2)]">{s.repos.length}</div>
 
-					<div class="text-[12.5px] text-[var(--tx-3)]">{s.connectedAt}</div>
+					<div class="text-[12.5px] text-[var(--tx-3)]">{relativeTime(s.connectedAt)}</div>
 
 					<div class="text-right">
-						<button class="opacity-0 transition-opacity duration-150 group-hover:opacity-100 text-[12.5px] text-[var(--tx-3)] cursor-pointer px-2 py-1 rounded-[6px]">Configure →</button>
+						<form
+							method="POST"
+							action="?/refreshRepos"
+							use:enhance={() => {
+								refreshingSourceId = s.id;
+								return async ({ result }) => {
+									refreshingSourceId = null;
+									if (result.type === 'success') {
+										toast.success('Repos refreshed');
+										await invalidateAll();
+									} else if (result.type === 'failure') {
+										toast.error('Refresh failed', { description: (result.data?.message as string) ?? undefined });
+									}
+								};
+							}}
+						>
+							<input type="hidden" name="sourceId" value={s.id} />
+							<button
+								type="submit"
+								disabled={refreshingSourceId === s.id}
+								class="opacity-0 transition-opacity duration-150 group-hover:opacity-100 text-[12.5px] text-[var(--tx-3)] cursor-pointer px-2 py-1 rounded-[6px] {refreshingSourceId === s.id ? '!opacity-100' : ''}"
+							>
+								{refreshingSourceId === s.id ? 'Refreshing…' : 'Refresh →'}
+							</button>
+						</form>
 					</div>
 				</div>
 			{/each}
@@ -200,24 +239,22 @@
 			{/if}
 		</div>
 
-		{#if guildId === 'sourdough'}
-			<div class="mt-5">
-				<div class="text-[12px] font-bold tracking-[.05em] text-[var(--tx-3)] mb-[10px]">REPOS FROM SOURDOUGH-LABS</div>
-				<div class="bg-[var(--card)] border border-[var(--line)] rounded-[13px] overflow-hidden">
-					{#each REPOS as r (r.id)}
-						<div class="flex items-center gap-[14px] px-[18px] py-[11px] border-b border-b-[var(--line)] last:border-b-0">
-							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--tx-3)" stroke-width="1.6"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
-							<div class="flex-1 text-[13px] text-[var(--tx)]">{r.name}</div>
-							<div class="flex items-center gap-[5px]">
-								<div class="size-[10px] rounded-full" style:background={r.langColor}></div>
-								<span class="text-[12px] text-[var(--tx-3)]">{r.lang}</span>
+		{#each sources as s (s.id)}
+			{#if s.repos.length > 0}
+				<div class="mt-5">
+					<div class="text-[12px] font-bold tracking-[.05em] text-[var(--tx-3)] mb-[10px]">REPOS FROM INSTALLATION #{s.githubInstallationId}</div>
+					<div class="bg-[var(--card)] border border-[var(--line)] rounded-[13px] overflow-hidden">
+						{#each s.repos as r (r.id)}
+							<div class="flex items-center gap-[14px] px-[18px] py-[11px] border-b border-b-[var(--line)] last:border-b-0">
+								<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--tx-3)" stroke-width="1.6"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+								<div class="flex-1 text-[13px] text-[var(--tx)]">{r.fullName}</div>
+								<div class="text-[12px] text-[var(--tx-3)]">default: {r.defaultBranch}</div>
 							</div>
-							<div class="text-[12px] text-[var(--tx-3)] w-[110px] text-right">{r.updated}</div>
-						</div>
-					{/each}
+						{/each}
+					</div>
 				</div>
-			</div>
-		{/if}
+			{/if}
+		{/each}
 	{/if}
 </div>
 
@@ -380,18 +417,7 @@
 					</div>
 					<div class="font-heading text-[18px] font-bold text-[var(--tx)] mb-[6px]">Source connected!</div>
 					<div class="text-[13px] text-[var(--tx-3)] mb-7">
-						{shName || 'Your GitHub App'} is now linked. Bakery found the following repos:
-					</div>
-
-					<div class="bg-[var(--card)] border border-[var(--line)] rounded-[10px] overflow-hidden text-left mb-6">
-						{#each REPOS as r (r.id)}
-							<div class="flex items-center gap-[10px] px-[14px] py-[10px] border-b border-b-[var(--line)] last:border-b-0">
-								<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--tx-3)" stroke-width="1.8"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
-								<div class="flex-1 text-[12.5px] text-[var(--tx)]">{r.name}</div>
-								<div class="size-[9px] rounded-full" style:background={r.langColor}></div>
-								<span class="text-[11.5px] text-[var(--tx-3)]">{r.lang}</span>
-							</div>
-						{/each}
+						{shName || 'Your source'} is now linked. You can pick a repository from it when creating an app.
 					</div>
 
 					<button onclick={closePanel} class="w-full flex items-center justify-center bg-[var(--grn)] text-[#07130c] rounded-[9px] py-[11px] text-[14px] font-bold cursor-pointer shadow-[0_2px_12px_var(--grn-dim)]">Done</button>
