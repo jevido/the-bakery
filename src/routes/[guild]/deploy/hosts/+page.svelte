@@ -1,19 +1,26 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { getContext, onMount, onDestroy } from 'svelte';
+	import { invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
+	import { superForm } from 'sveltekit-superforms';
+	import { zodClient } from '$lib/forms/zod4-adapter';
+	import { Field, Control, Label, FieldErrors } from 'formsnap';
+	import { z } from 'zod';
 	import { GUILD_RESOURCES } from '$lib/data/bakery';
 
+	let { data } = $props();
+
 	const guildId = $derived(page.params.guild ?? '');
-	const hosts = $derived(GUILD_RESOURCES[guildId]?.hosts ?? []);
-	const onlineCount = $derived(hosts.filter((h) => h.online).length);
+	const mockHosts = $derived(GUILD_RESOURCES[guildId]?.hosts ?? []);
+	const onlineCount = $derived(mockHosts.filter((h) => h.online).length);
 
 	let filter = $state<'all' | 'online' | 'offline'>('all');
 
 	const filtered = $derived(
-		filter === 'all'      ? hosts
-		: filter === 'online' ? hosts.filter((h) => h.online)
-		: hosts.filter((h) => !h.online)
+		filter === 'all'      ? mockHosts
+		: filter === 'online' ? mockHosts.filter((h) => h.online)
+		: mockHosts.filter((h) => !h.online)
 	);
 
 	function filterCls(f: typeof filter) {
@@ -26,55 +33,74 @@
 		return pct > 70 ? '#e0a83e' : 'var(--grn)';
 	}
 
-	const cp = { cpu: 18, mem: 45, disk: 52, bakery: '0.9.2', podman: '5.1', uptime: '14d 3h', location: 'Hetzner CPX11 · Falkenstein', spec: 'AMD EPYC · 2 vCPU · 2 GB' };
+	const addHostSchema = z.object({
+		name: z.string().trim().min(1, 'Host name is required').max(100),
+		location: z.string().trim().max(200).optional(),
+		spec: z.string().trim().max(200).optional()
+	});
 
 	let panelOpen = $state(false);
-	let formStep = $state<'form' | 'installing' | 'done'>('form');
-	let hostAddr = $state('');
-	let hostLabel = $state('');
-	let hostPort = $state('22');
-	let hostKey = $state('generate');
-	let currentStep = $state(0);
+	let formStep = $state<'form' | 'waiting' | 'done'>('form');
+	let installCommand = $state('');
+	let createdHostId = $state<string | null>(null);
+	let createdHostName = $state('');
 
-	const installSteps = [
-		'Connecting via SSH',
-		'Downloading Bakery agent',
-		'Starting agent service',
-		'Verifying connectivity',
-	];
+	const hostForm = superForm(data.form, {
+		validators: zodClient(addHostSchema),
+		resetForm: true,
+		onResult: ({ result }) => {
+			if (result.type === 'success' && result.data?.installCommand) {
+				const created = result.data.host as { id: string; name: string };
+				installCommand = result.data.installCommand as string;
+				createdHostId = created.id;
+				createdHostName = created.name;
+				formStep = 'waiting';
+			}
+		}
+	});
+	const { form: formData, enhance, submitting } = hostForm;
+
+	// Real hosts from the DB (task 03's load) — used only to watch the
+	// just-created host's status here; the grid above still renders mock
+	// data until task 05 switches it over.
+	const realHosts = $derived(data.hosts ?? []);
+	const createdHost = $derived(realHosts.find((h) => h.id === createdHostId));
+
+	$effect(() => {
+		if (formStep !== 'waiting') return;
+		const interval = setInterval(() => invalidateAll(), 4000);
+		return () => clearInterval(interval);
+	});
+
+	$effect(() => {
+		if (formStep === 'waiting' && createdHost?.status === 'online') {
+			formStep = 'done';
+			toast.success('Host connected', { description: `Bakery agent checked in on ${createdHostName}` });
+		}
+	});
 
 	function openPanel() {
 		panelOpen = true;
 		formStep = 'form';
-		hostAddr = '';
-		hostLabel = '';
-		hostPort = '22';
-		hostKey = 'generate';
-		currentStep = 0;
+		installCommand = '';
+		createdHostId = null;
+		createdHostName = '';
 	}
 
-	function closePanel() { panelOpen = false; }
+	function closePanel() {
+		panelOpen = false;
+	}
 
 	const cta = getContext<{ register(fn: () => void): void; unregister(): void }>('bakery:cta');
 	onMount(() => cta?.register(openPanel));
 	onDestroy(() => cta?.unregister());
 
-	const canConnect = $derived(hostAddr.trim().length > 0 && hostLabel.trim().length > 0);
-
-	async function addHost() {
-		formStep = 'installing';
-		for (let i = 0; i < installSteps.length; i++) {
-			currentStep = i;
-			await new Promise((r) => setTimeout(r, 700 + Math.random() * 500));
-		}
-		currentStep = installSteps.length;
-		await new Promise((r) => setTimeout(r, 300));
-		formStep = 'done';
-		toast.success('Host registered', { description: `Bakery agent running on ${hostLabel}` });
+	async function copyInstallCommand() {
+		await navigator.clipboard.writeText(installCommand);
+		toast.success('Install command copied');
 	}
 
 	const panelInputCls = 'w-full bg-[var(--card)] border border-[var(--line-2)] rounded-[8px] px-3 py-[9px] text-[13.5px] text-[var(--tx)] font-mono-jb';
-	const panelSelectCls = 'w-full bg-[var(--card)] border border-[var(--line-2)] rounded-[8px] px-3 py-[9px] text-[13.5px] text-[var(--tx)] font-bakery appearance-none cursor-pointer';
 </script>
 
 <div class="px-7 py-[22px]">
@@ -82,7 +108,7 @@
 		<div>
 			<div class="font-heading font-bold text-[23px] tracking-[-0.01em] mb-[3px]">Hosts</div>
 			<div class="text-[13px] text-[var(--tx-2)]">
-				{hosts.length} host{hosts.length !== 1 ? 's' : ''} · {onlineCount} online
+				{mockHosts.length} host{mockHosts.length !== 1 ? 's' : ''} · {onlineCount} online
 			</div>
 		</div>
 
@@ -94,52 +120,7 @@
 	</div>
 
 	<div class="grid grid-cols-3 gap-5">
-		<!-- Control plane — always visible -->
-		<div class="bg-[var(--card)] border border-[var(--grn-line)] rounded-[14px] p-6">
-			<div class="flex items-start justify-between mb-3">
-				<div class="flex items-center gap-[10px]">
-					<div class="size-[38px] rounded-[10px] bg-[var(--grn-dim)] border border-[var(--grn-line)] flex items-center justify-center shrink-0">
-						<span class="font-heading font-bold text-[17px] text-[var(--grn-2)]">B</span>
-					</div>
-					<div>
-						<div class="flex items-center gap-[7px]">
-							<span class="text-[14.5px] font-semibold text-[var(--tx)]">Control Plane</span>
-							<span class="text-[10px] font-bold tracking-[.06em] px-[6px] py-[2px] rounded-[4px] bg-[var(--grn-dim)] text-[var(--grn-2)]">BAKERY</span>
-						</div>
-						<div class="text-[11px] text-[var(--tx-3)] mt-[1px]">{cp.location}</div>
-					</div>
-				</div>
-				<div class="flex items-center gap-[5px] shrink-0">
-					<div class="size-[7px] rounded-full bg-[var(--ok)]"></div>
-					<span class="text-[12px] text-[var(--tx-2)]">online</span>
-				</div>
-			</div>
-
-			<div class="text-[11.5px] text-[var(--tx-3)] mb-[16px]">{cp.spec}</div>
-
-			<div class="flex flex-col gap-[9px] mb-[16px]">
-				{#each [['CPU', cp.cpu], ['MEM', cp.mem], ['DISK', cp.disk]] as [label, pct] (label)}
-					<div class="flex items-center gap-[10px]">
-						<span class="text-[10.5px] font-bold tracking-[.05em] text-[var(--tx-3)] w-[30px]">{label}</span>
-						<div class="flex-1 h-[5px] rounded-[3px] bg-white/[0.07] overflow-hidden">
-							<div class="h-full rounded-[3px]" style:width="{pct}%" style:background={barColor(pct as number)}></div>
-						</div>
-						<span class="font-mono-jb text-[11.5px] text-[var(--tx-3)] w-[28px] text-right">{pct}%</span>
-					</div>
-				{/each}
-			</div>
-
-			<div class="flex items-center justify-between pt-[13px] border-t border-t-[var(--line)]">
-				<div class="flex items-center gap-[6px]">
-					<span class="text-[11px] font-semibold text-[var(--tx-3)]">Bakery</span>
-					<span class="font-mono-jb text-[11.5px] text-[var(--grn-2)]">v{cp.bakery}</span>
-				</div>
-				<span class="text-[11px] text-[var(--tx-3)]">up {cp.uptime}</span>
-			</div>
-		</div>
-
-		<!-- Host cards -->
-		{#if hosts.length === 0}
+		{#if mockHosts.length === 0}
 			<button
 				onclick={openPanel}
 				class="bg-[var(--card)] border border-dashed border-[var(--line-2)] rounded-[14px] p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-white/[0.02] hover:border-[var(--grn-line)] transition-colors group"
@@ -216,90 +197,77 @@
 	<div class="fixed top-0 right-0 w-[480px] h-screen bg-[var(--panel)] border-l border-l-[var(--line)] z-[201] flex flex-col overflow-hidden">
 		<div class="px-6 pt-5 pb-4 border-b border-b-[var(--line)] flex items-center gap-3">
 			<div class="font-heading text-[16px] font-bold text-[var(--tx)]">
-				{formStep === 'form' ? 'Add host' : formStep === 'installing' ? 'Installing…' : 'Host connected'}
+				{formStep === 'form' ? 'Add host' : formStep === 'waiting' ? 'Waiting for check-in…' : 'Host connected'}
 			</div>
 			<div class="flex-1"></div>
-			{#if formStep !== 'installing'}
-				<button onclick={closePanel} aria-label="Close panel" class="text-[var(--tx-3)] cursor-pointer flex items-center">
-					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-				</button>
-			{/if}
+			<button onclick={closePanel} aria-label="Close panel" class="text-[var(--tx-3)] cursor-pointer flex items-center">
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+			</button>
 		</div>
 
 		<div class="flex-1 overflow-y-auto p-6">
 			{#if formStep === 'form'}
-				<div class="flex flex-col gap-[18px]">
-					<div>
-						<label for="host-addr" class="block text-[12px] font-semibold text-[var(--tx-2)] mb-[6px] tracking-[.03em]">HOST ADDRESS</label>
-						<input id="host-addr" bind:value={hostAddr} placeholder="192.168.1.10 or server.example.com" class={panelInputCls} />
-						<div class="text-[11.5px] text-[var(--tx-3)] mt-[5px]">IP address or hostname reachable over SSH.</div>
-					</div>
-
-					<div>
-						<label for="host-label" class="block text-[12px] font-semibold text-[var(--tx-2)] mb-[6px] tracking-[.03em]">LABEL</label>
-						<input id="host-label" bind:value={hostLabel} placeholder="oven-03" class={panelInputCls} />
+				<form method="post" action="?/addHost" use:enhance class="flex flex-col gap-[18px]">
+					<Field form={hostForm} name="name">
+						<Control>
+							{#snippet children({ props })}
+								<Label class="block text-[12px] font-semibold text-[var(--tx-2)] mb-[6px] tracking-[.03em]">NAME</Label>
+								<input {...props} bind:value={$formData.name} placeholder="oven-03" class={panelInputCls} />
+							{/snippet}
+						</Control>
+						<FieldErrors class="text-[12px] text-[#f0836b] mt-1" />
 						<div class="text-[11.5px] text-[var(--tx-3)] mt-[5px]">A short name used across the guild.</div>
-					</div>
+					</Field>
 
-					<div>
-						<label for="host-port" class="block text-[12px] font-semibold text-[var(--tx-2)] mb-[6px] tracking-[.03em]">SSH PORT</label>
-						<input id="host-port" bind:value={hostPort} placeholder="22" class={panelInputCls} />
-					</div>
-
-					<div>
-						<label for="host-key" class="block text-[12px] font-semibold text-[var(--tx-2)] mb-[6px] tracking-[.03em]">SSH KEY</label>
-						<select id="host-key" bind:value={hostKey} class={panelSelectCls}>
-							<option value="generate">Generate new key for this host</option>
-							<option value="guild">Use guild shared key</option>
-						</select>
-						{#if hostKey === 'generate'}
-							<div class="mt-2 bg-[var(--card-2)] border border-[var(--line)] rounded-[8px] px-3 py-[10px] text-[12px] text-[var(--tx-3)] leading-[1.5]">
-								A new Ed25519 key pair will be generated. Add the public key to <span class="font-mono-jb">~/.ssh/authorized_keys</span> on the host before connecting.
-							</div>
-						{/if}
-					</div>
+					<Field form={hostForm} name="location">
+						<Control>
+							{#snippet children({ props })}
+								<Label class="block text-[12px] font-semibold text-[var(--tx-2)] mb-[6px] tracking-[.03em]">LOCATION</Label>
+								<input {...props} bind:value={$formData.location} placeholder="Hetzner CPX21 · Falkenstein" class={panelInputCls} />
+							{/snippet}
+						</Control>
+						<FieldErrors class="text-[12px] text-[#f0836b] mt-1" />
+						<div class="text-[11.5px] text-[var(--tx-3)] mt-[5px]">Optional — where this machine lives.</div>
+					</Field>
 
 					<div class="bg-[var(--card-2)] border border-[var(--line)] rounded-[10px] px-4 py-[13px]">
-						<div class="text-[12.5px] font-semibold text-[var(--tx)] mb-[4px]">Bakery agent will be installed</div>
+						<div class="text-[12.5px] font-semibold text-[var(--tx)] mb-[4px]">You'll get a copy-paste install command</div>
 						<div class="text-[12px] text-[var(--tx-3)] leading-[1.55]">
-							Bakery connects over SSH and installs a lightweight agent daemon on the host. The agent manages Podman, reports metrics, and executes deployments on behalf of the guild.
+							Run it on the target machine as any user with systemd --user support. The Bakery agent installs as a rootless service, checks in over outbound HTTP, and reports metrics — no inbound access to your host required.
 						</div>
 					</div>
 
 					<button
-						onclick={addHost}
-						disabled={!canConnect}
-						class="w-full flex items-center justify-center gap-2 bg-[var(--grn)] text-[#07130c] rounded-[9px] py-[11px] text-[14px] font-bold shadow-[0_2px_12px_var(--grn-dim)] {!canConnect ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}"
+						type="submit"
+						disabled={$submitting}
+						class="w-full flex items-center justify-center gap-2 bg-[var(--grn)] text-[#07130c] rounded-[9px] py-[11px] text-[14px] font-bold shadow-[0_2px_12px_var(--grn-dim)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
 					>
-						Connect & install agent
+						{$submitting ? 'Creating host…' : 'Generate install command'}
 					</button>
-				</div>
+				</form>
 
-			{:else if formStep === 'installing'}
-				<div class="flex flex-col gap-[10px] pt-2">
-					<div class="text-[13px] text-[var(--tx-3)] mb-4">
-						Installing Bakery agent on <span class="font-mono-jb text-[var(--tx)]">{hostAddr}</span>
+			{:else if formStep === 'waiting'}
+				<div class="flex flex-col gap-[16px]">
+					<div class="text-[13px] text-[var(--tx-3)]">
+						Run this on <span class="font-mono-jb text-[var(--tx)]">{createdHostName}</span>:
 					</div>
 
-					{#each installSteps as step, i (step)}
-						<div class="flex items-center gap-[12px] py-[10px] px-[14px] rounded-[9px] bg-[var(--card-2)] border border-[var(--line)]">
-							<div class="size-[20px] flex items-center justify-center shrink-0">
-								{#if currentStep > i}
-									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-								{:else if currentStep === i}
-									<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--grn)" stroke-width="2" class="animate-[bk-spin_1s_linear_infinite]"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-								{:else}
-									<div class="size-[6px] rounded-full bg-white/20"></div>
-								{/if}
-							</div>
-							<span class="text-[13.5px] {currentStep >= i ? 'text-[var(--tx)]' : 'text-[var(--tx-3)]'} flex-1">{step}</span>
-							{#if currentStep > i}
-								<span class="text-[11px] text-[var(--ok)] font-semibold">done</span>
-							{:else if currentStep === i}
-								<span class="text-[11px] text-[var(--grn-2)]">running</span>
-							{/if}
-						</div>
-					{/each}
+					<div class="bg-[var(--card-2)] border border-[var(--line)] rounded-[9px] px-3 py-[12px] font-mono-jb text-[12.5px] text-[var(--tx)] break-all">
+						{installCommand}
+					</div>
+
+					<button
+						onclick={copyInstallCommand}
+						class="w-full flex items-center justify-center gap-2 bg-[var(--card-2)] border border-[var(--line-2)] rounded-[9px] py-[10px] text-[13.5px] font-semibold text-[var(--tx)] cursor-pointer"
+					>
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+						Copy install command
+					</button>
+
+					<div class="flex items-center gap-[10px] py-[10px] px-[14px] rounded-[9px] bg-[var(--card-2)] border border-[var(--line)]">
+						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--grn)" stroke-width="2" class="animate-[bk-spin_1s_linear_infinite] shrink-0"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+						<span class="text-[13px] text-[var(--tx-2)]">Waiting for the agent's first check-in…</span>
+					</div>
 				</div>
 
 			{:else}
@@ -309,22 +277,6 @@
 					</div>
 					<div class="font-heading text-[18px] font-bold text-[var(--tx)] mb-[6px]">Host connected!</div>
 					<div class="text-[13px] text-[var(--tx-3)] mb-7">The Bakery agent is running and accepting deployments.</div>
-
-					<div class="bg-[var(--card)] border border-[var(--line)] rounded-[10px] text-left overflow-hidden mb-6">
-						{#each [
-							{ label: 'Label',         value: hostLabel,                                        mono: true  },
-							{ label: 'Address',        value: hostAddr,                                         mono: true  },
-							{ label: 'SSH port',       value: hostPort,                                         mono: true  },
-							{ label: 'Bakery agent',   value: '0.9.2',                                          mono: true  },
-							{ label: 'SSH key',        value: hostKey === 'generate' ? 'New key generated' : 'Guild shared key', mono: false },
-							{ label: 'Status',         value: 'online',                                         mono: false },
-						] as row (row.label)}
-							<div class="flex items-center justify-between px-4 py-[10px] border-b border-b-[var(--line)] last:border-b-0">
-								<span class="text-[12px] text-[var(--tx-3)]">{row.label}</span>
-								<span class="text-[12.5px] text-[var(--tx)] {row.mono ? 'font-mono-jb' : ''}">{row.value}</span>
-							</div>
-						{/each}
-					</div>
 
 					<button onclick={closePanel} class="w-full flex items-center justify-center bg-[var(--grn)] text-[#07130c] rounded-[9px] py-[11px] text-[14px] font-bold cursor-pointer shadow-[0_2px_12px_var(--grn-dim)]">Done</button>
 				</div>
