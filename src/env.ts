@@ -16,5 +16,15 @@ export const variables = defineEnvVars({
 	GITHUB_CLIENT_SECRET: {
 		description:
 			'GitHub OAuth client secret. See [Better Auth GitHub provider](https://www.better-auth.com/docs/authentication/github).'
+	},
+	GITHUB_APP_ID: {
+		description: 'The GitHub App ID, from the app settings page (github.com/settings/apps).'
+	},
+	GITHUB_APP_PRIVATE_KEY: {
+		description:
+			'Base64-encoded PEM private key for the GitHub App, downloaded from the app settings page.'
+	},
+	GITHUB_WEBHOOK_SECRET: {
+		description: "The webhook secret configured on the GitHub App's Webhook settings."
 	}
 });
