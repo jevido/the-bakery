@@ -57,6 +57,142 @@ export const hostMetricSampleRelations = relations(hostMetricSample, ({ one }) =
 	})
 }));
 
+export const sourceProvider = pgEnum('source_provider', ['github_app']);
+
+export const source = pgTable(
+	'source',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		provider: sourceProvider('provider').default('github_app').notNull(),
+		githubInstallationId: text('github_installation_id'),
+		connectedAt: timestamp('connected_at').defaultNow().notNull()
+	},
+	(table) => [index('source_organizationId_idx').on(table.organizationId)]
+);
+
+export const repo = pgTable(
+	'repo',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		sourceId: uuid('source_id')
+			.notNull()
+			.references(() => source.id, { onDelete: 'cascade' }),
+		fullName: text('full_name').notNull(),
+		defaultBranch: text('default_branch').notNull()
+	},
+	(table) => [index('repo_sourceId_idx').on(table.sourceId)]
+);
+
+export const app = pgTable(
+	'app',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		repoId: uuid('repo_id').references(() => repo.id, { onDelete: 'set null' }),
+		buildContext: text('build_context').default('.').notNull(),
+		dockerfilePath: text('dockerfile_path'),
+		hostId: uuid('host_id').references(() => host.id, { onDelete: 'set null' }),
+		createdAt: timestamp('created_at').defaultNow().notNull()
+	},
+	(table) => [index('app_organizationId_idx').on(table.organizationId)]
+);
+
+export const buildStatus = pgEnum('build_status', ['queued', 'building', 'succeeded', 'failed']);
+
+export const build = pgTable(
+	'build',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		appId: uuid('app_id')
+			.notNull()
+			.references(() => app.id, { onDelete: 'cascade' }),
+		repoId: uuid('repo_id')
+			.notNull()
+			.references(() => repo.id, { onDelete: 'cascade' }),
+		commitSha: text('commit_sha').notNull(),
+		branch: text('branch').notNull(),
+		// A user id (see auth.schema `user`), or the literal 'webhook' — not an FK
+		// since it's polymorphic between the two.
+		triggeredBy: text('triggered_by'),
+		status: buildStatus('status').default('queued').notNull(),
+		imageRef: text('image_ref'),
+		startedAt: timestamp('started_at'),
+		finishedAt: timestamp('finished_at')
+	},
+	(table) => [index('build_appId_idx').on(table.appId), index('build_repoId_idx').on(table.repoId)]
+);
+
+export const buildLogLine = pgTable(
+	'build_log_line',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		buildId: uuid('build_id')
+			.notNull()
+			.references(() => build.id, { onDelete: 'cascade' }),
+		ts: timestamp('ts').defaultNow().notNull(),
+		line: text('line').notNull()
+	},
+	(table) => [index('buildLogLine_buildId_ts_idx').on(table.buildId, table.ts)]
+);
+
+export const sourceRelations = relations(source, ({ one, many }) => ({
+	organization: one(organization, {
+		fields: [source.organizationId],
+		references: [organization.id]
+	}),
+	repos: many(repo)
+}));
+
+export const repoRelations = relations(repo, ({ one, many }) => ({
+	source: one(source, {
+		fields: [repo.sourceId],
+		references: [source.id]
+	}),
+	apps: many(app),
+	builds: many(build)
+}));
+
+export const appRelations = relations(app, ({ one, many }) => ({
+	organization: one(organization, {
+		fields: [app.organizationId],
+		references: [organization.id]
+	}),
+	repo: one(repo, {
+		fields: [app.repoId],
+		references: [repo.id]
+	}),
+	host: one(host, {
+		fields: [app.hostId],
+		references: [host.id]
+	}),
+	builds: many(build)
+}));
+
+export const buildRelations = relations(build, ({ one, many }) => ({
+	app: one(app, {
+		fields: [build.appId],
+		references: [app.id]
+	}),
+	repo: one(repo, {
+		fields: [build.repoId],
+		references: [repo.id]
+	}),
+	logLines: many(buildLogLine)
+}));
+
+export const buildLogLineRelations = relations(buildLogLine, ({ one }) => ({
+	build: one(build, {
+		fields: [buildLogLine.buildId],
+		references: [build.id]
+	})
+}));
+
 /**
  * Manually seeded for now — no CI/release pipeline yet (Phase 02 task 12).
  * The Go agent polls GET /api/v1/agent/version?platform=... and self-updates
