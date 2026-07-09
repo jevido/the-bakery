@@ -43,6 +43,13 @@
       "when": 1783630320454,
       "tag": "0005_remarkable_bulldozer",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783630960757,
+      "tag": "0006_neat_komodo",
+      "breakpoints": true
     }
   ]
 }

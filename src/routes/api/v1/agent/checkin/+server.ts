@@ -1,25 +1,17 @@
 import { json, error } from '@sveltejs/kit';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
-import { host, hostMetricSample } from '$lib/server/db/schema';
-import { hashToken } from '$lib/server/hosts/tokens';
-import { checkinPayloadSchema, type CheckinResponse } from '$lib/server/agent/protocol';
+import { host, hostMetricSample, hostCommand } from '$lib/server/db/schema';
+import { authenticateHost } from '$lib/server/agent/auth';
+import {
+	checkinPayloadSchema,
+	type CheckinResponse,
+	type PendingCommand
+} from '$lib/server/agent/protocol';
 
 export const POST: RequestHandler = async (event) => {
-	const token = event.request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1];
-	if (!token) {
-		error(401, 'Missing bearer token');
-	}
-
-	const [matchedHost] = await db
-		.select()
-		.from(host)
-		.where(eq(host.tokenHash, hashToken(token)));
-
-	if (!matchedHost || matchedHost.revokedAt) {
-		error(401, 'Invalid or revoked token');
-	}
+	const matchedHost = await authenticateHost(event.request);
 
 	const body = await event.request.json().catch(() => null);
 	const parsed = checkinPayloadSchema.safeParse(body);
@@ -43,5 +35,20 @@ export const POST: RequestHandler = async (event) => {
 		.set({ lastSeenAt: new Date(), status: 'online', agentVersion })
 		.where(eq(host.id, matchedHost.id));
 
-	return json({ pendingCommands: [] } satisfies CheckinResponse);
+	// Atomically claim every still-pending command for this host in one
+	// UPDATE ... RETURNING — avoids a second check-in racing this one from
+	// delivering (and the agent double-executing) the same command.
+	const delivered = await db
+		.update(hostCommand)
+		.set({ status: 'delivered', deliveredAt: new Date() })
+		.where(and(eq(hostCommand.hostId, matchedHost.id), eq(hostCommand.status, 'pending')))
+		.returning();
+
+	const pendingCommands: PendingCommand[] = delivered.map((c) => ({
+		id: c.id,
+		type: c.type,
+		payload: c.payload
+	}));
+
+	return json({ pendingCommands } satisfies CheckinResponse);
 };

@@ -7,6 +7,7 @@ import {
 	real,
 	integer,
 	boolean,
+	jsonb,
 	index,
 	pgEnum
 } from 'drizzle-orm/pg-core';
@@ -58,7 +59,8 @@ export const hostRelations = relations(host, ({ one, many }) => ({
 		references: [organization.id]
 	}),
 	metricSamples: many(hostMetricSample),
-	deployments: many(deployment)
+	deployments: many(deployment),
+	commands: many(hostCommand)
 }));
 
 export const hostMetricSampleRelations = relations(hostMetricSample, ({ one }) => ({
@@ -257,7 +259,7 @@ export const envVar = pgTable(
 	(table) => [index('envVar_appId_idx').on(table.appId)]
 );
 
-export const deploymentRelations = relations(deployment, ({ one }) => ({
+export const deploymentRelations = relations(deployment, ({ one, many }) => ({
 	app: one(app, {
 		fields: [deployment.appId],
 		references: [app.id]
@@ -269,13 +271,61 @@ export const deploymentRelations = relations(deployment, ({ one }) => ({
 	host: one(host, {
 		fields: [deployment.hostId],
 		references: [host.id]
-	})
+	}),
+	commands: many(hostCommand)
 }));
 
 export const envVarRelations = relations(envVar, ({ one }) => ({
 	app: one(app, {
 		fields: [envVar.appId],
 		references: [app.id]
+	})
+}));
+
+export const hostCommandType = pgEnum('host_command_type', ['deploy', 'stop', 'restart']);
+
+export const hostCommandStatus = pgEnum('host_command_status', [
+	'pending',
+	'delivered',
+	'succeeded',
+	'failed'
+]);
+
+export const hostCommand = pgTable(
+	'host_command',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		hostId: uuid('host_id')
+			.notNull()
+			.references(() => host.id, { onDelete: 'cascade' }),
+		deploymentId: uuid('deployment_id')
+			.notNull()
+			.references(() => deployment.id, { onDelete: 'cascade' }),
+		type: hostCommandType('type').notNull(),
+		// The Quadlet unit + env file content (task 03) for `deploy`, or just
+		// the unit name for `stop`/`restart` — shape isn't enforced at the
+		// column level since the agent (task 05) is the one interpreting it.
+		payload: jsonb('payload').notNull(),
+		status: hostCommandStatus('status').default('pending').notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		deliveredAt: timestamp('delivered_at'),
+		completedAt: timestamp('completed_at'),
+		errorMessage: text('error_message')
+	},
+	(table) => [
+		index('hostCommand_hostId_status_idx').on(table.hostId, table.status),
+		index('hostCommand_deploymentId_idx').on(table.deploymentId)
+	]
+);
+
+export const hostCommandRelations = relations(hostCommand, ({ one }) => ({
+	host: one(host, {
+		fields: [hostCommand.hostId],
+		references: [host.id]
+	}),
+	deployment: one(deployment, {
+		fields: [hostCommand.deploymentId],
+		references: [deployment.id]
 	})
 }));
 

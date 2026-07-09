@@ -16,6 +16,26 @@ export const checkinPayloadSchema = z.object({
 
 export type CheckinPayload = z.infer<typeof checkinPayloadSchema>;
 
-export interface CheckinResponse {
-	pendingCommands: unknown[];
+/**
+ * `payload` shape is by convention, not validated here — task 05's agent
+ * executor is the only consumer and interprets it per `type`:
+ *   deploy:  { unitName, unitContent, envFileContent }
+ *   stop/restart: { unitName }
+ */
+export interface PendingCommand {
+	id: string;
+	type: 'deploy' | 'stop' | 'restart';
+	payload: unknown;
 }
+
+export interface CheckinResponse {
+	pendingCommands: PendingCommand[];
+}
+
+/** Body for `POST /api/v1/agent/commands/[id]/complete` (task 04). */
+export const commandCompletionSchema = z.object({
+	status: z.enum(['succeeded', 'failed']),
+	errorMessage: z.string().trim().max(2000).optional()
+});
+
+export type CommandCompletionPayload = z.infer<typeof commandCompletionSchema>;
