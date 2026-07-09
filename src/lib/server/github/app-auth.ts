@@ -23,7 +23,9 @@ export function createAppJwt(): string {
 	const now = Math.floor(Date.now() / 1000);
 	const encodedHeader = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
 	// iat backdated 60s to tolerate clock drift with GitHub's servers, per their docs.
-	const encodedPayload = base64url(JSON.stringify({ iat: now - 60, exp: now + 9 * 60, iss: appId }));
+	const encodedPayload = base64url(
+		JSON.stringify({ iat: now - 60, exp: now + 9 * 60, iss: appId })
+	);
 	const signingInput = `${encodedHeader}.${encodedPayload}`;
 
 	const signature = createSign('RSA-SHA256').update(signingInput).sign(privateKey());
@@ -36,14 +38,17 @@ interface InstallationTokenResponse {
 
 /** Exchanges the App JWT for a ~1hr access token scoped to one installation. */
 export async function getInstallationAccessToken(installationId: string): Promise<string> {
-	const res = await fetch(`https://api.github.com/app/installations/${installationId}/access_tokens`, {
-		method: 'POST',
-		headers: {
-			Authorization: `Bearer ${createAppJwt()}`,
-			Accept: 'application/vnd.github+json',
-			'X-GitHub-Api-Version': '2022-11-28'
+	const res = await fetch(
+		`https://api.github.com/app/installations/${installationId}/access_tokens`,
+		{
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${createAppJwt()}`,
+				Accept: 'application/vnd.github+json',
+				'X-GitHub-Api-Version': '2022-11-28'
+			}
 		}
-	});
+	);
 	if (!res.ok) {
 		throw new Error(`Failed to get installation access token: ${res.status} ${await res.text()}`);
 	}
@@ -73,7 +78,9 @@ export async function listInstallationRepositories(installationId: string): Prom
 			}
 		);
 		if (!res.ok) {
-			throw new Error(`Failed to list installation repositories: ${res.status} ${await res.text()}`);
+			throw new Error(
+				`Failed to list installation repositories: ${res.status} ${await res.text()}`
+			);
 		}
 		const data = (await res.json()) as { repositories: GithubRepo[] };
 		repos.push(...data.repositories);
@@ -81,4 +88,30 @@ export async function listInstallationRepositories(installationId: string): Prom
 	}
 
 	return repos;
+}
+
+/** The HEAD commit sha of `branch`, for a manual "Build now" trigger that has no webhook push payload to read one from. */
+export async function getLatestCommitSha(
+	installationId: string,
+	fullName: string,
+	branch: string
+): Promise<string> {
+	const token = await getInstallationAccessToken(installationId);
+	const res = await fetch(
+		`https://api.github.com/repos/${fullName}/commits/${encodeURIComponent(branch)}`,
+		{
+			headers: {
+				Authorization: `Bearer ${token}`,
+				Accept: 'application/vnd.github+json',
+				'X-GitHub-Api-Version': '2022-11-28'
+			}
+		}
+	);
+	if (!res.ok) {
+		throw new Error(
+			`Failed to get latest commit for ${fullName}@${branch}: ${res.status} ${await res.text()}`
+		);
+	}
+	const data = (await res.json()) as { sha: string };
+	return data.sha;
 }

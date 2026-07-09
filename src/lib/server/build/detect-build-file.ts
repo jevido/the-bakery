@@ -6,7 +6,13 @@ export interface DetectedBuildFile {
 	filename: 'Dockerfile' | 'Containerfile';
 }
 
-const CANDIDATE_FILENAMES = ['Dockerfile', 'Containerfile'] as const;
+/**
+ * Exported so the remote (pre-clone, GitHub Contents API) detector used by
+ * the app-creation UI preview (task 10) checks the same two filenames in
+ * the same order as this local (post-clone) build-time check, rather than
+ * maintaining a second hardcoded list that could drift.
+ */
+export const CANDIDATE_FILENAMES = ['Dockerfile', 'Containerfile'] as const;
 
 /**
  * Checks `buildContextDir` for a `Dockerfile`, then a `Containerfile`
