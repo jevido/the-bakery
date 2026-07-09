@@ -8,6 +8,7 @@ import { db } from '$lib/server/db';
 import { build, repo, app, source } from '$lib/server/db/schema';
 import { getInstallationAccessToken } from '$lib/server/github/app-auth';
 import { appendBuildLog } from './log';
+import { detectBuildFile, candidateBuildFilePaths } from './detect-build-file';
 import type { Build } from './claim';
 
 class BuildFailure extends Error {}
@@ -45,18 +46,6 @@ function runStreamed(
 	});
 }
 
-async function findExisting(paths: string[]): Promise<string | null> {
-	for (const p of paths) {
-		try {
-			await access(p);
-			return p;
-		} catch {
-			// try next candidate
-		}
-	}
-	return null;
-}
-
 /**
  * Clones the repo, locates a Dockerfile/Containerfile, runs `podman build`,
  * and updates the `build` row's status as it goes. Never throws — a failure
@@ -92,15 +81,28 @@ export async function processBuild(buildRow: Build): Promise<void> {
 		]);
 		await runStreamed(buildRow.id, 'git', ['checkout', buildRow.commitSha], cloneDir);
 
+		// `buildContextDir`, not `cloneDir`, becomes podman's build context
+		// below, so relative COPY/ADD paths in the Dockerfile resolve against
+		// the subdirectory rather than the repo root.
 		const buildContextDir = join(cloneDir, appRow.buildContext);
-		const dockerfile = appRow.dockerfilePath
-			? join(buildContextDir, appRow.dockerfilePath)
-			: await findExisting([
-					join(buildContextDir, 'Dockerfile'),
-					join(buildContextDir, 'Containerfile')
-				]);
-		if (!dockerfile) {
-			throw new BuildFailure(`No Dockerfile/Containerfile found in ${appRow.buildContext}`);
+		let dockerfile: string;
+		if (appRow.dockerfilePath) {
+			dockerfile = join(buildContextDir, appRow.dockerfilePath);
+			await access(dockerfile).catch(() => {
+				throw new BuildFailure(
+					`Configured dockerfilePath "${appRow.dockerfilePath}" not found under ${appRow.buildContext}`
+				);
+			});
+		} else {
+			const detected = await detectBuildFile(buildContextDir);
+			if (!detected) {
+				const checked = candidateBuildFilePaths(buildContextDir).join(', ');
+				throw new BuildFailure(
+					`No Dockerfile or Containerfile found in ${appRow.buildContext} (checked ${checked})`
+				);
+			}
+			dockerfile = detected.path;
+			await appendBuildLog(buildRow.id, `Detected ${detected.filename} at ${detected.path}`);
 		}
 
 		// Tagged locally for now — task 08 (registry) re-tags and pushes this
