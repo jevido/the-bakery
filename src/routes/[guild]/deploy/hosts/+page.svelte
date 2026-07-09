@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { page } from '$app/state';
 	import { getContext, onMount, onDestroy } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
@@ -7,21 +6,27 @@
 	import { zodClient } from '$lib/forms/zod4-adapter';
 	import { Field, Control, Label, FieldErrors } from 'formsnap';
 	import { z } from 'zod';
-	import { GUILD_RESOURCES } from '$lib/data/bakery';
 
 	let { data } = $props();
 
-	const guildId = $derived(page.params.guild ?? '');
-	const mockHosts = $derived(GUILD_RESOURCES[guildId]?.hosts ?? []);
-	const onlineCount = $derived(mockHosts.filter((h) => h.online).length);
+	const hosts = $derived(data.hosts ?? []);
+	const onlineCount = $derived(hosts.filter((h) => h.online).length);
 
 	let filter = $state<'all' | 'online' | 'offline'>('all');
 
 	const filtered = $derived(
-		filter === 'all'      ? mockHosts
-		: filter === 'online' ? mockHosts.filter((h) => h.online)
-		: mockHosts.filter((h) => !h.online)
+		filter === 'all'      ? hosts
+		: filter === 'online' ? hosts.filter((h) => h.online)
+		: hosts.filter((h) => !h.online)
 	);
+
+	function pct(v: number | null | undefined): number {
+		return v == null ? 0 : Math.round(v);
+	}
+
+	function pctLabel(v: number | null | undefined): string {
+		return v == null ? '—' : `${Math.round(v)}%`;
+	}
 
 	function filterCls(f: typeof filter) {
 		return f === filter
@@ -60,11 +65,7 @@
 	});
 	const { form: formData, enhance, submitting } = hostForm;
 
-	// Real hosts from the DB (task 03's load) — used only to watch the
-	// just-created host's status here; the grid above still renders mock
-	// data until task 05 switches it over.
-	const realHosts = $derived(data.hosts ?? []);
-	const createdHost = $derived(realHosts.find((h) => h.id === createdHostId));
+	const createdHost = $derived(hosts.find((h) => h.id === createdHostId));
 
 	$effect(() => {
 		if (formStep !== 'waiting') return;
@@ -108,7 +109,7 @@
 		<div>
 			<div class="font-heading font-bold text-[23px] tracking-[-0.01em] mb-[3px]">Hosts</div>
 			<div class="text-[13px] text-[var(--tx-2)]">
-				{mockHosts.length} host{mockHosts.length !== 1 ? 's' : ''} · {onlineCount} online
+				{hosts.length} host{hosts.length !== 1 ? 's' : ''} · {onlineCount} online
 			</div>
 		</div>
 
@@ -120,7 +121,7 @@
 	</div>
 
 	<div class="grid grid-cols-3 gap-5">
-		{#if mockHosts.length === 0}
+		{#if hosts.length === 0}
 			<button
 				onclick={openPanel}
 				class="bg-[var(--card)] border border-dashed border-[var(--line-2)] rounded-[14px] p-6 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-white/[0.02] hover:border-[var(--grn-line)] transition-colors group"
@@ -134,7 +135,7 @@
 				</div>
 			</button>
 		{:else}
-			{#each filtered as host (host.name)}
+			{#each filtered as host (host.id)}
 				<div class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] p-6 group cursor-default">
 					<div class="flex items-start justify-between mb-3">
 						<div class="flex items-center gap-[10px] min-w-0">
@@ -143,34 +144,34 @@
 							</div>
 							<div class="min-w-0">
 								<div class="text-[14.5px] font-semibold text-[var(--tx)] truncate">{host.name}</div>
-								<div class="text-[11px] text-[var(--tx-3)] truncate">{host.location}</div>
+								<div class="text-[11px] text-[var(--tx-3)] truncate">{host.location ?? '—'}</div>
 							</div>
 						</div>
 						<div class="flex items-center gap-[5px] shrink-0 ml-2">
 							<div class="size-[7px] rounded-full" style:background={host.online ? 'var(--ok)' : 'var(--err)'}></div>
-							<span class="text-[12px] text-[var(--tx-2)]">{host.online ? 'online' : 'offline'}</span>
+							<span class="text-[12px] text-[var(--tx-2)]">{host.online ? 'online' : host.status === 'pending' ? 'pending' : 'offline'}</span>
 						</div>
 					</div>
 
-					<div class="text-[11.5px] text-[var(--tx-3)] mb-[16px]">{host.spec}</div>
+					<div class="text-[11.5px] text-[var(--tx-3)] mb-[16px]">{host.spec ?? '—'}</div>
 
 					<div class="flex flex-col gap-[9px] mb-[16px]">
-						{#each [['CPU', host.cpu], ['MEM', host.mem], ['DISK', host.disk]] as [label, pct] (label)}
+						{#each [['CPU', host.latestSample?.cpuPct], ['MEM', host.latestSample?.memPct], ['DISK', host.latestSample?.diskPct]] as [label, value] (label)}
 							<div class="flex items-center gap-[10px]">
 								<span class="text-[10.5px] font-bold tracking-[.05em] text-[var(--tx-3)] w-[30px]">{label}</span>
 								<div class="flex-1 h-[5px] rounded-[3px] bg-white/[0.07] overflow-hidden">
-									<div class="h-full rounded-[3px]" style:width="{pct}%" style:background={barColor(pct as number)}></div>
+									<div class="h-full rounded-[3px]" style:width="{pct(value as number | null)}%" style:background={barColor(pct(value as number | null))}></div>
 								</div>
-								<span class="font-mono-jb text-[11.5px] text-[var(--tx-3)] w-[28px] text-right">{pct}%</span>
+								<span class="font-mono-jb text-[11.5px] text-[var(--tx-3)] w-[28px] text-right">{pctLabel(value as number | null)}</span>
 							</div>
 						{/each}
 					</div>
 
 					<div class="flex items-center justify-between pt-[13px] border-t border-t-[var(--line)]">
-						<span class="text-[12px] text-[var(--tx-3)]">{host.apps} app{host.apps !== 1 ? 's' : ''}</span>
+						<span class="text-[12px] text-[var(--tx-3)]">{host.agentVersion ? `Bakery v${host.agentVersion}` : 'Awaiting first check-in'}</span>
 						<div class="flex items-center gap-[5px]">
 							<span class="text-[11px] text-[var(--tx-3)]">Podman</span>
-							<span class="font-mono-jb text-[11.5px] text-[var(--tx-2)]">v{host.podman}</span>
+							<span class="font-mono-jb text-[11.5px] text-[var(--tx-2)]">{host.latestSample?.podmanVersion ? `v${host.latestSample.podmanVersion}` : '—'}</span>
 						</div>
 					</div>
 				</div>
