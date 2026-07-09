@@ -48,4 +48,7 @@ func doCheckin(ctx context.Context, httpClient *http.Client, cfg config) {
 	}
 
 	log.Printf("check-in ok, %d pending command(s)", len(resp.PendingCommands))
+	if len(resp.PendingCommands) > 0 {
+		executeCommands(ctx, httpClient, cfg, resp.PendingCommands)
+	}
 }

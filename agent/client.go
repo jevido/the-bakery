@@ -29,8 +29,16 @@ type checkinPayload struct {
 	AgentVersion   string  `json:"agentVersion"`
 }
 
+// pendingCommand mirrors PendingCommand in src/lib/server/agent/protocol.ts.
+// `Payload` is left raw since its shape depends on `Type` — see commands.go.
+type pendingCommand struct {
+	ID      string          `json:"id"`
+	Type    string          `json:"type"`
+	Payload json.RawMessage `json:"payload"`
+}
+
 type checkinResponse struct {
-	PendingCommands []json.RawMessage `json:"pendingCommands"`
+	PendingCommands []pendingCommand `json:"pendingCommands"`
 }
 
 func checkin(ctx context.Context, httpClient *http.Client, cfg config, payload checkinPayload) (*checkinResponse, error) {

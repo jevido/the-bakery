@@ -22,8 +22,15 @@ export function versionedUnitName(appName: string, commitSha: string): string {
 	return `${appName}-${commitSha.slice(0, 7)}`;
 }
 
+/**
+ * `%h` is systemd's specifier for the running user's home directory,
+ * expanded by systemd itself when it loads the unit. A literal `/etc/...`
+ * path (what the original mock used) would need root to write to, which
+ * conflicts with rootless operation (task 09) — every agent-managed path
+ * has to live under the unprivileged user's own home directory.
+ */
 export function environmentFilePath(unitName: string): string {
-	return `/etc/bakery/${unitName}.env`;
+	return `%h/.config/bakery/env/${unitName}.env`;
 }
 
 /**
