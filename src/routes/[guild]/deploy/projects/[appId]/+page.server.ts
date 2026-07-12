@@ -50,8 +50,18 @@ export const load: PageServerLoad = async (event) => {
 	}
 
 	const deployments = await db
-		.select()
+		.select({
+			id: deployment.id,
+			status: deployment.status,
+			triggeredBy: deployment.triggeredBy,
+			startedAt: deployment.startedAt,
+			finishedAt: deployment.finishedAt,
+			buildId: deployment.buildId,
+			commitSha: build.commitSha,
+			branch: build.branch
+		})
 		.from(deployment)
+		.innerJoin(build, eq(build.id, deployment.buildId))
 		.where(eq(deployment.appId, appRow.id))
 		.orderBy(desc(deployment.startedAt));
 
@@ -131,6 +141,44 @@ export const actions: Actions = {
 				.limit(1);
 			if (!buildRow) return fail(400, { message: 'No successful build to deploy yet' });
 		}
+
+		const hostRow = await resolveHostForApp(appRow, organization.id);
+		if (!hostRow) return fail(400, { message: 'No host available — add a host first' });
+
+		await startDeployment({ appRow, buildRow, hostRow, triggeredBy: userId });
+
+		return { success: true };
+	},
+
+	rollback: async (event) => {
+		const { organization, userId } = await requireGuild(event, { permission: 'deploy_apps' });
+
+		const [appRow] = await db
+			.select()
+			.from(app)
+			.where(and(eq(app.id, event.params.appId), eq(app.organizationId, organization.id)));
+		if (!appRow) return fail(404, { message: 'App not found' });
+
+		const formData = await event.request.formData();
+		const targetDeploymentId = formData.get('deploymentId');
+		if (typeof targetDeploymentId !== 'string' || !targetDeploymentId) {
+			return fail(400, { message: 'Missing deployment to roll back to' });
+		}
+
+		const [targetDeployment] = await db
+			.select()
+			.from(deployment)
+			.where(and(eq(deployment.id, targetDeploymentId), eq(deployment.appId, appRow.id)));
+		if (!targetDeployment) return fail(404, { message: 'Deployment not found' });
+
+		// A rollback reuses that deployment's already-built image — no new
+		// build — but still runs the full zero-downtime state machine (task
+		// 06), not a special-cased unsafe swap.
+		const [buildRow] = await db
+			.select()
+			.from(build)
+			.where(and(eq(build.id, targetDeployment.buildId), eq(build.status, 'succeeded')));
+		if (!buildRow?.imageRef) return fail(400, { message: 'That build is no longer deployable' });
 
 		const hostRow = await resolveHostForApp(appRow, organization.id);
 		if (!hostRow) return fail(400, { message: 'No host available — add a host first' });

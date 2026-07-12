@@ -89,6 +89,30 @@
 		}
 	}
 
+	// The most recently-*completed* rollout is still what's actually serving
+	// traffic even while a newer one is mid-flight (task 06 never flips until
+	// the new unit is healthy) — so "current" is the first `running` entry in
+	// startedAt-desc order, not necessarily data.deployments[0].
+	const currentDeploymentId = $derived(data.deployments?.find((d) => d.status === 'running')?.id);
+
+	let rollingBackId = $state<string | null>(null);
+	async function rollback(deploymentId: string) {
+		rollingBackId = deploymentId;
+		try {
+			const body = new FormData();
+			body.set('deploymentId', deploymentId);
+			const res = await fetch('?/rollback', { method: 'POST', body });
+			if (res.ok) {
+				toast.success('Rollback started');
+				await invalidateAll();
+			} else {
+				toast.error('Could not start rollback');
+			}
+		} finally {
+			rollingBackId = null;
+		}
+	}
+
 	type Tab =
 		'overview' | 'containers' | 'network' | 'deployments' | 'logs' | 'env' | 'domains' | 'quadlet';
 	let activeTab = $state<Tab>('overview');
@@ -379,6 +403,7 @@
 							class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] overflow-hidden mb-[18px]"
 						>
 							{#each data.deployments as d (d.id)}
+								{@const isCurrent = d.id === currentDeploymentId}
 								{@const inProgress =
 									d.status !== 'running' && d.status !== 'failed' && d.status !== 'rolled_back'}
 								{@const color =
@@ -396,18 +421,36 @@
 										class:animate-pulse={inProgress}
 									></div>
 									<div class="flex-1 min-w-0">
-										<div class="font-mono-jb text-[12.5px]" style:color>
-											{d.status}
+										<div class="flex items-center gap-[8px]">
+											<span class="font-mono-jb text-[12.5px] text-[var(--tx)] font-semibold"
+												>{d.commitSha.slice(0, 7)} · {d.branch}</span
+											>
+											{#if isCurrent}
+												<span
+													class="font-mono-jb text-[10px] font-semibold px-[7px] py-[2px] rounded-[6px] bg-[var(--grn-dim)] text-[var(--grn)]"
+													>current</span
+												>
+											{/if}
 										</div>
-										<div class="text-[11px] text-[var(--tx-3)] mt-[2px]">
-											triggered by {d.triggeredBy ?? 'unknown'}
+										<div class="text-[11px] mt-[2px]" style:color>
+											{d.status} · triggered by {d.triggeredBy ?? 'unknown'}
 										</div>
 									</div>
-									<div class="text-[11px] text-[var(--tx-3)] text-right">
+									<div class="text-[11px] text-[var(--tx-3)] text-right shrink-0">
 										{d.finishedAt
 											? new Date(d.finishedAt).toLocaleString()
 											: new Date(d.startedAt).toLocaleString()}
 									</div>
+									{#if d.status === 'running' && !isCurrent}
+										<button
+											onclick={() => rollback(d.id)}
+											disabled={rollingBackId === d.id}
+											class="shrink-0 bg-[var(--card-2)] border border-[var(--line)] text-[var(--tx)] rounded-[8px] px-3 py-[7px] text-[11.5px] font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+											>{rollingBackId === d.id
+												? 'Rolling back…'
+												: 'Rollback to this deploy'}</button
+										>
+									{/if}
 								</div>
 							{/each}
 						</div>
