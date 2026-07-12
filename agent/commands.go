@@ -62,6 +62,10 @@ func executeCommands(ctx context.Context, httpClient *http.Client, cfg config, c
 }
 
 func executeCommand(ctx context.Context, cmd pendingCommand) error {
+	if err := checkRootless(ctx); err != nil {
+		return fmt.Errorf("refusing to execute %s command: %w", cmd.Type, err)
+	}
+
 	switch cmd.Type {
 	case "deploy":
 		return executeDeploy(ctx, cmd.Payload)
