@@ -102,7 +102,14 @@ export async function handleCommandCompletion(
 		// Succeeded implies healthy too — the agent's `deploy` command only
 		// reports success once its embedded health probe passes (task 05).
 		const oldDeploymentRow = await findRunningDeployment(deploymentRow.appId, deploymentRow.id);
-		if (!oldDeploymentRow) {
+		const oldUnitName = oldDeploymentRow ? await unitNameForDeployment(oldDeploymentRow) : null;
+		const newUnitName = isDeployPayload(commandRow.payload) ? commandRow.payload.unitName : null;
+
+		// Redeploying the exact same build (same commit -> same deterministic
+		// unit name, task 03) means the "old" unit *is* the unit that was just
+		// (re)started — stopping it would tear down the deploy that just
+		// succeeded rather than cleaning up a distinct previous version.
+		if (!oldDeploymentRow || !oldUnitName || oldUnitName === newUnitName) {
 			await db
 				.update(deployment)
 				.set({ status: 'running', finishedAt: new Date() })
@@ -114,7 +121,7 @@ export async function handleCommandCompletion(
 			.update(deployment)
 			.set({ status: 'stopping_old' })
 			.where(eq(deployment.id, deploymentRow.id));
-		await dispatchStopOld(deploymentRow, oldDeploymentRow);
+		await dispatchStopOld(deploymentRow, deploymentRow.hostId, oldUnitName);
 		return;
 	}
 
@@ -150,19 +157,25 @@ async function findRunningDeployment(
 	return row;
 }
 
-async function dispatchStopOld(newDeploymentRow: Deployment, oldDeploymentRow: Deployment) {
-	if (!newDeploymentRow.hostId) return;
+async function unitNameForDeployment(deploymentRow: Deployment): Promise<string | null> {
+	const [buildRow] = await db.select().from(build).where(eq(build.id, deploymentRow.buildId));
+	const [appRow] = await db.select().from(app).where(eq(app.id, deploymentRow.appId));
+	if (!buildRow || !appRow) return null;
+	return versionedUnitName(appRow.name, buildRow.commitSha);
+}
 
-	const [oldBuildRow] = await db.select().from(build).where(eq(build.id, oldDeploymentRow.buildId));
-	const [appRow] = await db.select().from(app).where(eq(app.id, newDeploymentRow.appId));
-	if (!oldBuildRow || !appRow) return;
+async function dispatchStopOld(
+	newDeploymentRow: Deployment,
+	hostId: string | null,
+	unitName: string
+) {
+	if (!hostId) return;
 
-	const oldUnitName = versionedUnitName(appRow.name, oldBuildRow.commitSha);
 	await db.insert(hostCommand).values({
-		hostId: newDeploymentRow.hostId,
+		hostId,
 		deploymentId: newDeploymentRow.id,
 		type: 'stop',
-		payload: { unitName: oldUnitName }
+		payload: { unitName }
 	});
 }
 

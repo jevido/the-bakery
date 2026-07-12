@@ -111,6 +111,10 @@ export const app = pgTable(
 		buildContext: text('build_context').default('.').notNull(),
 		dockerfilePath: text('dockerfile_path'),
 		hostId: uuid('host_id').references(() => host.id, { onDelete: 'set null' }),
+		// Gates whether a webhook-triggered build (task 07) auto-deploys on
+		// success. Manual "Build now" builds never auto-deploy regardless of
+		// this flag — only `build.triggeredBy === 'webhook'` does.
+		autoDeployEnabled: boolean('auto_deploy_enabled').default(true).notNull(),
 		createdAt: timestamp('created_at').defaultNow().notNull()
 	},
 	(table) => [index('app_organizationId_idx').on(table.organizationId)]

@@ -73,6 +73,22 @@
 		}
 	}
 
+	let deploying = $state(false);
+	async function deployNow() {
+		deploying = true;
+		try {
+			const res = await fetch('?/deploy', { method: 'POST', body: new FormData() });
+			if (res.ok) {
+				toast.success('Deploy started');
+				await invalidateAll();
+			} else {
+				toast.error('Could not start deploy');
+			}
+		} finally {
+			deploying = false;
+		}
+	}
+
 	type Tab =
 		'overview' | 'containers' | 'network' | 'deployments' | 'logs' | 'env' | 'domains' | 'quadlet';
 	let activeTab = $state<Tab>('overview');
@@ -176,7 +192,9 @@
 				{/if}
 
 				<button
-					class="flex items-center gap-[7px] bg-[var(--grn)] text-[#07130c] rounded-[8px] px-[14px] py-[9px] text-[13px] font-bold cursor-pointer"
+					onclick={deployNow}
+					disabled={deploying || !data.realApp}
+					class="flex items-center gap-[7px] bg-[var(--grn)] text-[#07130c] rounded-[8px] px-[14px] py-[9px] text-[13px] font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
 				>
 					<svg
 						width="15"
@@ -189,7 +207,7 @@
 						<path d="M21 12a9 9 0 11-3-6.7L21 8" />
 						<path d="M21 3v5h-5" />
 					</svg>
-					Redeploy
+					{deploying ? 'Deploying…' : 'Redeploy'}
 				</button>
 			</div>
 
@@ -354,6 +372,46 @@
 							>{buildingNow ? 'Queuing…' : 'Build now'}</button
 						>
 					</div>
+
+					{#if data.deployments.length > 0}
+						<div class="text-[13px] font-bold mb-[10px]">Rollouts</div>
+						<div
+							class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] overflow-hidden mb-[18px]"
+						>
+							{#each data.deployments as d (d.id)}
+								{@const inProgress =
+									d.status !== 'running' && d.status !== 'failed' && d.status !== 'rolled_back'}
+								{@const color =
+									d.status === 'running'
+										? '#52cc96'
+										: d.status === 'failed'
+											? '#f0836b'
+											: '#e0a83e'}
+								<div
+									class="flex items-center gap-[14px] px-[18px] py-[12px] border-b border-b-[var(--line)] last:border-b-0"
+								>
+									<div
+										class="size-[10px] rounded-full shrink-0"
+										style:background={color}
+										class:animate-pulse={inProgress}
+									></div>
+									<div class="flex-1 min-w-0">
+										<div class="font-mono-jb text-[12.5px]" style:color>
+											{d.status}
+										</div>
+										<div class="text-[11px] text-[var(--tx-3)] mt-[2px]">
+											triggered by {d.triggeredBy ?? 'unknown'}
+										</div>
+									</div>
+									<div class="text-[11px] text-[var(--tx-3)] text-right">
+										{d.finishedAt
+											? new Date(d.finishedAt).toLocaleString()
+											: new Date(d.startedAt).toLocaleString()}
+									</div>
+								</div>
+							{/each}
+						</div>
+					{/if}
 
 					{#if data.builds.length > 0}
 						{@const top = data.builds[0]}

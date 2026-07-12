@@ -1,11 +1,13 @@
 import { fail } from '@sveltejs/kit';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { requireGuild } from '$lib/server/guild-context';
 import { db } from '$lib/server/db';
-import { app, repo, source, build } from '$lib/server/db/schema';
+import { app, repo, source, build, deployment } from '$lib/server/db/schema';
 import { getLatestCommitSha } from '$lib/server/github/app-auth';
 import { quadletContent, versionedUnitName } from '$lib/server/deploy/quadlet';
+import { startDeployment } from '$lib/server/deploy/orchestrator';
+import { resolveHostForApp } from '$lib/server/deploy/host-assignment';
 
 /**
  * `app.id` may be either a real UUID (created via task 10's "New app" flow)
@@ -47,7 +49,13 @@ export const load: PageServerLoad = async (event) => {
 		realQuadletContent = quadletContent(appRow, latestSucceeded.imageRef, unitName);
 	}
 
-	return { realApp: appRow, repo: repoRow, builds, realQuadletContent };
+	const deployments = await db
+		.select()
+		.from(deployment)
+		.where(eq(deployment.appId, appRow.id))
+		.orderBy(desc(deployment.startedAt));
+
+	return { realApp: appRow, repo: repoRow, builds, realQuadletContent, deployments };
 };
 
 export const actions: Actions = {
@@ -85,6 +93,49 @@ export const actions: Actions = {
 			triggeredBy: userId,
 			status: 'queued'
 		});
+
+		return { success: true };
+	},
+
+	deploy: async (event) => {
+		const { organization, userId } = await requireGuild(event, { permission: 'deploy_apps' });
+
+		const [appRow] = await db
+			.select()
+			.from(app)
+			.where(and(eq(app.id, event.params.appId), eq(app.organizationId, organization.id)));
+		if (!appRow) return fail(404, { message: 'App not found' });
+
+		const formData = await event.request.formData();
+		const requestedBuildId = formData.get('buildId');
+
+		let buildRow;
+		if (typeof requestedBuildId === 'string' && requestedBuildId) {
+			[buildRow] = await db
+				.select()
+				.from(build)
+				.where(
+					and(
+						eq(build.id, requestedBuildId),
+						eq(build.appId, appRow.id),
+						eq(build.status, 'succeeded')
+					)
+				);
+			if (!buildRow) return fail(400, { message: 'Selected build is not available to deploy' });
+		} else {
+			[buildRow] = await db
+				.select()
+				.from(build)
+				.where(and(eq(build.appId, appRow.id), eq(build.status, 'succeeded')))
+				.orderBy(desc(build.finishedAt))
+				.limit(1);
+			if (!buildRow) return fail(400, { message: 'No successful build to deploy yet' });
+		}
+
+		const hostRow = await resolveHostForApp(appRow, organization.id);
+		if (!hostRow) return fail(400, { message: 'No host available — add a host first' });
+
+		await startDeployment({ appRow, buildRow, hostRow, triggeredBy: userId });
 
 		return { success: true };
 	}

@@ -11,6 +11,8 @@ import { appendBuildLog } from './log';
 import { detectBuildFile, candidateBuildFilePaths } from './detect-build-file';
 import { registryImageRef, pushCredentials } from './registry';
 import type { Build } from './claim';
+import { startDeployment } from '$lib/server/deploy/orchestrator';
+import { resolveHostForApp } from '$lib/server/deploy/host-assignment';
 
 class BuildFailure extends Error {}
 
@@ -129,11 +131,30 @@ export async function processBuild(buildRow: Build): Promise<void> {
 			imageRef
 		]);
 
-		await db
+		const [updatedBuild] = await db
 			.update(build)
 			.set({ status: 'succeeded', imageRef, finishedAt: new Date() })
-			.where(eq(build.id, buildRow.id));
+			.where(eq(build.id, buildRow.id))
+			.returning();
 		await appendBuildLog(buildRow.id, 'Build succeeded.');
+
+		// Push-to-deploy (task 07): only webhook-triggered builds auto-deploy —
+		// a manual "Build now" click is always a build-only action, deploying
+		// separately via the explicit Deploy button.
+		if (buildRow.triggeredBy === 'webhook' && appRow.autoDeployEnabled) {
+			const hostRow = await resolveHostForApp(appRow, appRow.organizationId);
+			if (!hostRow) {
+				await appendBuildLog(buildRow.id, 'Auto-deploy skipped: no host available.');
+			} else {
+				await appendBuildLog(buildRow.id, `Auto-deploying to ${hostRow.name}...`);
+				await startDeployment({
+					appRow,
+					buildRow: updatedBuild,
+					hostRow,
+					triggeredBy: 'webhook'
+				});
+			}
+		}
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		await appendBuildLog(buildRow.id, `Build failed: ${message}`);

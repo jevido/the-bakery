@@ -1,0 +1,1 @@
+ALTER TABLE "app" ADD COLUMN "auto_deploy_enabled" boolean DEFAULT true NOT NULL;
