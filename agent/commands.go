@@ -33,6 +33,7 @@ type deployPayload struct {
 	UnitContent     string `json:"unitContent"`
 	EnvFileContent  string `json:"envFileContent"`
 	HealthCheckPort int    `json:"healthCheckPort"`
+	NetworkName     string `json:"networkName"`
 }
 
 type unitNamePayload struct {
@@ -131,6 +132,15 @@ func executeDeploy(ctx context.Context, rawPayload json.RawMessage) error {
 		return fmt.Errorf("write unit file: %w", err)
 	}
 
+	// The unit file's own `Network=` line (Phase 05 task 05) doesn't create
+	// the network it references — Podman requires it to already exist before
+	// a container can join it, unlike the image, which it pulls on demand.
+	if p.NetworkName != "" {
+		if err := ensureNetwork(ctx, p.NetworkName); err != nil {
+			return fmt.Errorf("ensure network: %w", err)
+		}
+	}
+
 	if err := runSystemctl(ctx, "daemon-reload"); err != nil {
 		return fmt.Errorf("daemon-reload: %w", err)
 	}
@@ -185,6 +195,18 @@ func probeHealth(ctx context.Context, port int) error {
 		case <-time.After(healthCheckInterval):
 		}
 	}
+}
+
+// ensureNetwork creates the guild's bridge network (Phase 05 task 05) if it
+// doesn't already exist. `--ignore` makes this a single idempotent call
+// rather than a check-then-create — two concurrent deploys for the same
+// guild racing here would otherwise both see "doesn't exist" and only one
+// of the two `create` calls would win.
+func ensureNetwork(ctx context.Context, name string) error {
+	if _, err := runPodman(ctx, "network", "create", "--ignore", name); err != nil {
+		return fmt.Errorf("create network %s: %w", name, err)
+	}
+	return nil
 }
 
 func executeUnitAction(ctx context.Context, rawPayload json.RawMessage, action string) error {

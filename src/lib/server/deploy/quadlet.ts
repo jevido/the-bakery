@@ -59,9 +59,28 @@ export function publishedPort(unitName: string): number {
 }
 
 /**
+ * Every app in a guild shares one bridge network per host (Phase 05 task
+ * 05), giving them internal DNS resolution by name without exposing any
+ * network driver choice to users. Scoped by organization id so guilds never
+ * share a network — and therefore never resolve or reach each other's
+ * containers — even when co-located on the same host.
+ */
+export function guildNetworkName(organizationId: string): string {
+	return `bakery-net-${organizationId}`;
+}
+
+/**
  * Real Quadlet `.container` unit content for a deploy — the actual payload
  * sent to and executed by agents (task 05), replacing `bakery.ts`'s mock
  * `quadletContent()`.
+ *
+ * `NetworkAlias` is the app's stable name (e.g. `proofing-db`), not the
+ * versioned unit name — the latter changes every deploy (task 03's
+ * `versionedUnitName`), which would otherwise break every other app's
+ * hardcoded hostname (e.g. `DATABASE_URL=...@proofing-db:5432/...`) on each
+ * redeploy. Old and new units briefly share this alias mid-flip (task 06),
+ * which is fine — Podman's embedded DNS round-robins between them, same as
+ * any other multi-backend service discovery.
  */
 export function quadletContent(appRow: App, imageRef: string, unitName: string): string {
 	return `[Unit]
@@ -70,6 +89,8 @@ After=network-online.target
 
 [Container]
 Image=${imageRef}
+Network=${guildNetworkName(appRow.organizationId)}
+NetworkAlias=${appRow.name}
 PublishPort=${publishedPort(unitName)}:${APP_CONTAINER_PORT}
 EnvironmentFile=${environmentFilePath(unitName)}
 AutoUpdate=registry

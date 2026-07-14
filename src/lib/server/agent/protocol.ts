@@ -19,7 +19,7 @@ export type CheckinPayload = z.infer<typeof checkinPayloadSchema>;
 /**
  * `payload` shape is by convention, not validated here — task 05's agent
  * executor is the only consumer and interprets it per `type`:
- *   deploy:  { unitName, unitContent, envFileContent }
+ *   deploy:  { unitName, unitContent, envFileContent, healthCheckPort, networkName }
  *   stop/restart: { unitName }
  *   configureProxy: { caddyfileContent } (Phase 05 task 03)
  */

@@ -3,6 +3,7 @@ import { db } from '$lib/server/db';
 import { app, build, deployment, envVar, host, hostCommand } from '$lib/server/db/schema';
 import {
 	environmentFileContent,
+	guildNetworkName,
 	publishedPort,
 	quadletContent,
 	versionedUnitName
@@ -65,7 +66,12 @@ async function dispatchNewUnitDeploy(
 			unitName,
 			unitContent: quadletContent(appRow, imageRef, unitName),
 			envFileContent: environmentFileContent(envVars),
-			healthCheckPort: publishedPort(unitName)
+			healthCheckPort: publishedPort(unitName),
+			// The unit content already references this network (task 05), but
+			// the agent still needs it out-of-band to ensure the network exists
+			// *before* starting the unit — Podman doesn't auto-create a network
+			// a container references, unlike the image it references.
+			networkName: guildNetworkName(appRow.organizationId)
 		}
 	});
 }
