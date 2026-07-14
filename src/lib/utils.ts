@@ -14,6 +14,18 @@ export function formatBytes(bytes: number): string {
 	return `${exp === 0 ? value : value.toFixed(1)} ${units[exp]}`;
 }
 
+/** e.g. a Date 2 minutes ago -> `"2m ago"`. Used by the overview dashboard's activity feed. */
+export function formatRelativeTime(date: Date): string {
+	const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+	if (seconds < 60) return 'just now';
+	const minutes = Math.floor(seconds / 60);
+	if (minutes < 60) return `${minutes}m ago`;
+	const hours = Math.floor(minutes / 60);
+	if (hours < 24) return `${hours}h ago`;
+	const days = Math.floor(hours / 24);
+	return `${days}d ago`;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type WithoutChild<T> = T extends { child?: any } ? Omit<T, 'child'> : T;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

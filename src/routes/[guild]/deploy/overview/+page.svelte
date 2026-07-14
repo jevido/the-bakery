@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { GUILD_RESOURCES, ACTIVITY, statusMeta } from '$lib/data/bakery';
+	import { GUILD_RESOURCES, statusMeta } from '$lib/data/bakery';
 	import { AreaChart } from 'layerchart';
 	import { HOST_METRIC_RANGES } from '$lib/hosts/metric-ranges';
+	import { formatBytes, formatRelativeTime } from '$lib/utils';
 
 	const guildId = $derived(page.params.guild ?? '');
 	const guildName = $derived(page.data.organization?.name ?? guildId);
@@ -96,17 +97,32 @@
 	const statRow = $derived([
 		{
 			label: 'Apps',
-			value: apps.length,
-			sub: `/ ${apps.length + 2}`,
+			value: page.data.appsCount ?? 0,
+			sub: 'total',
 			icon: 'M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z'
 		},
-		{ label: 'Pods', value: 5, sub: 'active', icon: 'M12 3l8 4v10l-8 4-8-4V7z' },
-		{ label: 'Quadlets', value: 10, sub: 'units', icon: 'M4 4h16v6H4zM4 14h16v6H4z' },
-		{ label: 'Images', value: 9, sub: '254 MB unused', icon: 'M4 5h16v14H4zM4 15l5-5 4 4 3-3 4 4' },
+		{
+			label: 'Hosts online',
+			value: page.data.hostsOnlineCount ?? 0,
+			sub: `/ ${page.data.hostsTotalCount ?? 0} total`,
+			icon: 'M12 3l8 4v10l-8 4-8-4V7z'
+		},
+		{
+			label: 'Running',
+			value: page.data.runningDeploymentsCount ?? 0,
+			sub: 'deployments',
+			icon: 'M4 4h16v6H4zM4 14h16v6H4z'
+		},
+		{
+			label: 'Building now',
+			value: page.data.activeBuildsCount ?? 0,
+			sub: 'in progress',
+			icon: 'M4 5h16v14H4zM4 15l5-5 4 4 3-3 4 4'
+		},
 		{
 			label: 'Volumes',
-			value: 6,
-			sub: '17.1 GB',
+			value: page.data.volumesCount ?? 0,
+			sub: formatBytes(page.data.volumesTotalBytes ?? 0),
 			icon: 'M4 6c0-1.6 3.6-3 8-3s8 1.4 8 3-3.6 3-8 3-8-1.4-8-3zM4 6v12c0 1.6 3.6 3 8 3s8-1.4 8-3V6'
 		}
 	]);
@@ -289,17 +305,24 @@
 		<!-- Recent activity -->
 		<div class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] px-1 pt-[6px] pb-3">
 			<div class="px-4 pt-[13px] pb-2 text-[14px] font-bold">Recent activity</div>
-			{#each ACTIVITY as a}
+			{#each page.data.activityEvents ?? [] as a (a.at + a.text)}
 				<div class="flex items-start gap-[11px] px-4 py-2">
 					<div class="size-2 rounded-full mt-[5px] shrink-0" style:background={a.dot}></div>
 					<div class="flex-1 min-w-0">
 						<div class="text-[12.5px] text-[var(--tx-2)]">
 							<span class="text-[var(--tx)] font-semibold">{a.who}</span>{a.text}
 						</div>
-						<div class="text-[11px] text-[var(--tx-3)] mt-[1px]">{a.time}</div>
+						<div class="text-[11px] text-[var(--tx-3)] mt-[1px]">
+							{formatRelativeTime(new Date(a.at))}
+						</div>
 					</div>
 				</div>
 			{/each}
+			{#if (page.data.activityEvents ?? []).length === 0}
+				<div class="px-4 py-6 text-center text-[12.5px] text-[var(--tx-3)]">
+					No recent activity yet.
+				</div>
+			{/if}
 		</div>
 	</div>
 </div>
