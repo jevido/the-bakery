@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import { GUILD_RESOURCES, ACTIVITY, statusMeta } from '$lib/data/bakery';
 	import { AreaChart } from 'layerchart';
+	import { HOST_METRIC_RANGES } from '$lib/hosts/metric-ranges';
 
 	const guildId = $derived(page.params.guild ?? '');
 	const guildName = $derived(page.data.organization?.name ?? guildId);
@@ -19,7 +21,9 @@
 	// sampling. CPU/mem below are real, sourced from hostMetricSample.
 	function wobble(min: number, max: number, points: number, seed: number) {
 		return Array.from({ length: points }, (_, i) => {
-			return min + ((max - min) * Math.abs(Math.sin(i * 0.7 + seed) + Math.cos(i * 0.4 + seed))) / 2;
+			return (
+				min + ((max - min) * Math.abs(Math.sin(i * 0.7 + seed) + Math.cos(i * 0.4 + seed))) / 2
+			);
 		});
 	}
 
@@ -57,7 +61,8 @@
 	const metricCards = $derived([
 		{
 			label: 'CPU usage',
-			big: primaryHostLatestSample?.cpuPct != null ? primaryHostLatestSample.cpuPct.toFixed(1) : '—',
+			big:
+				primaryHostLatestSample?.cpuPct != null ? primaryHostLatestSample.cpuPct.toFixed(1) : '—',
 			unit: '%',
 			sub: primaryHost?.name ?? 'no hosts yet',
 			delta: deltaLabel(cpuDelta),
@@ -67,7 +72,8 @@
 		},
 		{
 			label: 'Memory',
-			big: primaryHostLatestSample?.memPct != null ? primaryHostLatestSample.memPct.toFixed(1) : '—',
+			big:
+				primaryHostLatestSample?.memPct != null ? primaryHostLatestSample.memPct.toFixed(1) : '—',
 			unit: '%',
 			sub: 'committed',
 			delta: deltaLabel(memDelta),
@@ -88,21 +94,42 @@
 	]);
 
 	const statRow = $derived([
-		{ label: 'Apps', value: apps.length, sub: `/ ${apps.length + 2}`, icon: 'M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z' },
+		{
+			label: 'Apps',
+			value: apps.length,
+			sub: `/ ${apps.length + 2}`,
+			icon: 'M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3zM13 13h8v8h-8z'
+		},
 		{ label: 'Pods', value: 5, sub: 'active', icon: 'M12 3l8 4v10l-8 4-8-4V7z' },
 		{ label: 'Quadlets', value: 10, sub: 'units', icon: 'M4 4h16v6H4zM4 14h16v6H4z' },
 		{ label: 'Images', value: 9, sub: '254 MB unused', icon: 'M4 5h16v14H4zM4 15l5-5 4 4 3-3 4 4' },
-		{ label: 'Volumes', value: 6, sub: '17.1 GB', icon: 'M4 6c0-1.6 3.6-3 8-3s8 1.4 8 3-3.6 3-8 3-8-1.4-8-3zM4 6v12c0 1.6 3.6 3 8 3s8-1.4 8-3V6' },
+		{
+			label: 'Volumes',
+			value: 6,
+			sub: '17.1 GB',
+			icon: 'M4 6c0-1.6 3.6-3 8-3s8 1.4 8 3-3.6 3-8 3-8-1.4-8-3zM4 6v12c0 1.6 3.6 3 8 3s8-1.4 8-3V6'
+		}
 	]);
 
-	const workloads = $derived(apps.slice(0, 5).map((a) => {
-		const m = statusMeta(a.status);
-		return { ...a, dot: m.dot };
-	}));
+	const workloads = $derived(
+		apps.slice(0, 5).map((a) => {
+			const m = statusMeta(a.status);
+			return { ...a, dot: m.dot };
+		})
+	);
 
-	import { goto } from '$app/navigation';
 	function openApp(id: string) {
 		goto(`/${guildId}/deploy/projects/${id}`);
+	}
+
+	function selectRange(id: string) {
+		goto(`?range=${id}`, { keepFocus: true, noScroll: true, replaceState: true });
+	}
+
+	function rangePillCls(id: string) {
+		return id === page.data.range
+			? 'px-[11px] py-[5px] text-[12.5px] text-[var(--tx)] rounded-[6px] cursor-pointer bg-[var(--card-2)]'
+			: 'px-[11px] py-[5px] text-[12.5px] text-[var(--tx-2)] rounded-[6px] cursor-pointer';
 	}
 </script>
 
@@ -111,22 +138,46 @@
 	<div class="flex items-start gap-3 mb-5">
 		<div class="flex-1 min-w-0">
 			<div class="font-heading font-bold text-[28px] tracking-[-0.01em]">{guildName} Dashboard</div>
-			<div class="text-[var(--tx-2)] text-[13.5px] mt-[3px]">Live overview of all containers and hosts in {guildName}</div>
+			<div class="text-[var(--tx-2)] text-[13.5px] mt-[3px]">
+				Live overview of all containers and hosts in {guildName}
+			</div>
 		</div>
-		<span class="font-mono-jb text-[11.5px] font-semibold px-[10px] py-[5px] rounded-[7px] bg-[var(--grn-dim)] text-[var(--grn)]">rootless</span>
-		<span class="font-mono-jb text-[11.5px] px-[10px] py-[5px] rounded-[7px] bg-[var(--card)] border border-[var(--line)] text-[var(--tx-2)]">podman 5.1.0</span>
+		<span
+			class="font-mono-jb text-[11.5px] font-semibold px-[10px] py-[5px] rounded-[7px] bg-[var(--grn-dim)] text-[var(--grn)]"
+			>rootless</span
+		>
+		<span
+			class="font-mono-jb text-[11.5px] px-[10px] py-[5px] rounded-[7px] bg-[var(--card)] border border-[var(--line)] text-[var(--tx-2)]"
+			>podman 5.1.0</span
+		>
+	</div>
+
+	<!-- Range picker -->
+	<div class="flex items-center justify-end mb-[10px]">
+		<div class="flex gap-0.5 bg-[var(--card)] border border-[var(--line)] rounded-[9px] p-[3px]">
+			{#each HOST_METRIC_RANGES as r (r.id)}
+				<button onclick={() => selectRange(r.id)} class={rangePillCls(r.id)}>{r.label}</button>
+			{/each}
+		</div>
 	</div>
 
 	<!-- Metric cards -->
 	<div class="grid grid-cols-3 gap-[14px]">
 		{#each metricCards as m (m.label)}
-			<div class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] pt-4 px-[18px] overflow-hidden" style:color={m.color}>
+			<div
+				class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] pt-4 px-[18px] overflow-hidden"
+				style:color={m.color}
+			>
 				<div class="flex items-center justify-between">
-					<span class="text-[13px] font-semibold text-[var(--tx-2)] whitespace-nowrap">{m.label}</span>
+					<span class="text-[13px] font-semibold text-[var(--tx-2)] whitespace-nowrap"
+						>{m.label}</span
+					>
 					<span class="text-[11.5px] font-semibold" style:color={m.deltaColor}>{m.delta}</span>
 				</div>
 				<div class="flex items-baseline gap-[7px] mt-[10px]">
-					<span class="font-heading font-bold text-[34px] leading-none text-[var(--tx)]">{m.big}</span>
+					<span class="font-heading font-bold text-[34px] leading-none text-[var(--tx)]"
+						>{m.big}</span
+					>
 					<span class="text-[13px] text-[var(--tx-3)]">{m.unit}</span>
 				</div>
 				<div class="text-[11.5px] text-[var(--tx-3)] mt-[6px]">{m.sub}</div>
@@ -167,8 +218,15 @@
 		{#each statRow as s}
 			<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] p-[14px_15px]">
 				<div class="flex items-center gap-2 mb-[10px]">
-					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--tx-3)" stroke-width="1.7">
-						<path d={s.icon}/>
+					<svg
+						width="15"
+						height="15"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="var(--tx-3)"
+						stroke-width="1.7"
+					>
+						<path d={s.icon} />
 					</svg>
 					<span class="text-[12px] font-semibold text-[var(--tx-2)]">{s.label}</span>
 				</div>
@@ -186,7 +244,10 @@
 		<div class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] overflow-hidden">
 			<div class="flex items-center justify-between px-[18px] pt-[15px] pb-2">
 				<span class="text-[14px] font-bold">Top workloads</span>
-				<a href="/{guildId}/deploy/projects" class="text-[12.5px] text-[var(--grn-2)] no-underline font-semibold">View all →</a>
+				<a
+					href="/{guildId}/deploy/projects"
+					class="text-[12.5px] text-[var(--grn-2)] no-underline font-semibold">View all →</a
+				>
 			</div>
 			{#each workloads as w}
 				<div
@@ -199,13 +260,24 @@
 					<div class="flex items-center gap-[10px] min-w-0">
 						<div class="size-[9px] rounded-full shrink-0" style:background={w.dot}></div>
 						<div class="min-w-0">
-							<div class="text-[13px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis">{w.name}</div>
-							<div class="font-mono-jb text-[10.5px] text-[var(--tx-3)] whitespace-nowrap overflow-hidden text-ellipsis">ghcr.io/…/{w.name}:latest</div>
+							<div
+								class="text-[13px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis"
+							>
+								{w.name}
+							</div>
+							<div
+								class="font-mono-jb text-[10.5px] text-[var(--tx-3)] whitespace-nowrap overflow-hidden text-ellipsis"
+							>
+								ghcr.io/…/{w.name}:latest
+							</div>
 						</div>
 					</div>
 					<div class="flex items-center gap-1">
 						<div class="flex-1 h-[5px] rounded-[3px] bg-white/[0.07] overflow-hidden">
-							<div class="h-full bg-[var(--grn)] rounded-[3px]" style:width="{Math.max(4, w.cpu)}%"></div>
+							<div
+								class="h-full bg-[var(--grn)] rounded-[3px]"
+								style:width="{Math.max(4, w.cpu)}%"
+							></div>
 						</div>
 					</div>
 					<span class="font-mono-jb text-[12px] text-[var(--tx)] text-right">{w.cpu}%</span>
