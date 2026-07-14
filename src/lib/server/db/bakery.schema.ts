@@ -109,6 +109,41 @@ export const appMetricSampleRelations = relations(appMetricSample, ({ one }) => 
 	})
 }));
 
+/**
+ * Real app runtime log lines (task 05), replacing the app detail page's
+ * static `LOG_LINES` mock — populated by the agent tailing each managed
+ * container's `podman logs` output and reported alongside metrics on
+ * check-in. `level` is left null in v1 (no log-level parsing) — the raw
+ * line is what's shown.
+ */
+export const appLogLine = pgTable(
+	'app_log_line',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		appId: uuid('app_id')
+			.notNull()
+			.references(() => app.id, { onDelete: 'cascade' }),
+		hostId: uuid('host_id')
+			.notNull()
+			.references(() => host.id, { onDelete: 'cascade' }),
+		ts: timestamp('ts').defaultNow().notNull(),
+		level: text('level'),
+		message: text('message').notNull()
+	},
+	(table) => [index('appLogLine_appId_ts_idx').on(table.appId, table.ts)]
+);
+
+export const appLogLineRelations = relations(appLogLine, ({ one }) => ({
+	app: one(app, {
+		fields: [appLogLine.appId],
+		references: [app.id]
+	}),
+	host: one(host, {
+		fields: [appLogLine.hostId],
+		references: [host.id]
+	})
+}));
+
 export const sourceProvider = pgEnum('source_provider', ['github_app']);
 
 export const source = pgTable(
@@ -232,7 +267,8 @@ export const appRelations = relations(app, ({ one, many }) => ({
 	envVars: many(envVar),
 	domains: many(domain),
 	volumes: many(volume),
-	metricSamples: many(appMetricSample)
+	metricSamples: many(appMetricSample),
+	logLines: many(appLogLine)
 }));
 
 export const domain = pgTable(

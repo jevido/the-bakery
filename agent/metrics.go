@@ -37,6 +37,8 @@ func collectPayload(ctx context.Context) checkinPayload {
 		containerCount = pm.containerCount
 	}
 
+	containerStats := collectContainerStats(ctx)
+
 	return checkinPayload{
 		CPUPct:         cpu,
 		MemPct:         mem,
@@ -45,6 +47,7 @@ func collectPayload(ctx context.Context) checkinPayload {
 		ContainerCount: containerCount,
 		AgentVersion:   agentVersion,
 		Volumes:        collectVolumeReports(ctx),
-		Containers:     collectContainerStats(ctx),
+		Containers:     containerStats,
+		Logs:           collectLogLines(ctx, containerStats),
 	}
 }

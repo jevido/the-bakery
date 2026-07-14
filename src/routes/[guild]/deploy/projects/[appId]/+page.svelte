@@ -716,17 +716,21 @@
 						<div class="flex-1"></div>
 						<span class="text-[11.5px] text-[var(--tx-3)]">stdout · stderr</span>
 					</div>
-					<div
-						class="px-4 py-[14px] font-mono-jb text-[12px] leading-[1.7] max-h-[360px] overflow-y-auto"
-					>
-						{#each LOG_LINES as l (l.t + l.msg)}
-							<div class="flex gap-3">
-								<span class="text-[var(--tx-3)] shrink-0">{l.t}</span>
-								<span class="shrink-0 w-[52px]" style:color={l.color}>{l.lvl}</span>
-								<span class="text-[var(--tx)] whitespace-pre-wrap">{l.msg}</span>
-							</div>
-						{/each}
-					</div>
+					{#if data.realApp}
+						<BuildLogViewer logsUrl={`/api/v1/apps/${data.realApp.id}/logs/stream`} />
+					{:else}
+						<div
+							class="px-4 py-[14px] font-mono-jb text-[12px] leading-[1.7] max-h-[360px] overflow-y-auto"
+						>
+							{#each LOG_LINES as l (l.t + l.msg)}
+								<div class="flex gap-3">
+									<span class="text-[var(--tx-3)] shrink-0">{l.t}</span>
+									<span class="shrink-0 w-[52px]" style:color={l.color}>{l.lvl}</span>
+									<span class="text-[var(--tx)] whitespace-pre-wrap">{l.msg}</span>
+								</div>
+							{/each}
+						</div>
+					{/if}
 				</div>
 			{/if}
 

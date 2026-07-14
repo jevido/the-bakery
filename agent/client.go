@@ -29,6 +29,7 @@ type checkinPayload struct {
 	AgentVersion   string          `json:"agentVersion"`
 	Volumes        []volumeReport  `json:"volumes"`
 	Containers     []containerStat `json:"containers"`
+	Logs           []logLineReport `json:"logs"`
 }
 
 // pendingCommand mirrors PendingCommand in src/lib/server/agent/protocol.ts.

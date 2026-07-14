@@ -26,6 +26,18 @@ export const containerStatSchema = z.object({
 });
 
 /**
+ * One new runtime log line since the agent's last read of a container's
+ * output (task 05), keyed by unit name same as `containerStatSchema` —
+ * mapped back to an app the same way. Bounded per check-in agent-side
+ * (`maxLogLinesPerContainer`) so a chatty container can't bloat every
+ * check-in payload unboundedly.
+ */
+export const logLineReportSchema = z.object({
+	unitName: z.string().trim().min(1).max(255),
+	message: z.string().max(10_000)
+});
+
+/**
  * Shared by the check-in endpoint and any future agent-facing endpoints
  * (Phase 04's command dispatch). Changing this shape means updating
  * already-deployed agent binaries, not just this codebase.
@@ -38,7 +50,8 @@ export const checkinPayloadSchema = z.object({
 	containerCount: z.number().int().min(0),
 	agentVersion: z.string().trim().min(1).max(50),
 	volumes: z.array(volumeReportSchema).max(500).default([]),
-	containers: z.array(containerStatSchema).max(500).default([])
+	containers: z.array(containerStatSchema).max(500).default([]),
+	logs: z.array(logLineReportSchema).max(2000).default([])
 });
 
 export type CheckinPayload = z.infer<typeof checkinPayloadSchema>;

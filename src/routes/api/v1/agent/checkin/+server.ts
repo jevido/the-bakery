@@ -8,7 +8,8 @@ import {
 	hostCommand,
 	volume,
 	app,
-	appMetricSample
+	appMetricSample,
+	appLogLine
 } from '$lib/server/db/schema';
 import { authenticateHost } from '$lib/server/agent/auth';
 import { podmanVolumeName } from '$lib/server/deploy/quadlet';
@@ -36,7 +37,8 @@ export const POST: RequestHandler = async (event) => {
 		containerCount,
 		agentVersion,
 		volumes,
-		containers
+		containers,
+		logs
 	} = parsed.data;
 
 	await db.insert(hostMetricSample).values({
@@ -73,13 +75,20 @@ export const POST: RequestHandler = async (event) => {
 		}
 	}
 
-	// Reported containers are keyed by Quadlet unit name, not app id (task
-	// 01) — recompute each app's currently expected running unit name and
-	// match against it, same pattern as the volume matching above. An app
-	// with nothing in `containers` (stopped/removed) simply gets no new
-	// sample, no error.
-	if (containers.length > 0) {
+	// Reported containers/logs are keyed by Quadlet unit name, not app id
+	// (task 01/05) — recompute each app's currently expected running unit
+	// name once and match both against it, same pattern as the volume
+	// matching above. An app with nothing reported (stopped/removed) simply
+	// gets no new rows, no error.
+	if (containers.length > 0 || logs.length > 0) {
 		const statByUnitName = new Map(containers.map((c) => [c.unitName, c]));
+		const logsByUnitName = new Map<string, typeof logs>();
+		for (const line of logs) {
+			const bucket = logsByUnitName.get(line.unitName);
+			if (bucket) bucket.push(line);
+			else logsByUnitName.set(line.unitName, [line]);
+		}
+
 		const appRows = await db.select().from(app).where(eq(app.hostId, matchedHost.id));
 
 		for (const appRow of appRows) {
@@ -87,14 +96,32 @@ export const POST: RequestHandler = async (event) => {
 			if (!unitName) continue;
 
 			const stat = statByUnitName.get(unitName);
-			if (!stat) continue;
+			if (stat) {
+				await db.insert(appMetricSample).values({
+					appId: appRow.id,
+					hostId: matchedHost.id,
+					cpuPct: stat.cpuPct,
+					memBytes: stat.memBytes
+				});
+			}
 
-			await db.insert(appMetricSample).values({
-				appId: appRow.id,
-				hostId: matchedHost.id,
-				cpuPct: stat.cpuPct,
-				memBytes: stat.memBytes
-			});
+			const lines = logsByUnitName.get(unitName);
+			if (lines?.length) {
+				// `ts` defaults to `now()`, which is constant for every row in one
+				// INSERT (transaction-time, not per-row) — the live-tail viewer's
+				// polling cursor (task 05's SSE endpoint) needs distinct
+				// timestamps to preserve this batch's actual order, so stamp each
+				// line 1ms apart explicitly instead of relying on the default.
+				const baseTs = Date.now();
+				await db.insert(appLogLine).values(
+					lines.map((l, i) => ({
+						appId: appRow.id,
+						hostId: matchedHost.id,
+						ts: new Date(baseTs + i),
+						message: l.message
+					}))
+				);
+			}
 		}
 	}
 
