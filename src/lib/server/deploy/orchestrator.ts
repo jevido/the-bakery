@@ -7,6 +7,7 @@ import {
 	quadletContent,
 	versionedUnitName
 } from './quadlet';
+import { caddyfileContentForHost } from './proxy';
 
 type App = typeof app.$inferSelect;
 type Build = typeof build.$inferSelect;
@@ -95,15 +96,46 @@ export async function handleCommandCompletion(
 			// Best-effort cleanup in case the unit partially started before
 			// failing (e.g. it started but failed its embedded health probe)
 			// — the old version must never be touched, only the new one.
-			await dispatchCleanupStop(deploymentRow, commandRow);
+			if (isDeployPayload(commandRow.payload)) {
+				await dispatchCleanupStop(deploymentRow, commandRow.payload.unitName);
+			}
 			return;
 		}
 
 		// Succeeded implies healthy too — the agent's `deploy` command only
 		// reports success once its embedded health probe passes (task 05).
+		// The proxy flip (Phase 05 task 03) has to land before the old unit is
+		// touched, so nothing observes a gap where neither unit is reachable
+		// at the app's hostname.
+		if (!deploymentRow.hostId || !isDeployPayload(commandRow.payload)) return;
+
+		await db
+			.update(deployment)
+			.set({ status: 'flipping_proxy' })
+			.where(eq(deployment.id, deploymentRow.id));
+		await dispatchConfigureProxy(
+			deploymentRow,
+			deploymentRow.hostId,
+			deploymentRow.appId,
+			commandRow.payload.unitName
+		);
+		return;
+	}
+
+	if (commandRow.type === 'configureProxy' && deploymentRow.status === 'flipping_proxy') {
+		if (outcome === 'failed') {
+			await db
+				.update(deployment)
+				.set({ status: 'failed', finishedAt: new Date() })
+				.where(eq(deployment.id, deploymentRow.id));
+			const newUnitName = await unitNameForDeployment(deploymentRow);
+			if (newUnitName) await dispatchCleanupStop(deploymentRow, newUnitName);
+			return;
+		}
+
 		const oldDeploymentRow = await findRunningDeployment(deploymentRow.appId, deploymentRow.id);
 		const oldUnitName = oldDeploymentRow ? await unitNameForDeployment(oldDeploymentRow) : null;
-		const newUnitName = isDeployPayload(commandRow.payload) ? commandRow.payload.unitName : null;
+		const newUnitName = await unitNameForDeployment(deploymentRow);
 
 		// Redeploying the exact same build (same commit -> same deterministic
 		// unit name, task 03) means the "old" unit *is* the unit that was just
@@ -187,14 +219,35 @@ function isDeployPayload(payload: unknown): payload is { unitName: string } {
 	);
 }
 
-async function dispatchCleanupStop(deploymentRow: Deployment, failedDeployCommand: HostCommand) {
+async function dispatchCleanupStop(deploymentRow: Deployment, unitName: string) {
 	if (!deploymentRow.hostId) return;
-	if (!isDeployPayload(failedDeployCommand.payload)) return;
 
 	await db.insert(hostCommand).values({
 		hostId: deploymentRow.hostId,
 		deploymentId: deploymentRow.id,
 		type: 'stop',
-		payload: { unitName: failedDeployCommand.payload.unitName }
+		payload: { unitName }
+	});
+}
+
+/**
+ * Dispatches the real traffic-flip step (Phase 05 task 03): the full desired
+ * Caddyfile for the whole host, with this one app pointed at its new,
+ * not-yet-`running` unit while every other app on the host keeps routing to
+ * whatever it's already running.
+ */
+async function dispatchConfigureProxy(
+	deploymentRow: Deployment,
+	hostId: string,
+	appId: string,
+	newUnitName: string
+) {
+	const caddyfileContent = await caddyfileContentForHost(hostId, { appId, unitName: newUnitName });
+
+	await db.insert(hostCommand).values({
+		hostId,
+		deploymentId: deploymentRow.id,
+		type: 'configureProxy',
+		payload: { caddyfileContent }
 	});
 }

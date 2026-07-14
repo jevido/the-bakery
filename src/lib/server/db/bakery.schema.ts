@@ -312,7 +312,12 @@ export const envVarRelations = relations(envVar, ({ one }) => ({
 	})
 }));
 
-export const hostCommandType = pgEnum('host_command_type', ['deploy', 'stop', 'restart']);
+export const hostCommandType = pgEnum('host_command_type', [
+	'deploy',
+	'stop',
+	'restart',
+	'configureProxy'
+]);
 
 export const hostCommandStatus = pgEnum('host_command_status', [
 	'pending',
@@ -332,8 +337,9 @@ export const hostCommand = pgTable(
 			.notNull()
 			.references(() => deployment.id, { onDelete: 'cascade' }),
 		type: hostCommandType('type').notNull(),
-		// The Quadlet unit + env file content (task 03) for `deploy`, or just
-		// the unit name for `stop`/`restart` — shape isn't enforced at the
+		// The Quadlet unit + env file content (task 03) for `deploy`, just the
+		// unit name for `stop`/`restart`, or the full desired Caddyfile content
+		// for `configureProxy` (Phase 05 task 03) — shape isn't enforced at the
 		// column level since the agent (task 05) is the one interpreting it.
 		payload: jsonb('payload').notNull(),
 		status: hostCommandStatus('status').default('pending').notNull(),

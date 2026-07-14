@@ -64,6 +64,13 @@
       "when": 1784054763284,
       "tag": "0008_flimsy_major_mapleleaf",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1784055382026,
+      "tag": "0009_smart_maginty",
+      "breakpoints": true
     }
   ]
 }

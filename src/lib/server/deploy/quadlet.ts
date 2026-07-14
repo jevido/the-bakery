@@ -46,10 +46,9 @@ export function environmentFileContent(envVars: EnvVar[]): string {
  * Zero-downtime rollover (task 06) briefly runs the old and new units side
  * by side. Both would collide binding the same host port if the host port
  * were fixed like `APP_CONTAINER_PORT` — so each unit gets its own,
- * deterministically derived from its (already-unique) unit name. This is a
- * v1 stand-in for Phase 05's reverse proxy, which will make the host port
- * an internal implementation detail instead of something callers need to
- * know (see task 06 Notes on the soft co-dependency with Phase 05).
+ * deterministically derived from its (already-unique) unit name. Now purely
+ * an internal implementation detail: Caddy (Phase 05) is the only thing that
+ * ever addresses a unit by this port, via `caddySiteBlock`'s `reverse_proxy`.
  */
 export function publishedPort(unitName: string): number {
 	let hash = 0;

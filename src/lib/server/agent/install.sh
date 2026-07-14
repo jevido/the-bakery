@@ -130,6 +130,14 @@ if [ ! -f "$CADDYFILE" ]; then
 	EOF
 fi
 
+# Network=host (not PublishPort) — Caddy has to dial app units by the same
+# 127.0.0.1:<port> the agent's own health probe uses (Phase 05 task 03's
+# `reverse_proxy` target), and app units publish those ports to the *host's*
+# real network namespace, not a per-container one. A separate netns (even
+# with matching PublishPort mappings) can't reach those — only sharing the
+# host's namespace outright can. This also means Caddy's admin API keeps its
+# own default bind (`localhost:2019`), which is now genuinely the host's
+# loopback and nothing else, no extra config needed.
 cat >"$CADDY_UNIT_PATH" <<-EOF
 	[Unit]
 	Description=Bakery Reverse Proxy (Caddy)
@@ -137,8 +145,7 @@ cat >"$CADDY_UNIT_PATH" <<-EOF
 
 	[Container]
 	Image=docker.io/library/caddy:2
-	PublishPort=80:80
-	PublishPort=443:443
+	Network=host
 	Volume=$CADDY_CONFIG_DIR:/etc/caddy:Z
 	Volume=$CADDY_DATA_DIR:/data:Z
 	AutoUpdate=registry
@@ -151,9 +158,11 @@ cat >"$CADDY_UNIT_PATH" <<-EOF
 	WantedBy=default.target
 EOF
 
-# Rootless Podman can't bind ports <1024 unless the host allows it. Best
-# effort only: a `curl | sh` install may have no sudo access at all, and
-# that must not fail the agent install that already succeeded above.
+# Rootless Podman can't bind ports <1024 unless the host allows it, and with
+# Network=host it's Caddy's own bind of :80/:443 that's subject to this, not
+# a port-publish mapping. Best effort only: a `curl | sh` install may have no
+# sudo access at all, and that must not fail the agent install that already
+# succeeded above.
 if command -v sysctl >/dev/null 2>&1; then
 	CURRENT_UNPRIVILEGED_START="$(sysctl -n net.ipv4.ip_unprivileged_port_start 2>/dev/null || echo 1024)"
 	if [ "${CURRENT_UNPRIVILEGED_START:-1024}" -gt 80 ] 2>/dev/null; then

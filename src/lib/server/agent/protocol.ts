@@ -21,10 +21,11 @@ export type CheckinPayload = z.infer<typeof checkinPayloadSchema>;
  * executor is the only consumer and interprets it per `type`:
  *   deploy:  { unitName, unitContent, envFileContent }
  *   stop/restart: { unitName }
+ *   configureProxy: { caddyfileContent } (Phase 05 task 03)
  */
 export interface PendingCommand {
 	id: string;
-	type: 'deploy' | 'stop' | 'restart';
+	type: 'deploy' | 'stop' | 'restart' | 'configureProxy';
 	payload: unknown;
 }
 

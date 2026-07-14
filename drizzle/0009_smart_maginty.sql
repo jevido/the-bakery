@@ -1,0 +1,1 @@
+ALTER TYPE "public"."host_command_type" ADD VALUE 'configureProxy';

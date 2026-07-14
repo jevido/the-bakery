@@ -19,6 +19,12 @@ const commandTimeout = 30 * time.Second
 const healthCheckTimeout = 20 * time.Second
 const healthCheckInterval = 500 * time.Millisecond
 
+// caddyAdminBaseURL is Caddy's admin API. The Caddy Quadlet unit runs with
+// Network=host (Phase 05 task 01), so Caddy's default admin bind
+// (localhost:2019) is genuinely the host's own loopback — reachable here,
+// but never beyond it, since the admin API has no auth of its own.
+const caddyAdminBaseURL = "http://127.0.0.1:2019"
+
 // deployPayload/unitNamePayload mirror the `payload` shapes documented in
 // src/lib/server/agent/protocol.ts — wire-format contract, not to be changed
 // unilaterally on either side.
@@ -31,6 +37,10 @@ type deployPayload struct {
 
 type unitNamePayload struct {
 	UnitName string `json:"unitName"`
+}
+
+type configureProxyPayload struct {
+	CaddyfileContent string `json:"caddyfileContent"`
 }
 
 type completionPayload struct {
@@ -73,6 +83,8 @@ func executeCommand(ctx context.Context, cmd pendingCommand) error {
 		return executeUnitAction(ctx, cmd.Payload, "stop")
 	case "restart":
 		return executeUnitAction(ctx, cmd.Payload, "restart")
+	case "configureProxy":
+		return executeConfigureProxy(ctx, cmd.Payload)
 	default:
 		return fmt.Errorf("unknown command type %q", cmd.Type)
 	}
@@ -145,11 +157,17 @@ func executeDeploy(ctx context.Context, rawPayload json.RawMessage) error {
 // and responds, or healthCheckTimeout elapses. Any HTTP response — even a
 // 404/500 — proves the process is up and accepting connections; Bakery
 // doesn't assume apps expose a dedicated health endpoint in v1.
+//
+// Uses the literal loopback IP, not "localhost": on hosts where it resolves
+// to ::1 first, rootless Podman's port publishing (pasta) can leave IPv6
+// loopback connections hanging/reset even though the port is correctly
+// published on IPv4 — matches the same 127.0.0.1 convention `reverse_proxy`
+// (Phase 05 task 03) uses, for the same reason.
 func probeHealth(ctx context.Context, port int) error {
 	ctx, cancel := context.WithTimeout(ctx, healthCheckTimeout)
 	defer cancel()
 
-	url := fmt.Sprintf("http://localhost:%d/", port)
+	url := fmt.Sprintf("http://127.0.0.1:%d/", port)
 	client := &http.Client{Timeout: 3 * time.Second}
 
 	var lastErr error
@@ -181,6 +199,68 @@ func executeUnitAction(ctx context.Context, rawPayload json.RawMessage, action s
 	if err := runSystemctl(ctx, action, p.UnitName+".service"); err != nil {
 		return fmt.Errorf("%s %s.service: %w", action, p.UnitName, err)
 	}
+	return nil
+}
+
+// executeConfigureProxy is the real traffic-flip mechanism (Phase 05 task
+// 03): it writes the full desired Caddyfile to disk (so a Caddy container
+// restart picks up the same config it's running right now, not whatever
+// install.sh last wrote) and pushes it to Caddy's admin API for immediate,
+// in-place application — no container restart, so requests to routes this
+// change doesn't touch are never dropped.
+func executeConfigureProxy(ctx context.Context, rawPayload json.RawMessage) error {
+	var p configureProxyPayload
+	if err := json.Unmarshal(rawPayload, &p); err != nil {
+		return fmt.Errorf("decode configureProxy payload: %w", err)
+	}
+	if p.CaddyfileContent == "" {
+		return fmt.Errorf("configureProxy payload missing caddyfileContent")
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("resolve home directory: %w", err)
+	}
+
+	caddyfilePath := filepath.Join(home, ".config", "bakery", "caddy", "Caddyfile")
+	if err := os.WriteFile(caddyfilePath, []byte(p.CaddyfileContent), 0o644); err != nil {
+		return fmt.Errorf("write Caddyfile: %w", err)
+	}
+
+	if err := loadCaddyConfig(ctx, p.CaddyfileContent); err != nil {
+		return fmt.Errorf("apply Caddy config: %w", err)
+	}
+
+	return nil
+}
+
+// loadCaddyConfig posts the Caddyfile straight to Caddy's admin API. The
+// `text/caddyfile` content type tells Caddy to adapt it via the Caddyfile
+// adapter before applying — no need to hand-build Caddy's native JSON config.
+func loadCaddyConfig(ctx context.Context, caddyfileContent string) error {
+	ctx, cancel := context.WithTimeout(ctx, commandTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(
+		ctx, http.MethodPost, caddyAdminBaseURL+"/load", strings.NewReader(caddyfileContent),
+	)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "text/caddyfile")
+
+	client := &http.Client{Timeout: commandTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("reach Caddy admin API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
+		return fmt.Errorf("Caddy admin API rejected config: status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+
 	return nil
 }
 
