@@ -6,7 +6,8 @@ import { z } from 'zod';
 import type { Actions, PageServerLoad } from './$types';
 import { requireGuild } from '$lib/server/guild-context';
 import { db } from '$lib/server/db';
-import { source, repo, app } from '$lib/server/db/schema';
+import { source, repo, app, domain } from '$lib/server/db/schema';
+import { defaultSubdomain } from '$lib/server/deploy/subdomain';
 
 // No `branch` field: the schema (task 02) scopes a build-triggering branch
 // to the *repo*, not the app — `repo.defaultBranch` is what the webhook
@@ -61,6 +62,12 @@ export const actions: Actions = {
 				buildContext: form.data.buildContext
 			})
 			.returning({ id: app.id });
+
+		await db.insert(domain).values({
+			appId: created.id,
+			hostname: defaultSubdomain(form.data.name, organization.slug),
+			isDefaultSubdomain: true
+		});
 
 		redirect(303, `/${organization.slug}/deploy/projects/${created.id}`);
 	}

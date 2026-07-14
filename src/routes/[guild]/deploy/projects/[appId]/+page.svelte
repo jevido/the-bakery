@@ -24,9 +24,14 @@
 	const appId = $derived(page.params.appId ?? '');
 	const mockApp = $derived(GUILD_RESOURCES[guildId]?.apps.find((a) => a.id === appId));
 
-	// Host/domain/cpu/mem/quadlet are all Phase 04/05 concepts that don't
-	// exist for a real app yet — a freshly-created real app (task 10) gets
-	// placeholder values for those fields rather than fabricating fake ones.
+	// Host/cpu/mem/quadlet are all Phase 04/05 concepts that don't exist for a
+	// real app yet — a freshly-created real app (task 10) gets placeholder
+	// values for those fields rather than fabricating fake ones. `domain`
+	// (task 02) is real: every app gets a default subdomain row on creation.
+	const realAppDomain = $derived(
+		data.domains.find((d) => d.isDefaultSubdomain)?.hostname ?? '— internal —'
+	);
+
 	function realAppStatus(): AppStatus {
 		const latest = data.builds[0];
 		if (!latest) return 'stopped';
@@ -43,7 +48,7 @@
 			type: data.repo?.fullName ?? 'app',
 			status: realAppStatus(),
 			host: '— unassigned —',
-			domain: '— internal —',
+			domain: realAppDomain,
 			cpu: 0,
 			mem: '—',
 			deployed: data.builds[0]?.finishedAt ? 'built' : data.builds[0] ? 'building' : 'never built',

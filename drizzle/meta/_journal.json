@@ -57,6 +57,13 @@
       "when": 1783890660127,
       "tag": "0007_tidy_albert_cleary",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784054763284,
+      "tag": "0008_flimsy_major_mapleleaf",
+      "breakpoints": true
     }
   ]
 }

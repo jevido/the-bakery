@@ -3,7 +3,7 @@ import { eq, and, sql, desc } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { requireGuild } from '$lib/server/guild-context';
 import { db } from '$lib/server/db';
-import { app, repo, source, build, deployment } from '$lib/server/db/schema';
+import { app, repo, source, build, deployment, domain } from '$lib/server/db/schema';
 import { getLatestCommitSha } from '$lib/server/github/app-auth';
 import { quadletContent, versionedUnitName } from '$lib/server/deploy/quadlet';
 import { startDeployment } from '$lib/server/deploy/orchestrator';
@@ -23,7 +23,7 @@ export const load: PageServerLoad = async (event) => {
 		.from(app)
 		.where(and(eq(app.id, event.params.appId), eq(app.organizationId, organization.id)));
 
-	if (!appRow) return { realApp: null, repo: null, builds: [] };
+	if (!appRow) return { realApp: null, repo: null, builds: [], domains: [] };
 
 	const [repoRow] = appRow.repoId
 		? await db.select().from(repo).where(eq(repo.id, appRow.repoId))
@@ -65,7 +65,9 @@ export const load: PageServerLoad = async (event) => {
 		.where(eq(deployment.appId, appRow.id))
 		.orderBy(desc(deployment.startedAt));
 
-	return { realApp: appRow, repo: repoRow, builds, realQuadletContent, deployments };
+	const domains = await db.select().from(domain).where(eq(domain.appId, appRow.id));
+
+	return { realApp: appRow, repo: repoRow, builds, realQuadletContent, deployments, domains };
 };
 
 export const actions: Actions = {

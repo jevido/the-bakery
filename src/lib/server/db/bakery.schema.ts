@@ -190,7 +190,33 @@ export const appRelations = relations(app, ({ one, many }) => ({
 	}),
 	builds: many(build),
 	deployments: many(deployment),
-	envVars: many(envVar)
+	envVars: many(envVar),
+	domains: many(domain)
+}));
+
+export const domain = pgTable(
+	'domain',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		appId: uuid('app_id')
+			.notNull()
+			.references(() => app.id, { onDelete: 'cascade' }),
+		hostname: text('hostname').notNull().unique(),
+		isDefaultSubdomain: boolean('is_default_subdomain').default(false).notNull(),
+		// Null for default subdomains (task 02), which don't need ownership
+		// verification — populated once a custom domain (task 05) proves DNS
+		// control.
+		verifiedAt: timestamp('verified_at'),
+		createdAt: timestamp('created_at').defaultNow().notNull()
+	},
+	(table) => [index('domain_appId_idx').on(table.appId)]
+);
+
+export const domainRelations = relations(domain, ({ one }) => ({
+	app: one(app, {
+		fields: [domain.appId],
+		references: [app.id]
+	})
 }));
 
 export const buildRelations = relations(build, ({ one, many }) => ({
