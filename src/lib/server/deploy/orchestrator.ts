@@ -1,9 +1,10 @@
 import { and, desc, eq, ne } from 'drizzle-orm';
 import { db } from '$lib/server/db';
-import { app, build, deployment, envVar, host, hostCommand } from '$lib/server/db/schema';
+import { app, build, deployment, envVar, host, hostCommand, volume } from '$lib/server/db/schema';
 import {
 	environmentFileContent,
 	guildNetworkName,
+	podmanVolumeName,
 	publishedPort,
 	quadletContent,
 	versionedUnitName
@@ -57,6 +58,7 @@ async function dispatchNewUnitDeploy(
 ) {
 	const unitName = versionedUnitName(appRow.name, commitSha);
 	const envVars = await db.select().from(envVar).where(eq(envVar.appId, appRow.id));
+	const volumeRows = await db.select().from(volume).where(eq(volume.appId, appRow.id));
 
 	await db.insert(hostCommand).values({
 		hostId,
@@ -64,14 +66,20 @@ async function dispatchNewUnitDeploy(
 		type: 'deploy',
 		payload: {
 			unitName,
-			unitContent: quadletContent(appRow, imageRef, unitName),
+			unitContent: quadletContent(appRow, imageRef, unitName, volumeRows),
 			envFileContent: environmentFileContent(envVars),
 			healthCheckPort: publishedPort(unitName),
 			// The unit content already references this network (task 05), but
 			// the agent still needs it out-of-band to ensure the network exists
 			// *before* starting the unit — Podman doesn't auto-create a network
 			// a container references, unlike the image it references.
-			networkName: guildNetworkName(appRow.organizationId)
+			networkName: guildNetworkName(appRow.organizationId),
+			// Same reasoning as networkName, task 07: the unit's `Volume=` lines
+			// don't create the volumes they reference either.
+			volumes: volumeRows.map((v) => ({
+				name: podmanVolumeName(v.appId, v.name),
+				mountPath: v.mountPath
+			}))
 		}
 	});
 }

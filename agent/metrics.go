@@ -44,5 +44,6 @@ func collectPayload(ctx context.Context) checkinPayload {
 		PodmanVersion:  podmanVersion,
 		ContainerCount: containerCount,
 		AgentVersion:   agentVersion,
+		Volumes:        collectVolumeReports(ctx),
 	}
 }

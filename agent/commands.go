@@ -29,11 +29,20 @@ const caddyAdminBaseURL = "http://127.0.0.1:2019"
 // src/lib/server/agent/protocol.ts — wire-format contract, not to be changed
 // unilaterally on either side.
 type deployPayload struct {
-	UnitName        string `json:"unitName"`
-	UnitContent     string `json:"unitContent"`
-	EnvFileContent  string `json:"envFileContent"`
-	HealthCheckPort int    `json:"healthCheckPort"`
-	NetworkName     string `json:"networkName"`
+	UnitName        string        `json:"unitName"`
+	UnitContent     string        `json:"unitContent"`
+	EnvFileContent  string        `json:"envFileContent"`
+	HealthCheckPort int           `json:"healthCheckPort"`
+	NetworkName     string        `json:"networkName"`
+	Volumes         []volumeMount `json:"volumes"`
+}
+
+// volumeMount is one entry of deployPayload.Volumes (task 07) — Name is
+// already the real, namespaced Podman volume name (podmanVolumeName() in
+// quadlet.ts), ready to hand straight to `podman volume create`.
+type volumeMount struct {
+	Name      string `json:"name"`
+	MountPath string `json:"mountPath"`
 }
 
 type unitNamePayload struct {
@@ -141,6 +150,14 @@ func executeDeploy(ctx context.Context, rawPayload json.RawMessage) error {
 		}
 	}
 
+	// Same reasoning as the network above, for each `Volume=` line the unit
+	// content references (task 07).
+	for _, v := range p.Volumes {
+		if err := ensureVolume(ctx, v.Name); err != nil {
+			return fmt.Errorf("ensure volume: %w", err)
+		}
+	}
+
 	if err := runSystemctl(ctx, "daemon-reload"); err != nil {
 		return fmt.Errorf("daemon-reload: %w", err)
 	}
@@ -205,6 +222,16 @@ func probeHealth(ctx context.Context, port int) error {
 func ensureNetwork(ctx context.Context, name string) error {
 	if _, err := runPodman(ctx, "network", "create", "--ignore", name); err != nil {
 		return fmt.Errorf("create network %s: %w", name, err)
+	}
+	return nil
+}
+
+// ensureVolume creates a Bakery-managed named volume (Phase 05 task 07) if
+// it doesn't already exist. Same `--ignore` idempotency reasoning as
+// ensureNetwork above.
+func ensureVolume(ctx context.Context, name string) error {
+	if _, err := runPodman(ctx, "volume", "create", "--ignore", name); err != nil {
+		return fmt.Errorf("create volume %s: %w", name, err)
 	}
 	return nil
 }

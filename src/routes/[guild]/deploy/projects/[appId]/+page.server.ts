@@ -3,7 +3,7 @@ import { eq, and, sql, desc } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { requireGuild } from '$lib/server/guild-context';
 import { db } from '$lib/server/db';
-import { app, repo, source, build, deployment, domain } from '$lib/server/db/schema';
+import { app, repo, source, build, deployment, domain, volume } from '$lib/server/db/schema';
 import { getLatestCommitSha } from '$lib/server/github/app-auth';
 import { quadletContent, versionedUnitName } from '$lib/server/deploy/quadlet';
 import { startDeployment, refreshProxyConfigForApp } from '$lib/server/deploy/orchestrator';
@@ -15,6 +15,13 @@ import { verifyCnameTarget } from '$lib/server/deploy/custom-domain';
 // authority — this is just enough to reject obvious typos in the form.
 const HOSTNAME_PATTERN =
 	/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/;
+
+// Same character set Podman itself accepts for a volume name, minus
+// characters that'd be awkward in `podmanVolumeName()`'s `-`-joined suffix.
+const VOLUME_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
+// Must be an absolute, non-root path — `Volume=<name>:/` would shadow the
+// entire container filesystem.
+const MOUNT_PATH_PATTERN = /^\/[a-zA-Z0-9_./-]*[a-zA-Z0-9_-]$/;
 
 /**
  * `app.id` may be either a real UUID (created via task 10's "New app" flow)
@@ -30,7 +37,7 @@ export const load: PageServerLoad = async (event) => {
 		.from(app)
 		.where(and(eq(app.id, event.params.appId), eq(app.organizationId, organization.id)));
 
-	if (!appRow) return { realApp: null, repo: null, builds: [], domains: [] };
+	if (!appRow) return { realApp: null, repo: null, builds: [], domains: [], volumes: [] };
 
 	const [repoRow] = appRow.repoId
 		? await db.select().from(repo).where(eq(repo.id, appRow.repoId))
@@ -46,6 +53,12 @@ export const load: PageServerLoad = async (event) => {
 		.where(eq(build.appId, appRow.id))
 		.orderBy(sql`${build.startedAt} desc nulls first`);
 
+	const volumes = await db
+		.select()
+		.from(volume)
+		.where(eq(volume.appId, appRow.id))
+		.orderBy(volume.createdAt);
+
 	// The Quadlet unit needs a real image to reference — only a succeeded
 	// build has one (`build.imageRef` is set on push, task 08), so a still-
 	// building or never-built app has no real unit content to preview yet.
@@ -53,7 +66,7 @@ export const load: PageServerLoad = async (event) => {
 	let realQuadletContent: string | null = null;
 	if (latestSucceeded?.imageRef) {
 		const unitName = versionedUnitName(appRow.name, latestSucceeded.commitSha);
-		realQuadletContent = quadletContent(appRow, latestSucceeded.imageRef, unitName);
+		realQuadletContent = quadletContent(appRow, latestSucceeded.imageRef, unitName, volumes);
 	}
 
 	const deployments = await db
@@ -78,7 +91,15 @@ export const load: PageServerLoad = async (event) => {
 		.where(eq(domain.appId, appRow.id))
 		.orderBy(desc(domain.isDefaultSubdomain), domain.createdAt);
 
-	return { realApp: appRow, repo: repoRow, builds, realQuadletContent, deployments, domains };
+	return {
+		realApp: appRow,
+		repo: repoRow,
+		builds,
+		realQuadletContent,
+		deployments,
+		domains,
+		volumes
+	};
 };
 
 export const actions: Actions = {
@@ -291,6 +312,71 @@ export const actions: Actions = {
 
 		await db.delete(domain).where(eq(domain.id, domainRow.id));
 		await refreshProxyConfigForApp(appRow.id);
+
+		return { success: true };
+	},
+
+	attachVolume: async (event) => {
+		const { organization } = await requireGuild(event, { permission: 'manage_env' });
+
+		const [appRow] = await db
+			.select()
+			.from(app)
+			.where(and(eq(app.id, event.params.appId), eq(app.organizationId, organization.id)));
+		if (!appRow) return fail(404, { message: 'App not found' });
+
+		const formData = await event.request.formData();
+		const name = formData.get('name')?.toString().trim().toLowerCase();
+		const mountPath = formData.get('mountPath')?.toString().trim();
+
+		if (!name || !VOLUME_NAME_PATTERN.test(name)) {
+			return fail(400, {
+				message: 'Volume name must be lowercase letters, numbers, and hyphens (max 32 chars)'
+			});
+		}
+		if (!mountPath || !MOUNT_PATH_PATTERN.test(mountPath)) {
+			return fail(400, { message: 'Enter an absolute mount path (e.g. /data)' });
+		}
+
+		// Volumes are host-scoped (task 07's Notes) — attaching one commits
+		// the app to a host the same way a deploy does, via the same
+		// fallback-to-first-host assignment `deploy` already uses.
+		const hostRow = await resolveHostForApp(appRow, organization.id);
+		if (!hostRow) return fail(400, { message: 'No host available — add a host first' });
+
+		try {
+			await db.insert(volume).values({ appId: appRow.id, hostId: hostRow.id, name, mountPath });
+		} catch {
+			// Unique constraint on (appId, name).
+			return fail(400, { message: 'This app already has a volume with that name' });
+		}
+
+		return { success: true };
+	},
+
+	removeVolume: async (event) => {
+		const { organization } = await requireGuild(event, { permission: 'manage_env' });
+
+		const [appRow] = await db
+			.select()
+			.from(app)
+			.where(and(eq(app.id, event.params.appId), eq(app.organizationId, organization.id)));
+		if (!appRow) return fail(404, { message: 'App not found' });
+
+		const formData = await event.request.formData();
+		const volumeId = formData.get('volumeId');
+		if (typeof volumeId !== 'string' || !volumeId) return fail(400, { message: 'Missing volume' });
+
+		const [volumeRow] = await db
+			.select()
+			.from(volume)
+			.where(and(eq(volume.id, volumeId), eq(volume.appId, appRow.id)));
+		if (!volumeRow) return fail(404, { message: 'Volume not found' });
+
+		// Detaches the declaration only — the underlying Podman volume and
+		// its data are left alone on the host (task 07's Notes: no backup or
+		// destructive lifecycle tooling in scope here).
+		await db.delete(volume).where(eq(volume.id, volumeRow.id));
 
 		return { success: true };
 	}

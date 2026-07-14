@@ -15,6 +15,7 @@
 	import NotFound from '$lib/components/bakery/NotFound.svelte';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
+	import { formatBytes } from '$lib/utils';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -175,8 +176,58 @@
 		}
 	}
 
+	let volName = $state('');
+	let volMountPath = $state('');
+	let attachingVolume = $state(false);
+	async function attachVolume() {
+		if (!volName.trim() || !volMountPath.trim()) return;
+		attachingVolume = true;
+		try {
+			const body = new FormData();
+			body.set('name', volName.trim());
+			body.set('mountPath', volMountPath.trim());
+			const res = await fetch('?/attachVolume', { method: 'POST', body });
+			if (res.ok) {
+				toast.success('Volume attached — takes effect on the next deploy');
+				volName = '';
+				volMountPath = '';
+				await invalidateAll();
+			} else {
+				toast.error('Could not attach that volume');
+			}
+		} finally {
+			attachingVolume = false;
+		}
+	}
+
+	let removingVolumeId = $state<string | null>(null);
+	async function removeVolume(volumeId: string) {
+		removingVolumeId = volumeId;
+		try {
+			const body = new FormData();
+			body.set('volumeId', volumeId);
+			const res = await fetch('?/removeVolume', { method: 'POST', body });
+			if (res.ok) {
+				toast.success('Volume detached');
+				await invalidateAll();
+			} else {
+				toast.error('Could not detach volume');
+			}
+		} finally {
+			removingVolumeId = null;
+		}
+	}
+
 	type Tab =
-		'overview' | 'containers' | 'network' | 'deployments' | 'logs' | 'env' | 'domains' | 'quadlet';
+		| 'overview'
+		| 'containers'
+		| 'network'
+		| 'deployments'
+		| 'logs'
+		| 'env'
+		| 'domains'
+		| 'storage'
+		| 'quadlet';
 	let activeTab = $state<Tab>('overview');
 	let envSel = $state<'production' | 'staging'>('production');
 	let reveal = $state(false);
@@ -211,6 +262,7 @@
 		{ id: 'logs', label: 'Logs' },
 		{ id: 'env', label: 'Environment' },
 		{ id: 'domains', label: 'Domains & Proxy' },
+		{ id: 'storage', label: 'Storage' },
 		{ id: 'quadlet', label: 'Quadlet' }
 	];
 
@@ -851,6 +903,105 @@
   encode zstd gzip
 {'}'}</pre>
 						</div>
+					</div>
+				{/if}
+			{/if}
+
+			<!-- Storage -->
+			{#if activeTab === 'storage'}
+				{#if data.realApp}
+					<div class="flex items-center justify-between mb-[14px]">
+						<div>
+							<div class="text-[15px] font-bold">Storage</div>
+							<div class="text-[12.5px] text-[var(--tx-2)]">
+								Named Podman volumes mounted into <span class="text-[var(--tx)]">{app.name}</span> — persists
+								data across redeploys.
+							</div>
+						</div>
+					</div>
+
+					<div
+						class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] overflow-hidden mb-[18px]"
+					>
+						{#each data.volumes as v (v.id)}
+							<div
+								class="grid grid-cols-[1.3fr_1.6fr_100px_auto] gap-[14px] items-center px-[18px] py-[13px] border-b border-b-[var(--line)] last:border-b-0"
+							>
+								<span class="font-mono-jb text-[13px] text-[var(--tx)] font-semibold">{v.name}</span
+								>
+								<span class="font-mono-jb text-[12px] text-[var(--tx-2)]">{v.mountPath}</span>
+								<span class="font-mono-jb text-[12px] text-[var(--tx-2)]"
+									>{formatBytes(v.sizeBytes)}</span
+								>
+								<button
+									onclick={() => removeVolume(v.id)}
+									disabled={removingVolumeId === v.id}
+									aria-label="Detach volume"
+									class="justify-self-end text-[var(--tx-3)] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+								>
+									<svg
+										width="14"
+										height="14"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"><path d="M18 6L6 18M6 6l12 12" /></svg
+									>
+								</button>
+							</div>
+						{/each}
+						{#if data.volumes.length === 0}
+							<div class="p-[30px] text-center text-[var(--tx-3)] text-[13px]">
+								No volumes attached — data written inside the container is lost on redeploy.
+							</div>
+						{/if}
+					</div>
+
+					<div
+						class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] p-[18px] max-w-[520px]"
+					>
+						<div class="text-[14px] font-bold mb-[14px]">Attach a volume</div>
+						<div class="flex flex-col gap-[10px]">
+							<div>
+								<label
+									for="vol-name"
+									class="block text-[11.5px] font-semibold text-[var(--tx-3)] mb-[5px] tracking-[.03em]"
+									>NAME</label
+								>
+								<input
+									id="vol-name"
+									bind:value={volName}
+									placeholder="data"
+									class="w-full bg-[var(--card-2)] border border-[var(--line)] text-[var(--tx)] rounded-[8px] px-3 py-2 text-[12.5px] font-mono-jb"
+								/>
+							</div>
+							<div>
+								<label
+									for="vol-mount-path"
+									class="block text-[11.5px] font-semibold text-[var(--tx-3)] mb-[5px] tracking-[.03em]"
+									>MOUNT PATH</label
+								>
+								<input
+									id="vol-mount-path"
+									bind:value={volMountPath}
+									placeholder="/data"
+									class="w-full bg-[var(--card-2)] border border-[var(--line)] text-[var(--tx)] rounded-[8px] px-3 py-2 text-[12.5px] font-mono-jb"
+								/>
+							</div>
+							<button
+								onclick={attachVolume}
+								disabled={attachingVolume || !volName.trim() || !volMountPath.trim()}
+								class="bg-[var(--grn)] text-[#07130c] rounded-[8px] px-[14px] py-2 text-[12.5px] font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+								>{attachingVolume ? 'Attaching…' : 'Attach volume'}</button
+							>
+						</div>
+						<div class="text-[11.5px] text-[var(--tx-3)] mt-[10px]">
+							Podman-managed, local to the app's host. Takes effect on the next deploy.
+						</div>
+					</div>
+				{:else}
+					<div class="p-[30px] text-center text-[var(--tx-3)] text-[13px]">
+						Storage isn't available for this demo app.
 					</div>
 				{/if}
 			{/if}

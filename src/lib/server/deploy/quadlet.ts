@@ -1,8 +1,9 @@
-import { app, envVar } from '$lib/server/db/schema';
+import { app, envVar, volume } from '$lib/server/db/schema';
 import { decrypt } from '$lib/server/secrets/crypto';
 
 type App = typeof app.$inferSelect;
 type EnvVar = typeof envVar.$inferSelect;
+type Volume = typeof volume.$inferSelect;
 
 /**
  * Bakery apps all listen on this port inside the container. There's no
@@ -70,6 +71,16 @@ export function guildNetworkName(organizationId: string): string {
 }
 
 /**
+ * The real Podman-managed volume name (task 07) for a `volume` row's
+ * user-declared logical `name`, namespaced by app id so two apps can each
+ * declare a volume called e.g. "data" without colliding on the same host —
+ * mirroring `guildNetworkName`'s "compute it, don't store it" convention.
+ */
+export function podmanVolumeName(appId: string, name: string): string {
+	return `bakery-vol-${appId}-${name}`;
+}
+
+/**
  * Real Quadlet `.container` unit content for a deploy — the actual payload
  * sent to and executed by agents (task 05), replacing `bakery.ts`'s mock
  * `quadletContent()`.
@@ -81,8 +92,21 @@ export function guildNetworkName(organizationId: string): string {
  * redeploy. Old and new units briefly share this alias mid-flip (task 06),
  * which is fine — Podman's embedded DNS round-robins between them, same as
  * any other multi-backend service discovery.
+ *
+ * `volumes` (task 07) becomes one `Volume=<name>:<mountPath>` line per
+ * declared volume — Quadlet supports repeating that key, same as it does for
+ * ports/env files elsewhere in the unit.
  */
-export function quadletContent(appRow: App, imageRef: string, unitName: string): string {
+export function quadletContent(
+	appRow: App,
+	imageRef: string,
+	unitName: string,
+	volumes: Volume[] = []
+): string {
+	const volumeLines = volumes
+		.map((v) => `Volume=${podmanVolumeName(v.appId, v.name)}:${v.mountPath}`)
+		.join('\n');
+
 	return `[Unit]
 Description=${appRow.name}
 After=network-online.target
@@ -92,7 +116,7 @@ Image=${imageRef}
 Network=${guildNetworkName(appRow.organizationId)}
 NetworkAlias=${appRow.name}
 PublishPort=${publishedPort(unitName)}:${APP_CONTAINER_PORT}
-EnvironmentFile=${environmentFilePath(unitName)}
+EnvironmentFile=${environmentFilePath(unitName)}${volumeLines ? '\n' + volumeLines : ''}
 AutoUpdate=registry
 
 [Service]

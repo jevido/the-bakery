@@ -6,9 +6,11 @@ import {
 	uuid,
 	real,
 	integer,
+	bigint,
 	boolean,
 	jsonb,
 	index,
+	unique,
 	pgEnum
 } from 'drizzle-orm/pg-core';
 import { organization } from './auth.schema';
@@ -60,7 +62,8 @@ export const hostRelations = relations(host, ({ one, many }) => ({
 	}),
 	metricSamples: many(hostMetricSample),
 	deployments: many(deployment),
-	commands: many(hostCommand)
+	commands: many(hostCommand),
+	volumes: many(volume)
 }));
 
 export const hostMetricSampleRelations = relations(hostMetricSample, ({ one }) => ({
@@ -191,7 +194,8 @@ export const appRelations = relations(app, ({ one, many }) => ({
 	builds: many(build),
 	deployments: many(deployment),
 	envVars: many(envVar),
-	domains: many(domain)
+	domains: many(domain),
+	volumes: many(volume)
 }));
 
 export const domain = pgTable(
@@ -216,6 +220,50 @@ export const domainRelations = relations(domain, ({ one }) => ({
 	app: one(app, {
 		fields: [domain.appId],
 		references: [app.id]
+	})
+}));
+
+/**
+ * Driver simplified to Podman-managed `local` only — no `driver` column, per
+ * the "hide behind defaults" pattern task 06 established for networks.
+ * `name` is the user-declared logical name (e.g. "data"); the real on-host
+ * Podman volume name is always derived from it via `podmanVolumeName()`
+ * (quadlet.ts) rather than stored, so two apps can reuse the same logical
+ * name without colliding on disk. `sizeBytes`/`lastReportedAt` start empty
+ * and are filled in by the agent's check-in report (task 07) once the
+ * volume actually exists on the host.
+ */
+export const volume = pgTable(
+	'volume',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		appId: uuid('app_id')
+			.notNull()
+			.references(() => app.id, { onDelete: 'cascade' }),
+		hostId: uuid('host_id')
+			.notNull()
+			.references(() => host.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		mountPath: text('mount_path').notNull(),
+		sizeBytes: bigint('size_bytes', { mode: 'number' }).default(0).notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		lastReportedAt: timestamp('last_reported_at')
+	},
+	(table) => [
+		index('volume_appId_idx').on(table.appId),
+		index('volume_hostId_idx').on(table.hostId),
+		unique('volume_appId_name_unique').on(table.appId, table.name)
+	]
+);
+
+export const volumeRelations = relations(volume, ({ one }) => ({
+	app: one(app, {
+		fields: [volume.appId],
+		references: [app.id]
+	}),
+	host: one(host, {
+		fields: [volume.hostId],
+		references: [host.id]
 	})
 }));
 

@@ -71,6 +71,13 @@
       "when": 1784055382026,
       "tag": "0009_smart_maginty",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784060319078,
+      "tag": "0010_powerful_rhodey",
+      "breakpoints": true
     }
   ]
 }
