@@ -16,6 +16,7 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import { formatBytes } from '$lib/utils';
+	import { AreaChart } from 'layerchart';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -240,13 +241,37 @@
 		}))
 	);
 
-	const sparkbars = Array.from({ length: 42 }, (_, i) => {
-		const h = Math.min(
-			100,
-			25 + Math.round(35 * Math.abs(Math.sin(i * 0.7)) + 20 * Math.abs(Math.cos(i * 0.4)))
-		);
-		return { h, recent: i > 36 };
-	});
+	type AppMetricSample = (typeof data.appMetricHistory)[number];
+
+	function toAppMetricSeries(history: AppMetricSample[], value: (s: AppMetricSample) => number) {
+		return history.map((s, i) => ({ i, value: value(s) }));
+	}
+
+	const appCpuSeries = $derived(toAppMetricSeries(data.appMetricHistory, (s) => s.cpuPct ?? 0));
+	const appMemSeries = $derived(
+		toAppMetricSeries(data.appMetricHistory, (s) => (s.memBytes ?? 0) / (1024 * 1024))
+	);
+
+	const appMetricCards = $derived([
+		{
+			label: 'CPU',
+			big:
+				data.latestAppMetricSample?.cpuPct != null
+					? `${data.latestAppMetricSample.cpuPct.toFixed(1)}%`
+					: '—',
+			color: '#3fb984',
+			series: appCpuSeries
+		},
+		{
+			label: 'Memory',
+			big:
+				data.latestAppMetricSample?.memBytes != null
+					? formatBytes(data.latestAppMetricSample.memBytes)
+					: '—',
+			color: '#8b5cf6',
+			series: appMemSeries
+		}
+	]);
 
 	function tabCls(t: Tab) {
 		return t === activeTab
@@ -373,22 +398,56 @@
 				</div>
 
 				<div class="grid grid-cols-[1.6fr_1fr] gap-4">
-					<!-- CPU chart -->
-					<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] px-[18px] py-4">
-						<div class="text-[13px] font-bold mb-[14px]">CPU & Memory · last hour</div>
-						<div class="flex items-end gap-[3px] h-[110px]">
-							{#each sparkbars as b}
+					<!-- CPU/mem charts -->
+					<div class="grid grid-cols-2 gap-[13px]">
+						{#each appMetricCards as m (m.label)}
+							<div
+								class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] px-[18px] py-4 overflow-hidden"
+								style:color={m.color}
+							>
+								<div class="flex items-center justify-between">
+									<span class="text-[13px] font-bold text-[var(--tx)]">{m.label} · last hour</span>
+									<span class="font-mono-jb text-[13px] font-semibold" style:color={m.color}
+										>{m.big}</span
+									>
+								</div>
+								<div class="h-[92px] mt-3 -mx-[18px] w-[calc(100%+36px)]">
+									{#if m.series.length > 1}
+										<AreaChart
+											data={m.series}
+											x="i"
+											y="value"
+											yDomain={[0, null]}
+											axis={false}
+											grid={false}
+											legend={false}
+											rule={false}
+											tooltipContext={false}
+											highlight={false}
+											padding={{ top: 4, bottom: 4 }}
+											props={{
+												area: {
+													fillOpacity: 0.13,
+													fill: 'currentColor',
+													line: { stroke: 'currentColor', 'stroke-width': 2 }
+												}
+											}}
+										/>
+									{:else}
+										<div
+											class="h-full flex items-center justify-center text-[11px] text-[var(--tx-3)]"
+										>
+											Not enough history yet
+										</div>
+									{/if}
+								</div>
 								<div
-									class="flex-1 rounded-t-[2px]"
-									class:bg-[var(--grn)]={b.recent}
-									class:bg-[var(--grn-dim)]={!b.recent}
-									style:height="{b.h}%"
-								></div>
-							{/each}
-						</div>
-						<div class="flex justify-between font-mono-jb text-[10.5px] text-[var(--tx-3)] mt-2">
-							<span>60m ago</span><span>now</span>
-						</div>
+									class="flex justify-between font-mono-jb text-[10.5px] text-[var(--tx-3)] mt-1"
+								>
+									<span>60m ago</span><span>now</span>
+								</div>
+							</div>
+						{/each}
 					</div>
 
 					<!-- Details -->

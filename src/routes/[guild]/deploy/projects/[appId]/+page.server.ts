@@ -1,9 +1,18 @@
 import { fail } from '@sveltejs/kit';
-import { eq, and, sql, desc } from 'drizzle-orm';
+import { eq, and, sql, desc, asc, gte } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { requireGuild } from '$lib/server/guild-context';
 import { db } from '$lib/server/db';
-import { app, repo, source, build, deployment, domain, volume } from '$lib/server/db/schema';
+import {
+	app,
+	repo,
+	source,
+	build,
+	deployment,
+	domain,
+	volume,
+	appMetricSample
+} from '$lib/server/db/schema';
 import { getLatestCommitSha } from '$lib/server/github/app-auth';
 import { quadletContent, versionedUnitName } from '$lib/server/deploy/quadlet';
 import { startDeployment, refreshProxyConfigForApp } from '$lib/server/deploy/orchestrator';
@@ -23,6 +32,11 @@ const VOLUME_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 // entire container filesystem.
 const MOUNT_PATH_PATTERN = /^\/[a-zA-Z0-9_./-]*[a-zA-Z0-9_-]$/;
 
+// Matches the overview page's history window (Phase 02 task 11) — an hour
+// of minute-level samples is enough to show a real, if short, trend without
+// the chart looking sparse for a just-deployed app.
+const APP_METRIC_HISTORY_WINDOW_MS = 60 * 60 * 1000;
+
 /**
  * `app.id` may be either a real UUID (created via task 10's "New app" flow)
  * or one of the still-mock `GUILD_RESOURCES` string ids (e.g. "crumb-api")
@@ -37,7 +51,17 @@ export const load: PageServerLoad = async (event) => {
 		.from(app)
 		.where(and(eq(app.id, event.params.appId), eq(app.organizationId, organization.id)));
 
-	if (!appRow) return { realApp: null, repo: null, builds: [], domains: [], volumes: [] };
+	if (!appRow) {
+		return {
+			realApp: null,
+			repo: null,
+			builds: [],
+			domains: [],
+			volumes: [],
+			appMetricHistory: [],
+			latestAppMetricSample: null
+		};
+	}
 
 	const [repoRow] = appRow.repoId
 		? await db.select().from(repo).where(eq(repo.id, appRow.repoId))
@@ -91,6 +115,20 @@ export const load: PageServerLoad = async (event) => {
 		.where(eq(domain.appId, appRow.id))
 		.orderBy(desc(domain.isDefaultSubdomain), domain.createdAt);
 
+	// Per-container CPU/mem history (Phase 06 task 01) — replaces the app
+	// detail page's sine-wave-driven sparkbars with real data.
+	const appMetricHistory = await db
+		.select()
+		.from(appMetricSample)
+		.where(
+			and(
+				eq(appMetricSample.appId, appRow.id),
+				gte(appMetricSample.ts, new Date(Date.now() - APP_METRIC_HISTORY_WINDOW_MS))
+			)
+		)
+		.orderBy(asc(appMetricSample.ts));
+	const latestAppMetricSample = appMetricHistory[appMetricHistory.length - 1] ?? null;
+
 	return {
 		realApp: appRow,
 		repo: repoRow,
@@ -98,7 +136,9 @@ export const load: PageServerLoad = async (event) => {
 		realQuadletContent,
 		deployments,
 		domains,
-		volumes
+		volumes,
+		appMetricHistory,
+		latestAppMetricSample
 	};
 };
 
