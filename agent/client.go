@@ -21,13 +21,14 @@ var agentVersion = "0.1.0-dev"
 // wire-format contract shared with already-deployed agent binaries; keep
 // them in sync with that schema, not the other way around.
 type checkinPayload struct {
-	CPUPct         float64        `json:"cpuPct"`
-	MemPct         float64        `json:"memPct"`
-	DiskPct        float64        `json:"diskPct"`
-	PodmanVersion  string         `json:"podmanVersion"`
-	ContainerCount int            `json:"containerCount"`
-	AgentVersion   string         `json:"agentVersion"`
-	Volumes        []volumeReport `json:"volumes"`
+	CPUPct         float64         `json:"cpuPct"`
+	MemPct         float64         `json:"memPct"`
+	DiskPct        float64         `json:"diskPct"`
+	PodmanVersion  string          `json:"podmanVersion"`
+	ContainerCount int             `json:"containerCount"`
+	AgentVersion   string          `json:"agentVersion"`
+	Volumes        []volumeReport  `json:"volumes"`
+	Containers     []containerStat `json:"containers"`
 }
 
 // pendingCommand mirrors PendingCommand in src/lib/server/agent/protocol.ts.

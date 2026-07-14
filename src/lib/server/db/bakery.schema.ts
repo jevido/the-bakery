@@ -73,6 +73,42 @@ export const hostMetricSampleRelations = relations(hostMetricSample, ({ one }) =
 	})
 }));
 
+/**
+ * Per-container CPU/memory sample, extending Phase 02's host-level
+ * `hostMetricSample` with per-app data (task 01). One row per reported
+ * container per check-in — matched back to an `app` via its currently
+ * `running` deployment's unit name (`runningUnitName` in proxy.ts), not
+ * stored directly, same "recompute, don't store" convention as
+ * `podmanVolumeName`.
+ */
+export const appMetricSample = pgTable(
+	'app_metric_sample',
+	{
+		id: uuid('id').primaryKey().defaultRandom(),
+		appId: uuid('app_id')
+			.notNull()
+			.references(() => app.id, { onDelete: 'cascade' }),
+		hostId: uuid('host_id')
+			.notNull()
+			.references(() => host.id, { onDelete: 'cascade' }),
+		ts: timestamp('ts').defaultNow().notNull(),
+		cpuPct: real('cpu_pct'),
+		memBytes: bigint('mem_bytes', { mode: 'number' })
+	},
+	(table) => [index('appMetricSample_appId_ts_idx').on(table.appId, table.ts)]
+);
+
+export const appMetricSampleRelations = relations(appMetricSample, ({ one }) => ({
+	app: one(app, {
+		fields: [appMetricSample.appId],
+		references: [app.id]
+	}),
+	host: one(host, {
+		fields: [appMetricSample.hostId],
+		references: [host.id]
+	})
+}));
+
 export const sourceProvider = pgEnum('source_provider', ['github_app']);
 
 export const source = pgTable(
@@ -195,7 +231,8 @@ export const appRelations = relations(app, ({ one, many }) => ({
 	deployments: many(deployment),
 	envVars: many(envVar),
 	domains: many(domain),
-	volumes: many(volume)
+	volumes: many(volume),
+	metricSamples: many(appMetricSample)
 }));
 
 export const domain = pgTable(

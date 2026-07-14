@@ -51,7 +51,13 @@ export async function caddyfileContentForHost(
 	return [CADDYFILE_HEADER, ...blocks].join('\n\n') + '\n';
 }
 
-async function runningUnitName(appId: string, appName: string): Promise<string | null> {
+/**
+ * The unit name of an app's currently `running` deployment, or null if it's
+ * never been deployed or has nothing running right now. Exported for reuse
+ * by the check-in endpoint (Phase 06 task 01) to map reported per-container
+ * stats back to the app they belong to.
+ */
+export async function runningUnitName(appId: string, appName: string): Promise<string | null> {
 	const [row] = await db
 		.select({ commitSha: build.commitSha })
 		.from(deployment)

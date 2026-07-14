@@ -45,5 +45,6 @@ func collectPayload(ctx context.Context) checkinPayload {
 		ContainerCount: containerCount,
 		AgentVersion:   agentVersion,
 		Volumes:        collectVolumeReports(ctx),
+		Containers:     collectContainerStats(ctx),
 	}
 }

@@ -13,6 +13,19 @@ export const volumeReportSchema = z.object({
 });
 
 /**
+ * One running container's resource usage, keyed by its Quadlet unit name
+ * (task 01) — the check-in endpoint recomputes each app's expected running
+ * unit name (`runningUnitName` in deploy/proxy.ts) rather than trusting the
+ * agent to know which app a container belongs to, same "recompute, don't
+ * trust the wire" pattern as `volumeReportSchema`.
+ */
+export const containerStatSchema = z.object({
+	unitName: z.string().trim().min(1).max(255),
+	cpuPct: z.number().min(0).max(100),
+	memBytes: z.number().int().min(0)
+});
+
+/**
  * Shared by the check-in endpoint and any future agent-facing endpoints
  * (Phase 04's command dispatch). Changing this shape means updating
  * already-deployed agent binaries, not just this codebase.
@@ -24,7 +37,8 @@ export const checkinPayloadSchema = z.object({
 	podmanVersion: z.string().trim().min(1).max(50),
 	containerCount: z.number().int().min(0),
 	agentVersion: z.string().trim().min(1).max(50),
-	volumes: z.array(volumeReportSchema).max(500).default([])
+	volumes: z.array(volumeReportSchema).max(500).default([]),
+	containers: z.array(containerStatSchema).max(500).default([])
 });
 
 export type CheckinPayload = z.infer<typeof checkinPayloadSchema>;
