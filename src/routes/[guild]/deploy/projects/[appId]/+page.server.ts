@@ -6,8 +6,15 @@ import { db } from '$lib/server/db';
 import { app, repo, source, build, deployment, domain } from '$lib/server/db/schema';
 import { getLatestCommitSha } from '$lib/server/github/app-auth';
 import { quadletContent, versionedUnitName } from '$lib/server/deploy/quadlet';
-import { startDeployment } from '$lib/server/deploy/orchestrator';
+import { startDeployment, refreshProxyConfigForApp } from '$lib/server/deploy/orchestrator';
 import { resolveHostForApp } from '$lib/server/deploy/host-assignment';
+import { verifyCnameTarget } from '$lib/server/deploy/custom-domain';
+
+// Loose but real: each label alphanumeric (hyphens allowed mid-label), at
+// least two labels. DNS resolution during verification is the actual
+// authority — this is just enough to reject obvious typos in the form.
+const HOSTNAME_PATTERN =
+	/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/;
 
 /**
  * `app.id` may be either a real UUID (created via task 10's "New app" flow)
@@ -65,7 +72,11 @@ export const load: PageServerLoad = async (event) => {
 		.where(eq(deployment.appId, appRow.id))
 		.orderBy(desc(deployment.startedAt));
 
-	const domains = await db.select().from(domain).where(eq(domain.appId, appRow.id));
+	const domains = await db
+		.select()
+		.from(domain)
+		.where(eq(domain.appId, appRow.id))
+		.orderBy(desc(domain.isDefaultSubdomain), domain.createdAt);
 
 	return { realApp: appRow, repo: repoRow, builds, realQuadletContent, deployments, domains };
 };
@@ -186,6 +197,100 @@ export const actions: Actions = {
 		if (!hostRow) return fail(400, { message: 'No host available — add a host first' });
 
 		await startDeployment({ appRow, buildRow, hostRow, triggeredBy: userId });
+
+		return { success: true };
+	},
+
+	addCustomDomain: async (event) => {
+		const { organization } = await requireGuild(event, { permission: 'manage_domains' });
+
+		const [appRow] = await db
+			.select()
+			.from(app)
+			.where(and(eq(app.id, event.params.appId), eq(app.organizationId, organization.id)));
+		if (!appRow) return fail(404, { message: 'App not found' });
+
+		const formData = await event.request.formData();
+		const hostname = formData.get('hostname')?.toString().trim().toLowerCase();
+		if (!hostname || !HOSTNAME_PATTERN.test(hostname)) {
+			return fail(400, { message: 'Enter a valid domain name (e.g. app.yourcompany.com)' });
+		}
+
+		try {
+			await db.insert(domain).values({ appId: appRow.id, hostname, isDefaultSubdomain: false });
+		} catch {
+			// Unique constraint on `domain.hostname` — already attached (to this
+			// app or another one entirely).
+			return fail(400, { message: 'That domain is already in use' });
+		}
+
+		return { success: true };
+	},
+
+	verifyCustomDomain: async (event) => {
+		const { organization } = await requireGuild(event, { permission: 'manage_domains' });
+
+		const [appRow] = await db
+			.select()
+			.from(app)
+			.where(and(eq(app.id, event.params.appId), eq(app.organizationId, organization.id)));
+		if (!appRow) return fail(404, { message: 'App not found' });
+
+		const formData = await event.request.formData();
+		const domainId = formData.get('domainId');
+		if (typeof domainId !== 'string' || !domainId) return fail(400, { message: 'Missing domain' });
+
+		const [domainRow] = await db
+			.select()
+			.from(domain)
+			.where(and(eq(domain.id, domainId), eq(domain.appId, appRow.id)));
+		if (!domainRow || domainRow.isDefaultSubdomain)
+			return fail(404, { message: 'Domain not found' });
+
+		const [defaultDomainRow] = await db
+			.select()
+			.from(domain)
+			.where(and(eq(domain.appId, appRow.id), eq(domain.isDefaultSubdomain, true)));
+		if (!defaultDomainRow) {
+			return fail(400, { message: 'App has no default subdomain to verify against' });
+		}
+
+		const verified = await verifyCnameTarget(domainRow.hostname, defaultDomainRow.hostname);
+		if (!verified) {
+			return fail(400, {
+				message: `DNS not verified yet — add a CNAME record for ${domainRow.hostname} pointing to ${defaultDomainRow.hostname}`
+			});
+		}
+
+		await db.update(domain).set({ verifiedAt: new Date() }).where(eq(domain.id, domainRow.id));
+		await refreshProxyConfigForApp(appRow.id);
+
+		return { success: true };
+	},
+
+	removeCustomDomain: async (event) => {
+		const { organization } = await requireGuild(event, { permission: 'manage_domains' });
+
+		const [appRow] = await db
+			.select()
+			.from(app)
+			.where(and(eq(app.id, event.params.appId), eq(app.organizationId, organization.id)));
+		if (!appRow) return fail(404, { message: 'App not found' });
+
+		const formData = await event.request.formData();
+		const domainId = formData.get('domainId');
+		if (typeof domainId !== 'string' || !domainId) return fail(400, { message: 'Missing domain' });
+
+		const [domainRow] = await db
+			.select()
+			.from(domain)
+			.where(and(eq(domain.id, domainId), eq(domain.appId, appRow.id)));
+		if (!domainRow || domainRow.isDefaultSubdomain) {
+			return fail(400, { message: 'Cannot remove the default subdomain' });
+		}
+
+		await db.delete(domain).where(eq(domain.id, domainRow.id));
+		await refreshProxyConfigForApp(appRow.id);
 
 		return { success: true };
 	}

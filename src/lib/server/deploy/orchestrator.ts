@@ -172,18 +172,15 @@ export async function handleCommandCompletion(
 
 async function findRunningDeployment(
 	appId: string,
-	excludeDeploymentId: string
+	excludeDeploymentId?: string
 ): Promise<Deployment | undefined> {
+	const conditions = [eq(deployment.appId, appId), eq(deployment.status, 'running')];
+	if (excludeDeploymentId) conditions.push(ne(deployment.id, excludeDeploymentId));
+
 	const [row] = await db
 		.select()
 		.from(deployment)
-		.where(
-			and(
-				eq(deployment.appId, appId),
-				eq(deployment.status, 'running'),
-				ne(deployment.id, excludeDeploymentId)
-			)
-		)
+		.where(and(...conditions))
 		.orderBy(desc(deployment.startedAt))
 		.limit(1);
 	return row;
@@ -247,6 +244,35 @@ async function dispatchConfigureProxy(
 	await db.insert(hostCommand).values({
 		hostId,
 		deploymentId: deploymentRow.id,
+		type: 'configureProxy',
+		payload: { caddyfileContent }
+	});
+}
+
+/**
+ * Re-pushes the host's proxy config as-is (no flip in progress, so no
+ * override needed) — used when a domain is added/verified/removed outside
+ * of a deploy (Phase 05 task 04). `hostCommand.deploymentId` is a hard
+ * `NOT NULL` FK with no "not tied to a deployment" concept of its own, so
+ * this rides on the app's current running deployment; `handleCommandCompletion`
+ * only acts on a `configureProxy` completion when that deployment's status is
+ * `flipping_proxy`, so tagging it onto an already-`running` deployment here
+ * is inert as far as the rollover state machine is concerned. A no-op if the
+ * app was never deployed or has nothing currently running — the domain
+ * change still lands in Postgres and takes effect on the next real deploy.
+ */
+export async function refreshProxyConfigForApp(appId: string): Promise<void> {
+	const [appRow] = await db.select().from(app).where(eq(app.id, appId));
+	if (!appRow?.hostId) return;
+
+	const runningDeploymentRow = await findRunningDeployment(appId);
+	if (!runningDeploymentRow) return;
+
+	const caddyfileContent = await caddyfileContentForHost(appRow.hostId);
+
+	await db.insert(hostCommand).values({
+		hostId: appRow.hostId,
+		deploymentId: runningDeploymentRow.id,
 		type: 'configureProxy',
 		payload: { caddyfileContent }
 	});

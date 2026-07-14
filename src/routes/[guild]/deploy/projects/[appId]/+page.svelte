@@ -118,6 +118,63 @@
 		}
 	}
 
+	let domainInput = $state('');
+	let addingDomain = $state(false);
+	async function addCustomDomain() {
+		if (!domainInput.trim()) return;
+		addingDomain = true;
+		try {
+			const body = new FormData();
+			body.set('hostname', domainInput.trim());
+			const res = await fetch('?/addCustomDomain', { method: 'POST', body });
+			if (res.ok) {
+				toast.success('Domain added — verify it once DNS is configured');
+				domainInput = '';
+				await invalidateAll();
+			} else {
+				toast.error('Could not add that domain');
+			}
+		} finally {
+			addingDomain = false;
+		}
+	}
+
+	let verifyingDomainId = $state<string | null>(null);
+	async function verifyCustomDomain(domainId: string) {
+		verifyingDomainId = domainId;
+		try {
+			const body = new FormData();
+			body.set('domainId', domainId);
+			const res = await fetch('?/verifyCustomDomain', { method: 'POST', body });
+			if (res.ok) {
+				toast.success('Domain verified');
+				await invalidateAll();
+			} else {
+				toast.error('DNS not verified yet — check your CNAME record');
+			}
+		} finally {
+			verifyingDomainId = null;
+		}
+	}
+
+	let removingDomainId = $state<string | null>(null);
+	async function removeCustomDomain(domainId: string) {
+		removingDomainId = domainId;
+		try {
+			const body = new FormData();
+			body.set('domainId', domainId);
+			const res = await fetch('?/removeCustomDomain', { method: 'POST', body });
+			if (res.ok) {
+				toast.success('Domain removed');
+				await invalidateAll();
+			} else {
+				toast.error('Could not remove domain');
+			}
+		} finally {
+			removingDomainId = null;
+		}
+	}
+
 	type Tab =
 		'overview' | 'containers' | 'network' | 'deployments' | 'logs' | 'env' | 'domains' | 'quadlet';
 	let activeTab = $state<Tab>('overview');
@@ -620,63 +677,182 @@
 
 			<!-- Domains & Proxy -->
 			{#if activeTab === 'domains'}
-				<div class="grid grid-cols-2 gap-4">
-					<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] p-[18px]">
-						<div class="text-[14px] font-bold mb-1">Domain</div>
-						<div class="text-[12.5px] text-[var(--tx-2)] mb-[14px]">
-							Public address routed to this app.
-						</div>
-						<div
-							class="flex items-center gap-[10px] bg-[var(--card-2)] border border-[var(--line)] rounded-[9px] px-[14px] py-[11px]"
-						>
-							<svg
-								width="16"
-								height="16"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="var(--grn)"
-								stroke-width="1.8"
-							>
-								<circle cx="12" cy="12" r="9" />
-								<path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" />
-							</svg>
-							<span class="font-mono-jb text-[13px] text-[var(--tx)]">{app.domain}</span>
-							{#if app.domain !== '— internal —'}
-								<span class="ml-auto flex items-center gap-[5px] text-[11.5px] text-[var(--grn)]">
-									<svg
-										width="13"
-										height="13"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="2.3"><path d="M20 6L9 17l-5-5" /></svg
+				{#if data.realApp}
+					<div class="grid grid-cols-2 gap-4">
+						<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] p-[18px]">
+							<div class="text-[14px] font-bold mb-1">Domains</div>
+							<div class="text-[12.5px] text-[var(--tx-2)] mb-[14px]">
+								Every hostname routed to this app.
+							</div>
+							<div class="flex flex-col gap-2 mb-[14px]">
+								{#each data.domains as d (d.id)}
+									<div
+										class="flex items-center gap-[10px] bg-[var(--card-2)] border border-[var(--line)] rounded-[9px] px-[14px] py-[11px]"
 									>
-									DNS ok
-								</span>
+										<svg
+											width="16"
+											height="16"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="var(--grn)"
+											stroke-width="1.8"
+										>
+											<circle cx="12" cy="12" r="9" />
+											<path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" />
+										</svg>
+										<span class="font-mono-jb text-[13px] text-[var(--tx)]">{d.hostname}</span>
+
+										{#if d.isDefaultSubdomain}
+											<span
+												class="ml-auto text-[11px] font-semibold px-2 py-[3px] rounded-[6px] bg-[var(--grn-dim)] text-[var(--grn)]"
+												>default</span
+											>
+										{:else if d.verifiedAt}
+											<span
+												class="ml-auto flex items-center gap-[5px] text-[11.5px] text-[var(--grn)]"
+											>
+												<svg
+													width="13"
+													height="13"
+													viewBox="0 0 24 24"
+													fill="none"
+													stroke="currentColor"
+													stroke-width="2.3"><path d="M20 6L9 17l-5-5" /></svg
+												>
+												Verified
+											</span>
+										{:else}
+											<span class="ml-auto text-[11.5px] text-[var(--amber)]">Pending DNS</span>
+											<button
+												onclick={() => verifyCustomDomain(d.id)}
+												disabled={verifyingDomainId === d.id}
+												class="bg-[var(--card)] border border-[var(--line)] text-[var(--tx)] rounded-[7px] px-[10px] py-[5px] text-[11.5px] font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+												>{verifyingDomainId === d.id ? 'Checking…' : 'Verify'}</button
+											>
+										{/if}
+
+										{#if !d.isDefaultSubdomain}
+											<button
+												onclick={() => removeCustomDomain(d.id)}
+												disabled={removingDomainId === d.id}
+												aria-label="Remove domain"
+												class="text-[var(--tx-3)] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+											>
+												<svg
+													width="14"
+													height="14"
+													viewBox="0 0 24 24"
+													fill="none"
+													stroke="currentColor"
+													stroke-width="2"><path d="M18 6L6 18M6 6l12 12" /></svg
+												>
+											</button>
+										{/if}
+									</div>
+								{/each}
+							</div>
+
+							<div class="flex gap-2">
+								<input
+									bind:value={domainInput}
+									placeholder="app.yourcompany.com"
+									class="flex-1 bg-[var(--card-2)] border border-[var(--line)] text-[var(--tx)] rounded-[8px] px-3 py-2 text-[12.5px] font-mono-jb"
+								/>
+								<button
+									onclick={addCustomDomain}
+									disabled={addingDomain || !domainInput.trim()}
+									class="bg-[var(--grn)] text-[#07130c] rounded-[8px] px-[14px] py-2 text-[12.5px] font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+									>{addingDomain ? 'Adding…' : 'Add domain'}</button
+								>
+							</div>
+							{#if data.domains.some((d) => !d.isDefaultSubdomain && !d.verifiedAt)}
+								<div class="text-[11.5px] text-[var(--tx-3)] mt-2">
+									Add a CNAME record pointing to <span class="font-mono-jb text-[var(--grn-2)]"
+										>{realAppDomain}</span
+									> at your DNS provider, then click Verify.
+								</div>
 							{/if}
 						</div>
-					</div>
 
-					<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] p-[18px]">
-						<div class="flex items-center justify-between mb-1">
-							<div class="text-[14px] font-bold">Caddy reverse proxy</div>
-							<div class="flex items-center gap-[7px] text-[11.5px] text-[var(--grn)]">
-								<div class="size-[7px] rounded-full bg-[var(--grn)]"></div>
-								Active · auto HTTPS
+						<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] p-[18px]">
+							<div class="flex items-center justify-between mb-1">
+								<div class="text-[14px] font-bold">Caddy reverse proxy</div>
+								<div class="flex items-center gap-[7px] text-[11.5px] text-[var(--grn)]">
+									<div class="size-[7px] rounded-full bg-[var(--grn)]"></div>
+									Active · auto HTTPS
+								</div>
 							</div>
-						</div>
-						<div class="text-[12.5px] text-[var(--tx-2)] mb-[14px]">
-							Bakery manages a single Caddy instance per host.
-						</div>
-						<pre
-							class="font-mono-jb text-[12px] leading-[1.8] bg-[#080c09] border border-[var(--line)] rounded-[9px] px-[15px] py-[13px] text-[var(--tx-2)] overflow-x-auto m-0"><span
-								class="text-[var(--grn-2)]">{app.domain}</span
-							> {'{'}
+							<div class="text-[12.5px] text-[var(--tx-2)] mb-[14px]">
+								Bakery manages a single Caddy instance per host.
+							</div>
+							<pre
+								class="font-mono-jb text-[12px] leading-[1.8] bg-[#080c09] border border-[var(--line)] rounded-[9px] px-[15px] py-[13px] text-[var(--tx-2)] overflow-x-auto m-0"><span
+									class="text-[var(--grn-2)]">{realAppDomain}</span
+								> {'{'}
   reverse_proxy <span class="text-[var(--amber)]">127.0.0.1:{port}</span>
   encode zstd gzip
 {'}'}</pre>
+						</div>
 					</div>
-				</div>
+				{:else}
+					<div class="grid grid-cols-2 gap-4">
+						<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] p-[18px]">
+							<div class="text-[14px] font-bold mb-1">Domain</div>
+							<div class="text-[12.5px] text-[var(--tx-2)] mb-[14px]">
+								Public address routed to this app.
+							</div>
+							<div
+								class="flex items-center gap-[10px] bg-[var(--card-2)] border border-[var(--line)] rounded-[9px] px-[14px] py-[11px]"
+							>
+								<svg
+									width="16"
+									height="16"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="var(--grn)"
+									stroke-width="1.8"
+								>
+									<circle cx="12" cy="12" r="9" />
+									<path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" />
+								</svg>
+								<span class="font-mono-jb text-[13px] text-[var(--tx)]">{app.domain}</span>
+								{#if app.domain !== '— internal —'}
+									<span class="ml-auto flex items-center gap-[5px] text-[11.5px] text-[var(--grn)]">
+										<svg
+											width="13"
+											height="13"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="2.3"><path d="M20 6L9 17l-5-5" /></svg
+										>
+										DNS ok
+									</span>
+								{/if}
+							</div>
+						</div>
+
+						<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] p-[18px]">
+							<div class="flex items-center justify-between mb-1">
+								<div class="text-[14px] font-bold">Caddy reverse proxy</div>
+								<div class="flex items-center gap-[7px] text-[11.5px] text-[var(--grn)]">
+									<div class="size-[7px] rounded-full bg-[var(--grn)]"></div>
+									Active · auto HTTPS
+								</div>
+							</div>
+							<div class="text-[12.5px] text-[var(--tx-2)] mb-[14px]">
+								Bakery manages a single Caddy instance per host.
+							</div>
+							<pre
+								class="font-mono-jb text-[12px] leading-[1.8] bg-[#080c09] border border-[var(--line)] rounded-[9px] px-[15px] py-[13px] text-[var(--tx-2)] overflow-x-auto m-0"><span
+									class="text-[var(--grn-2)]">{app.domain}</span
+								> {'{'}
+  reverse_proxy <span class="text-[var(--amber)]">127.0.0.1:{port}</span>
+  encode zstd gzip
+{'}'}</pre>
+						</div>
+					</div>
+				{/if}
 			{/if}
 
 			<!-- Quadlet -->
