@@ -7,7 +7,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { build, repo, app, source } from '$lib/server/db/schema';
 import { getInstallationAccessToken } from '$lib/server/github/app-auth';
-import { appendBuildLog } from './log';
+import { appendBuildLog, clearBuildLogSecretsCache } from './log';
 import { detectBuildFile, candidateBuildFilePaths } from './detect-build-file';
 import { registryImageRef, pushCredentials } from './registry';
 import type { Build } from './claim';
@@ -164,5 +164,6 @@ export async function processBuild(buildRow: Build): Promise<void> {
 			.where(eq(build.id, buildRow.id));
 	} finally {
 		if (workDir) await rm(workDir, { recursive: true, force: true });
+		clearBuildLogSecretsCache(buildRow.id);
 	}
 }

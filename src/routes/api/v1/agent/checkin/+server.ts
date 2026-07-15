@@ -14,6 +14,7 @@ import {
 import { authenticateHost } from '$lib/server/agent/auth';
 import { podmanVolumeName } from '$lib/server/deploy/quadlet';
 import { runningUnitName } from '$lib/server/deploy/proxy';
+import { redactSecrets, secretValuesForApp } from '$lib/server/secrets/redact';
 import {
 	checkinPayloadSchema,
 	type CheckinResponse,
@@ -113,12 +114,18 @@ export const POST: RequestHandler = async (event) => {
 				// timestamps to preserve this batch's actual order, so stamp each
 				// line 1ms apart explicitly instead of relying on the default.
 				const baseTs = Date.now();
+				// Redacted against the app's own declared secret env values (task
+				// 03, Phase 07) before ever reaching the database — this is the
+				// customer's own container output, which Bakery can't fully
+				// control, but a value it handed the app itself is a known
+				// quantity worth scrubbing on the way in.
+				const secrets = await secretValuesForApp(appRow.id);
 				await db.insert(appLogLine).values(
 					lines.map((l, i) => ({
 						appId: appRow.id,
 						hostId: matchedHost.id,
 						ts: new Date(baseTs + i),
-						message: l.message
+						message: redactSecrets(l.message, secrets)
 					}))
 				);
 			}
