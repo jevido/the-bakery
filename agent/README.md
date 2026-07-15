@@ -27,11 +27,11 @@ Or via flags:
 ./bakery-agent -token bkry_host_... -url https://your-bakery.example.com
 ```
 
-| Flag        | Env             | Default | Description                          |
-| ----------- | --------------- | ------- | ------------------------------------ |
-| `-token`    | `BAKERY_TOKEN`  | —       | Per-host bearer token (required)     |
-| `-url`      | `BAKERY_URL`    | —       | Control-plane base URL (required)    |
-| `-interval` | —               | `45s`   | Check-in interval                    |
+| Flag        | Env            | Default | Description                       |
+| ----------- | -------------- | ------- | --------------------------------- |
+| `-token`    | `BAKERY_TOKEN` | —       | Per-host bearer token (required)  |
+| `-url`      | `BAKERY_URL`   | —       | Control-plane base URL (required) |
+| `-interval` | —              | `45s`   | Check-in interval                 |
 
 Both the token and URL must be supplied (flag or env); the agent exits
 immediately at startup if either is missing.
@@ -40,7 +40,7 @@ immediately at startup if either is missing.
 
 - Checks in immediately on startup, then every `-interval`.
 - POSTs to `<BAKERY_URL>/api/v1/agent/checkin` with `Authorization: Bearer
-  <token>`.
+<token>`.
 - Network errors and non-200 responses (e.g. an invalid/revoked token) are
   logged and retried on the next interval — the process never crashes on a
   failed check-in.
@@ -48,6 +48,14 @@ immediately at startup if either is missing.
 
 ## Metrics
 
-Real CPU/mem/disk/podman metrics collection is implemented in a later task
-(09); this scaffold reports zero values / placeholders to prove the loop
-and HTTP contract work end-to-end.
+Each check-in reports real host CPU/mem/disk (`cpu.go`/`mem.go`/`disk.go`)
+and Podman version/running-container-count (`podman.go`), plus per-container
+CPU/mem and log tail for every Quadlet-managed unit, and on-host size for
+every Bakery-managed volume (`volumes.go`).
+
+## Commands
+
+Pending `deploy`/`stop`/`restart`/`configureProxy` commands come back in the
+check-in response and are executed in order (`commands.go`), each gated by
+`checkRootless` — the agent refuses to touch containers at all if Podman
+isn't running rootless.
