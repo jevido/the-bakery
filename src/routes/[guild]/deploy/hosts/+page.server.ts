@@ -22,7 +22,27 @@ export const load: PageServerLoad = async (event) => {
 	// Revoked hosts stay visible (with their historical metric samples
 	// retained — deletion is Phase 06's retention concern) so revocation
 	// reads as a status, not a disappearance.
-	const hostRows = await db.select().from(host).where(eq(host.organizationId, organization.id));
+	//
+	// Explicit column list, not `select()` — `tokenHash` must never reach the
+	// client (Phase 07 task 05's encryption-at-rest review): this page's data
+	// is serialized straight to the browser, so an unqualified `select()`
+	// would ship it in every load even though nothing renders it.
+	const hostRows = await db
+		.select({
+			id: host.id,
+			organizationId: host.organizationId,
+			name: host.name,
+			location: host.location,
+			spec: host.spec,
+			tokenLastFour: host.tokenLastFour,
+			status: host.status,
+			agentVersion: host.agentVersion,
+			createdAt: host.createdAt,
+			lastSeenAt: host.lastSeenAt,
+			revokedAt: host.revokedAt
+		})
+		.from(host)
+		.where(eq(host.organizationId, organization.id));
 
 	const hostIds = hostRows.map((h) => h.id);
 	const samples = hostIds.length
@@ -62,6 +82,11 @@ export const actions: Actions = {
 
 		const issued = issueHostToken();
 
+		// Explicit column list, not `.returning()` — `created` below is sent
+		// straight back to the client as the action response, and `tokenHash`
+		// must never reach it (Phase 07 task 05's encryption-at-rest review).
+		// The plaintext token is the deliberate one-time exception, carried
+		// separately in `installCommand`, never stored anywhere itself.
 		const [created] = await db
 			.insert(host)
 			.values({
@@ -73,7 +98,19 @@ export const actions: Actions = {
 				tokenLastFour: issued.lastFour,
 				status: 'pending'
 			})
-			.returning();
+			.returning({
+				id: host.id,
+				organizationId: host.organizationId,
+				name: host.name,
+				location: host.location,
+				spec: host.spec,
+				tokenLastFour: host.tokenLastFour,
+				status: host.status,
+				agentVersion: host.agentVersion,
+				createdAt: host.createdAt,
+				lastSeenAt: host.lastSeenAt,
+				revokedAt: host.revokedAt
+			});
 
 		// bakery-domain: prefer the configured public origin, fall back to the
 		// request's own origin so this works before ORIGIN is set in dev.

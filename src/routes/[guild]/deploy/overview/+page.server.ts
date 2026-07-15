@@ -19,8 +19,24 @@ export const load: PageServerLoad = async (event) => {
 	const range = isHostMetricRangeId(rangeParam) ? rangeParam : DEFAULT_HOST_METRIC_RANGE;
 	const windowMs = HOST_METRIC_RANGES.find((r) => r.id === range)!.windowMs;
 
+	// Explicit column list, not `select()` — `tokenHash` must never reach the
+	// client (Phase 07 task 05's encryption-at-rest review): `hosts`/
+	// `primaryHost` below are returned straight through to the page, so an
+	// unqualified `select()` would ship it in every load.
 	const hostRows = await db
-		.select()
+		.select({
+			id: host.id,
+			organizationId: host.organizationId,
+			name: host.name,
+			location: host.location,
+			spec: host.spec,
+			tokenLastFour: host.tokenLastFour,
+			status: host.status,
+			agentVersion: host.agentVersion,
+			createdAt: host.createdAt,
+			lastSeenAt: host.lastSeenAt,
+			revokedAt: host.revokedAt
+		})
 		.from(host)
 		.where(and(eq(host.organizationId, organization.id), isNull(host.revokedAt)));
 
