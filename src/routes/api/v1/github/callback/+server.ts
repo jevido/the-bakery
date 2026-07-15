@@ -14,7 +14,10 @@ export const GET: RequestHandler = async (event) => {
 	if (!verified) {
 		// No signed state to trust means we also don't know which guild to
 		// send the user back to — surface an error rather than guessing.
-		error(400, "Invalid or expired install request — please retry 'Connect GitHub' from your guild's Sources page.");
+		error(
+			400,
+			"Invalid or expired install request — please retry 'Connect GitHub' from your guild's Sources page."
+		);
 	}
 
 	const [org] = await db

@@ -376,7 +376,7 @@
 
 			<!-- Tab bar -->
 			<div class="flex gap-0.5 mt-[18px] border-b border-b-[var(--line)]">
-				{#each tabs as t}
+				{#each tabs as t (t.id)}
 					<button onclick={() => (activeTab = t.id)} class={tabCls(t.id)}>{t.label}</button>
 				{/each}
 			</div>
@@ -759,7 +759,7 @@
 				<div
 					class="flex gap-[3px] bg-[var(--card)] border border-[var(--line)] rounded-[9px] p-[3px] w-fit mb-[14px]"
 				>
-					{#each ['production', 'staging'] as const as tab}
+					{#each ['production', 'staging'] as const as tab (tab)}
 						<button
 							onclick={() => (envSel = tab)}
 							class="px-[11px] py-[5px] text-[12.5px] rounded-[6px] cursor-pointer {envSel === tab
@@ -906,7 +906,7 @@
 								> {'{'}
   reverse_proxy <span class="text-[var(--amber)]">127.0.0.1:{port}</span>
   encode zstd gzip
-{'}'}</pre>
+}</pre>
 						</div>
 					</div>
 				{:else}
@@ -964,7 +964,7 @@
 								> {'{'}
   reverse_proxy <span class="text-[var(--amber)]">127.0.0.1:{port}</span>
   encode zstd gzip
-{'}'}</pre>
+}</pre>
 						</div>
 					</div>
 				{/if}

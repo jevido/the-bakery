@@ -8,7 +8,10 @@ import { listInstallationRepositories } from './app-auth';
  * App installation can currently see, so `app` creation can reference a
  * stable local `repo` row instead of re-querying GitHub every time.
  */
-export async function syncReposForSource(sourceId: string, installationId: string): Promise<number> {
+export async function syncReposForSource(
+	sourceId: string,
+	installationId: string
+): Promise<number> {
 	const remoteRepos = await listInstallationRepositories(installationId);
 
 	const existingRows = await db.select().from(repo).where(eq(repo.sourceId, sourceId));
@@ -23,7 +26,10 @@ export async function syncReposForSource(sourceId: string, installationId: strin
 				defaultBranch: remote.default_branch
 			});
 		} else if (existing.defaultBranch !== remote.default_branch) {
-			await db.update(repo).set({ defaultBranch: remote.default_branch }).where(eq(repo.id, existing.id));
+			await db
+				.update(repo)
+				.set({ defaultBranch: remote.default_branch })
+				.where(eq(repo.id, existing.id));
 		}
 	}
 

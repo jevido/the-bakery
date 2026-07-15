@@ -4,7 +4,12 @@ import { auth } from '$lib/server/auth';
 import { APIError } from 'better-auth/api';
 
 function slugify(name: string): string {
-	return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'guild';
+	return (
+		name
+			.toLowerCase()
+			.replace(/\s+/g, '-')
+			.replace(/[^a-z0-9-]/g, '') || 'guild'
+	);
 }
 
 export const POST: RequestHandler = async (event) => {

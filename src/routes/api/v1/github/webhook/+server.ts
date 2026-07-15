@@ -79,14 +79,18 @@ async function handleInstallationRepositories(rawPayload: unknown) {
 			if (!existing) {
 				// installation_repositories payloads don't carry default_branch —
 				// task 05's real repo listing (via the GitHub API) corrects this.
-				await db.insert(repo).values({ sourceId: sourceRow.id, fullName: r.full_name, defaultBranch: 'main' });
+				await db
+					.insert(repo)
+					.values({ sourceId: sourceRow.id, fullName: r.full_name, defaultBranch: 'main' });
 			}
 		}
 	}
 
 	if (action === 'removed') {
 		for (const r of repositories_removed ?? []) {
-			await db.delete(repo).where(and(eq(repo.sourceId, sourceRow.id), eq(repo.fullName, r.full_name)));
+			await db
+				.delete(repo)
+				.where(and(eq(repo.sourceId, sourceRow.id), eq(repo.fullName, r.full_name)));
 		}
 	}
 }

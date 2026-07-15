@@ -9,9 +9,7 @@ import { APIError } from 'better-auth/api';
 
 const settingsSchema = z.object({
 	name: z.string().trim().min(1, 'Guild name is required').max(100),
-	color: z
-		.string()
-		.regex(/^#[0-9a-f]{6}$/i, 'Must be a hex color, e.g. #3fb984')
+	color: z.string().regex(/^#[0-9a-f]{6}$/i, 'Must be a hex color, e.g. #3fb984')
 });
 
 type OrgWithFields = { name: string; color?: string; inviteCode?: string };
@@ -43,7 +41,8 @@ export const actions: Actions = {
 				}
 			});
 		} catch (e) {
-			if (e instanceof APIError) return message(form, e.message ?? 'Could not update guild', { status: 400 });
+			if (e instanceof APIError)
+				return message(form, e.message ?? 'Could not update guild', { status: 400 });
 			throw e;
 		}
 
@@ -59,7 +58,8 @@ export const actions: Actions = {
 				body: { organizationId: organization.id, data: { inviteCode: newCode } }
 			});
 		} catch (e) {
-			if (e instanceof APIError) return fail(400, { message: e.message ?? 'Could not regenerate invite code' });
+			if (e instanceof APIError)
+				return fail(400, { message: e.message ?? 'Could not regenerate invite code' });
 			throw e;
 		}
 	}

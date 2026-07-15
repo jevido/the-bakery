@@ -9,7 +9,9 @@
 	}
 </script>
 
-<div class="w-[76px] shrink-0 bg-[var(--rail)] flex flex-col items-center pt-3 pb-[14px] gap-2 border-r border-r-black/40 z-[2]">
+<div
+	class="w-[76px] shrink-0 bg-[var(--rail)] flex flex-col items-center pt-3 pb-[14px] gap-2 border-r border-r-black/40 z-[2]"
+>
 	<!-- Logo -->
 	<div
 		title="The Bakery"
@@ -18,7 +20,9 @@
 		tabindex="0"
 		onclick={() => selectGuild(guildId)}
 		onkeydown={(e) => e.key === 'Enter' && selectGuild(guildId)}
-	>B</div>
+	>
+		B
+	</div>
 
 	<div class="w-8 h-0.5 bg-white/[0.09] rounded-sm my-0.5"></div>
 
@@ -43,10 +47,14 @@
 				class="size-12 flex items-center justify-center font-heading font-bold text-[19px] transition-all duration-150"
 				class:rounded-[15px]={active}
 				class:rounded-[24px]={!active}
-				style:background={active ? 'linear-gradient(150deg, var(--grn-2), var(--grn))' : 'var(--card-2)'}
+				style:background={active
+					? 'linear-gradient(150deg, var(--grn-2), var(--grn))'
+					: 'var(--card-2)'}
 				style:color={active ? '#07130c' : 'var(--tx)'}
 				style:border={active ? 'none' : '1px solid var(--line)'}
-			>{gd.name.trim()[0]?.toUpperCase() ?? '?'}</div>
+			>
+				{gd.name.trim()[0]?.toUpperCase() ?? '?'}
+			</div>
 		</div>
 	{/each}
 
@@ -58,16 +66,25 @@
 		onclick={onOpenJourney}
 		onkeydown={(e) => e.key === 'Enter' && onOpenJourney()}
 		class="size-12 rounded-[15px] bg-white/5 text-[var(--grn-2)] flex items-center justify-center text-[26px] font-normal cursor-pointer hover:bg-white/[0.08] transition-colors"
-	>+</div>
+	>
+		+
+	</div>
 
 	<!-- Discover -->
 	<div
 		title="Discover"
 		class="size-12 rounded-[15px] bg-white/5 text-[var(--tx-2)] flex items-center justify-center cursor-pointer"
 	>
-		<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-			<circle cx="12" cy="12" r="9"/>
-			<path d="M15 9l-2.5 5L9 15l2.5-5z" fill="currentColor" stroke="none"/>
+		<svg
+			width="20"
+			height="20"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="1.8"
+		>
+			<circle cx="12" cy="12" r="9" />
+			<path d="M15 9l-2.5 5L9 15l2.5-5z" fill="currentColor" stroke="none" />
 		</svg>
 	</div>
 
@@ -76,9 +93,18 @@
 		title="Settings"
 		class="mt-auto size-10 rounded-[12px] bg-white/[0.04] text-[var(--tx-2)] flex items-center justify-center cursor-pointer"
 	>
-		<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-			<circle cx="12" cy="12" r="3.2"/>
-			<path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/>
+		<svg
+			width="19"
+			height="19"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="1.7"
+		>
+			<circle cx="12" cy="12" r="3.2" />
+			<path
+				d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"
+			/>
 		</svg>
 	</div>
 </div>

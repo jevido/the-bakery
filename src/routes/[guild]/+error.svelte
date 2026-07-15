@@ -8,8 +8,5 @@
 </script>
 
 <div class="flex-1 h-full">
-	<NotFound
-		label={is404 ? message : `Error ${status}`}
-		detail={is404 ? '' : message}
-	/>
+	<NotFound label={is404 ? message : `Error ${status}`} detail={is404 ? '' : message} />
 </div>

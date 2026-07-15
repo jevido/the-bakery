@@ -11,7 +11,9 @@
 <div
 	class="flex h-screen w-screen items-center justify-center bg-[var(--main)] text-[var(--tx)] font-bakery"
 >
-	<div class="w-full max-w-[380px] p-6 rounded-[14px] bg-[var(--panel)] border border-[var(--line)]">
+	<div
+		class="w-full max-w-[380px] p-6 rounded-[14px] bg-[var(--panel)] border border-[var(--line)]"
+	>
 		<h1 class="text-[18px] font-heading font-bold text-[var(--tx)] mb-1">Welcome back</h1>
 		<p class="text-[13px] text-[var(--tx-3)] mb-6">Log in to your Bakery account.</p>
 

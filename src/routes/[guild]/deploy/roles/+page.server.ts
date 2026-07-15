@@ -47,7 +47,8 @@ export const actions: Actions = {
 				}
 			});
 		} catch (e) {
-			if (e instanceof APIError) return fail(400, { message: e.message ?? 'Could not create role' });
+			if (e instanceof APIError)
+				return fail(400, { message: e.message ?? 'Could not create role' });
 			throw e;
 		}
 	},
@@ -56,7 +57,8 @@ export const actions: Actions = {
 		const formData = await event.request.formData();
 		const roleId = formData.get('roleId')?.toString();
 		const permissionJson = formData.get('permission')?.toString();
-		if (!roleId || !permissionJson) return fail(400, { message: 'roleId and permission are required' });
+		if (!roleId || !permissionJson)
+			return fail(400, { message: 'roleId and permission are required' });
 
 		let permission: Record<string, string[]>;
 		try {
@@ -71,7 +73,8 @@ export const actions: Actions = {
 				body: { organizationId: organization.id, roleId, data: { permission } }
 			});
 		} catch (e) {
-			if (e instanceof APIError) return fail(400, { message: e.message ?? 'Could not update role' });
+			if (e instanceof APIError)
+				return fail(400, { message: e.message ?? 'Could not update role' });
 			throw e;
 		}
 	},
@@ -87,7 +90,8 @@ export const actions: Actions = {
 				body: { organizationId: organization.id, roleId }
 			});
 		} catch (e) {
-			if (e instanceof APIError) return fail(400, { message: e.message ?? 'Could not delete role' });
+			if (e instanceof APIError)
+				return fail(400, { message: e.message ?? 'Could not delete role' });
 			throw e;
 		}
 	}

@@ -43,7 +43,8 @@ export function verifyGithubInstallState(state: string): { organizationId: strin
 	} catch {
 		return null;
 	}
-	if (typeof payload.organizationId !== 'string' || typeof payload.issuedAt !== 'number') return null;
+	if (typeof payload.organizationId !== 'string' || typeof payload.issuedAt !== 'number')
+		return null;
 	if (Date.now() - payload.issuedAt > MAX_STATE_AGE_MS) return null;
 
 	return { organizationId: payload.organizationId };

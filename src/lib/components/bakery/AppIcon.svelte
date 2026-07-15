@@ -2,7 +2,12 @@
 	import type { AppStatus } from '$lib/data/bakery';
 	import { statusMeta } from '$lib/data/bakery';
 
-	let { initial, status, size = 34, radius = 10 }: {
+	let {
+		initial,
+		status,
+		size = 34,
+		radius = 10
+	}: {
 		initial: string;
 		status: AppStatus;
 		size?: number;
@@ -19,4 +24,6 @@
 	style:background={meta.bg}
 	style:color={meta.c}
 	style:font-size="{Math.round(size * 0.41)}px"
->{initial}</div>
+>
+	{initial}
+</div>

@@ -5,7 +5,7 @@
 	import { getChartContext, Tooltip as TooltipPrimitive } from 'layerchart';
 	import type { Snippet } from 'svelte';
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars -- payload kept for signature-compatibility with the formatter prop type
 	function defaultFormatter(value: any, _payload: TooltipPayload[]) {
 		return `${value}`;
 	}

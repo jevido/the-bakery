@@ -5,8 +5,14 @@
 	let { open = $bindable(false) }: { open: boolean } = $props();
 
 	const PALETTE = [
-		'#3fb984', '#5b8def', '#e05c4b', '#d97f2f',
-		'#9b6ed4', '#2fc2c2', '#d4b44a', '#e06ba0',
+		'#3fb984',
+		'#5b8def',
+		'#e05c4b',
+		'#d97f2f',
+		'#9b6ed4',
+		'#2fc2c2',
+		'#d4b44a',
+		'#e06ba0'
 	];
 
 	type Mode = 'choice' | 'create' | 'join';
@@ -108,7 +114,12 @@
 	}
 </script>
 
-<Dialog.Root bind:open onOpenChange={(isOpen) => { if (isOpen) resetForm(); }}>
+<Dialog.Root
+	bind:open
+	onOpenChange={(isOpen) => {
+		if (isOpen) resetForm();
+	}}
+>
 	<Dialog.Content
 		class="sm:max-w-[480px] bg-[var(--panel)] ring-[var(--line-2)] p-0 overflow-hidden"
 		portalProps={{ to: '.bakery-shell' }}
@@ -229,7 +240,9 @@
 						style:background="{color}22"
 						style:color
 						style:border="1px solid {color}44"
-					>{letter}</div>
+					>
+						{letter}
+					</div>
 					<div class="min-w-0">
 						<p class="text-[13px] font-semibold text-[var(--tx)] truncate">
 							{name.trim() || 'Your guild name'}
@@ -249,7 +262,8 @@
 						onclick={createGuild}
 						disabled={!canCreate}
 						class="px-4 py-2 rounded-[8px] bg-[var(--grn)] text-[#07130c] text-[13px] font-semibold hover:bg-[var(--grn-2)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-					>{creating ? 'Creating…' : 'Create guild →'}</button>
+						>{creating ? 'Creating…' : 'Create guild →'}</button
+					>
 				</div>
 			</div>
 		{:else}
@@ -286,7 +300,8 @@
 							onclick={findGuild}
 							disabled={finding}
 							class="px-3 h-9 rounded-[8px] bg-[var(--card-2)] border border-[var(--line)] text-[var(--tx-2)] text-[13px] hover:border-[var(--line-2)] hover:text-[var(--tx)] transition-colors shrink-0 disabled:opacity-40"
-						>{finding ? '…' : 'Find'}</button>
+							>{finding ? '…' : 'Find'}</button
+						>
 					</div>
 				</div>
 
@@ -299,7 +314,9 @@
 							style:background="{foundGuild.color}22"
 							style:color={foundGuild.color}
 							style:border="1px solid {foundGuild.color}44"
-						>{foundGuild.name.trim()[0]?.toUpperCase() ?? '?'}</div>
+						>
+							{foundGuild.name.trim()[0]?.toUpperCase() ?? '?'}
+						</div>
 						<div class="min-w-0">
 							<p class="text-[13px] font-semibold text-[var(--tx)] truncate">{foundGuild.name}</p>
 							<p class="text-[11px] text-[var(--tx-3)]">{foundGuild.slug}</p>
@@ -327,7 +344,8 @@
 						onclick={joinGuild}
 						disabled={!foundGuild || joining}
 						class="px-4 py-2 rounded-[8px] bg-[var(--grn)] text-[#07130c] text-[13px] font-semibold hover:bg-[var(--grn-2)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-					>{joining ? 'Joining…' : 'Join guild →'}</button>
+						>{joining ? 'Joining…' : 'Join guild →'}</button
+					>
 				</div>
 			</div>
 		{/if}

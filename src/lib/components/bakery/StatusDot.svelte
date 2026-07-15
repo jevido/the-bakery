@@ -11,5 +11,9 @@
 	style:width="{size}px"
 	style:height="{size}px"
 	style:background={meta.dot}
-	style:animation={meta.pulse ? 'bk-pulse 2s infinite' : meta.spin ? 'bk-pulse 1s infinite' : 'none'}
+	style:animation={meta.pulse
+		? 'bk-pulse 2s infinite'
+		: meta.spin
+			? 'bk-pulse 1s infinite'
+			: 'none'}
 ></div>

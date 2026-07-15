@@ -130,34 +130,84 @@ export interface PermGroup {
 }
 
 export const ROLES: Role[] = [
-	{ id: 'guild-master', name: 'Guild Master', color: '#e0a83e', count: 1, master: true, note: 'The founder of the guild. Sits above every position and cannot be edited or deleted.' },
-	{ id: 'head-baker', name: 'Head Baker', color: '#a978e6', count: 2, note: 'Trusted maintainers. Manage apps, hosts, and all positions beneath them.' },
-	{ id: 'baker', name: 'Baker', color: '#3fb984', count: 3, note: 'Developers. Deploy apps and manage environments, but cannot touch roles or hosts.' },
-	{ id: 'apprentice', name: 'Apprentice', color: '#5b8def', count: 4, note: 'Read-only access. Perfect for stakeholders watching the ovens.' },
+	{
+		id: 'guild-master',
+		name: 'Guild Master',
+		color: '#e0a83e',
+		count: 1,
+		master: true,
+		note: 'The founder of the guild. Sits above every position and cannot be edited or deleted.'
+	},
+	{
+		id: 'head-baker',
+		name: 'Head Baker',
+		color: '#a978e6',
+		count: 2,
+		note: 'Trusted maintainers. Manage apps, hosts, and all positions beneath them.'
+	},
+	{
+		id: 'baker',
+		name: 'Baker',
+		color: '#3fb984',
+		count: 3,
+		note: 'Developers. Deploy apps and manage environments, but cannot touch roles or hosts.'
+	},
+	{
+		id: 'apprentice',
+		name: 'Apprentice',
+		color: '#5b8def',
+		count: 4,
+		note: 'Read-only access. Perfect for stakeholders watching the ovens.'
+	}
 ];
 
 export const PERM_GROUPS: PermGroup[] = [
-	{ name: 'GENERAL', perms: [
-		{ id: 'view_guild', label: 'View Guild', desc: 'See the guild and its modules' },
-		{ id: 'manage_guild', label: 'Manage Guild', desc: 'Edit name, invites, and settings' },
-		{ id: 'manage_roles', label: 'Manage Roles', desc: 'Create and edit positions below your own' },
-		{ id: 'manage_members', label: 'Manage Members', desc: 'Assign roles, kick, and ban' },
-		{ id: 'audit_log', label: 'View Audit Log', desc: 'Review every action taken in the guild' },
-	]},
-	{ name: 'APPS', perms: [
-		{ id: 'view_apps', label: 'View Apps', desc: 'See apps and their status' },
-		{ id: 'create_apps', label: 'Create Apps', desc: 'Deploy new apps from a repo' },
-		{ id: 'deploy_apps', label: 'Deploy & Redeploy', desc: 'Trigger deployments and rollbacks' },
-		{ id: 'manage_env', label: 'Manage Environment', desc: 'Edit variables and secrets' },
-		{ id: 'view_secrets', label: 'View Secrets', desc: 'Reveal masked secret values' },
-		{ id: 'delete_apps', label: 'Delete Apps', desc: 'Permanently remove an app' },
-	]},
-	{ name: 'INFRASTRUCTURE', perms: [
-		{ id: 'view_hosts', label: 'View Hosts', desc: 'See connected machines' },
-		{ id: 'manage_hosts', label: 'Manage Hosts', desc: 'Add, remove, and configure hosts' },
-		{ id: 'manage_domains', label: 'Manage Domains & Proxy', desc: 'Edit domains and Caddy routes' },
-	]},
-	{ name: 'DANGER', perms: [
-		{ id: 'administrator', label: 'Administrator', desc: 'All permissions. Grant with caution.', danger: true },
-	]},
+	{
+		name: 'GENERAL',
+		perms: [
+			{ id: 'view_guild', label: 'View Guild', desc: 'See the guild and its modules' },
+			{ id: 'manage_guild', label: 'Manage Guild', desc: 'Edit name, invites, and settings' },
+			{
+				id: 'manage_roles',
+				label: 'Manage Roles',
+				desc: 'Create and edit positions below your own'
+			},
+			{ id: 'manage_members', label: 'Manage Members', desc: 'Assign roles, kick, and ban' },
+			{ id: 'audit_log', label: 'View Audit Log', desc: 'Review every action taken in the guild' }
+		]
+	},
+	{
+		name: 'APPS',
+		perms: [
+			{ id: 'view_apps', label: 'View Apps', desc: 'See apps and their status' },
+			{ id: 'create_apps', label: 'Create Apps', desc: 'Deploy new apps from a repo' },
+			{ id: 'deploy_apps', label: 'Deploy & Redeploy', desc: 'Trigger deployments and rollbacks' },
+			{ id: 'manage_env', label: 'Manage Environment', desc: 'Edit variables and secrets' },
+			{ id: 'view_secrets', label: 'View Secrets', desc: 'Reveal masked secret values' },
+			{ id: 'delete_apps', label: 'Delete Apps', desc: 'Permanently remove an app' }
+		]
+	},
+	{
+		name: 'INFRASTRUCTURE',
+		perms: [
+			{ id: 'view_hosts', label: 'View Hosts', desc: 'See connected machines' },
+			{ id: 'manage_hosts', label: 'Manage Hosts', desc: 'Add, remove, and configure hosts' },
+			{
+				id: 'manage_domains',
+				label: 'Manage Domains & Proxy',
+				desc: 'Edit domains and Caddy routes'
+			}
+		]
+	},
+	{
+		name: 'DANGER',
+		perms: [
+			{
+				id: 'administrator',
+				label: 'Administrator',
+				desc: 'All permissions. Grant with caution.',
+				danger: true
+			}
+		]
+	}
 ];

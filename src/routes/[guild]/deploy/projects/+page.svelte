@@ -12,9 +12,11 @@
 	let filter = $state<'all' | 'running' | 'issues'>('all');
 
 	const filtered = $derived(
-		filter === 'all' ? apps
-		: filter === 'running' ? apps.filter((a) => a.status === 'running')
-		: apps.filter((a) => a.status === 'failed' || a.status === 'stopped')
+		filter === 'all'
+			? apps
+			: filter === 'running'
+				? apps.filter((a) => a.status === 'running')
+				: apps.filter((a) => a.status === 'failed' || a.status === 'stopped')
 	);
 
 	const runCount = $derived(apps.filter((a) => a.status === 'running').length);
@@ -39,15 +41,17 @@
 		</div>
 		<div class="flex-1"></div>
 		<div class="flex gap-0.5 bg-[var(--card)] border border-[var(--line)] rounded-[9px] p-[3px]">
-			<button onclick={() => filter = 'all'} class={filterCls('all')}>All</button>
-			<button onclick={() => filter = 'running'} class={filterCls('running')}>Running</button>
-			<button onclick={() => filter = 'issues'} class={filterCls('issues')}>Issues</button>
+			<button onclick={() => (filter = 'all')} class={filterCls('all')}>All</button>
+			<button onclick={() => (filter = 'running')} class={filterCls('running')}>Running</button>
+			<button onclick={() => (filter = 'issues')} class={filterCls('issues')}>Issues</button>
 		</div>
 	</div>
 
 	<!-- Table -->
 	<div class="bg-[var(--card)] border border-[var(--line)] rounded-[13px] overflow-hidden">
-		<div class="grid grid-cols-[2.2fr_1.1fr_1.3fr_1fr_90px] gap-[14px] px-[18px] py-[11px] border-b border-b-[var(--line)] text-[11px] font-bold tracking-[.05em] text-[var(--tx-3)]">
+		<div
+			class="grid grid-cols-[2.2fr_1.1fr_1.3fr_1fr_90px] gap-[14px] px-[18px] py-[11px] border-b border-b-[var(--line)] text-[11px] font-bold tracking-[.05em] text-[var(--tx-3)]"
+		>
 			<div>PROJECT</div>
 			<div>STATUS</div>
 			<div>HOST · DOMAIN</div>
@@ -55,7 +59,7 @@
 			<div class="text-right">DEPLOYED</div>
 		</div>
 
-		{#each filtered as a}
+		{#each filtered as a (a.id)}
 			{@const m = statusMeta(a.status)}
 			<div
 				onclick={() => goto(`/${guildId}/deploy/projects/${a.id}`)}
@@ -68,8 +72,16 @@
 				<div class="flex items-center gap-3 min-w-0">
 					<AppIcon initial={a.initial} status={a.status} size={34} radius={10} />
 					<div class="min-w-0">
-						<div class="text-[14px] font-semibold text-[var(--tx)] whitespace-nowrap overflow-hidden text-ellipsis">{a.name}</div>
-						<div class="font-mono-jb text-[11px] text-[var(--tx-3)] whitespace-nowrap overflow-hidden text-ellipsis">{a.type}</div>
+						<div
+							class="text-[14px] font-semibold text-[var(--tx)] whitespace-nowrap overflow-hidden text-ellipsis"
+						>
+							{a.name}
+						</div>
+						<div
+							class="font-mono-jb text-[11px] text-[var(--tx-3)] whitespace-nowrap overflow-hidden text-ellipsis"
+						>
+							{a.type}
+						</div>
 					</div>
 				</div>
 
@@ -84,8 +96,16 @@
 
 				<!-- Host + Domain -->
 				<div class="min-w-0">
-					<div class="text-[12.5px] text-[var(--tx)] whitespace-nowrap overflow-hidden text-ellipsis">{a.host}</div>
-					<div class="font-mono-jb text-[11px] text-[var(--grn-2)] whitespace-nowrap overflow-hidden text-ellipsis">{a.domain}</div>
+					<div
+						class="text-[12.5px] text-[var(--tx)] whitespace-nowrap overflow-hidden text-ellipsis"
+					>
+						{a.host}
+					</div>
+					<div
+						class="font-mono-jb text-[11px] text-[var(--grn-2)] whitespace-nowrap overflow-hidden text-ellipsis"
+					>
+						{a.domain}
+					</div>
 				</div>
 
 				<!-- Resources -->
@@ -93,7 +113,11 @@
 					<div class="flex items-center gap-[6px]">
 						<span class="font-mono-jb text-[10.5px] text-[var(--tx-3)] w-[26px]">CPU</span>
 						<div class="flex-1 h-[5px] rounded-[3px] bg-white/[0.07] overflow-hidden">
-							<div class="h-full rounded-[3px]" style:width="{Math.max(4, a.cpu)}%" style:background={a.cpu > 70 ? '#e0a83e' : 'var(--grn)'}></div>
+							<div
+								class="h-full rounded-[3px]"
+								style:width="{Math.max(4, a.cpu)}%"
+								style:background={a.cpu > 70 ? '#e0a83e' : 'var(--grn)'}
+							></div>
 						</div>
 					</div>
 					<div class="flex items-center gap-[6px]">
@@ -110,7 +134,9 @@
 		{/each}
 
 		{#if filtered.length === 0}
-			<div class="p-10 text-center text-[var(--tx-3)] text-[13.5px]">No projects match the current filter.</div>
+			<div class="p-10 text-center text-[var(--tx-3)] text-[13.5px]">
+				No projects match the current filter.
+			</div>
 		{/if}
 	</div>
 </div>

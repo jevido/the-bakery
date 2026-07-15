@@ -10,7 +10,10 @@ import { syncReposForSource } from '$lib/server/github/sync-repos';
 export const load: PageServerLoad = async (event) => {
 	const { organization } = await requireGuild(event, { permission: 'view_hosts' });
 
-	const sourceRows = await db.select().from(source).where(eq(source.organizationId, organization.id));
+	const sourceRows = await db
+		.select()
+		.from(source)
+		.where(eq(source.organizationId, organization.id));
 
 	const sourceIds = sourceRows.map((s) => s.id);
 	const repoRows = sourceIds.length
@@ -62,7 +65,9 @@ export const actions: Actions = {
 			const count = await syncReposForSource(sourceRow.id, sourceRow.githubInstallationId);
 			return { refreshed: true, count };
 		} catch (e) {
-			return fail(502, { message: e instanceof Error ? e.message : 'Failed to refresh repos from GitHub' });
+			return fail(502, {
+				message: e instanceof Error ? e.message : 'Failed to refresh repos from GitHub'
+			});
 		}
 	}
 };

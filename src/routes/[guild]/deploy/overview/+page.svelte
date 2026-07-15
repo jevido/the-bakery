@@ -231,7 +231,7 @@
 
 	<!-- Stat row -->
 	<div class="grid grid-cols-5 gap-3 mt-[14px]">
-		{#each statRow as s}
+		{#each statRow as s (s.label)}
 			<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] p-[14px_15px]">
 				<div class="flex items-center gap-2 mb-[10px]">
 					<svg
@@ -265,7 +265,7 @@
 					class="text-[12.5px] text-[var(--grn-2)] no-underline font-semibold">View all →</a
 				>
 			</div>
-			{#each workloads as w}
+			{#each workloads as w (w.id)}
 				<div
 					onclick={() => openApp(w.id)}
 					onkeydown={(e) => e.key === 'Enter' && openApp(w.id)}

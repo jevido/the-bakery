@@ -160,15 +160,15 @@
 	--panel: #101119;
 	--card: #12141b;
 	--card-2: #191c25;
-	--line: rgba(255,255,255,.06);
-	--line-2: rgba(255,255,255,.11);
+	--line: rgba(255, 255, 255, 0.06);
+	--line-2: rgba(255, 255, 255, 0.11);
 	--tx: #e7e9ee;
 	--tx-2: #8f94a3;
 	--tx-3: #5c6170;
 	--grn: #3fb984;
 	--grn-2: #52cc96;
-	--grn-dim: rgba(63,185,132,.14);
-	--grn-line: rgba(63,185,132,.28);
+	--grn-dim: rgba(63, 185, 132, 0.14);
+	--grn-line: rgba(63, 185, 132, 0.28);
 	--ok: #34d399;
 	--ok-2: #5ee0ab;
 	--amber: #f59e0b;
@@ -176,11 +176,48 @@
 }
 
 /* Bakery app animations & scrollbar */
-@keyframes bk-pulse { 0%, 100% { opacity: 1 } 50% { opacity: .35 } }
-@keyframes bk-spin { to { transform: rotate(360deg) } }
-@keyframes bk-blink { 0%, 100% { opacity: 1 } 50% { opacity: 0 } }
-@keyframes bk-fadeup { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+@keyframes bk-pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.35;
+	}
+}
+@keyframes bk-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+@keyframes bk-blink {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0;
+	}
+}
+@keyframes bk-fadeup {
+	from {
+		opacity: 0;
+		transform: translateY(6px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
 
-.bakery-shell ::-webkit-scrollbar { width: 9px; height: 9px }
-.bakery-shell ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.09); border-radius: 6px }
-.bakery-shell ::-webkit-scrollbar-track { background: transparent }
+.bakery-shell ::-webkit-scrollbar {
+	width: 9px;
+	height: 9px;
+}
+.bakery-shell ::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.09);
+	border-radius: 6px;
+}
+.bakery-shell ::-webkit-scrollbar-track {
+	background: transparent;
+}

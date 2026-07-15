@@ -28,7 +28,8 @@ export const actions: Actions = {
 				body: { memberIdOrEmail: memberId, organizationId: organization.id }
 			});
 		} catch (e) {
-			if (e instanceof APIError) return fail(400, { message: e.message ?? 'Could not remove member' });
+			if (e instanceof APIError)
+				return fail(400, { message: e.message ?? 'Could not remove member' });
 			throw e;
 		}
 	},
@@ -45,7 +46,8 @@ export const actions: Actions = {
 				body: { memberId, role, organizationId: organization.id }
 			});
 		} catch (e) {
-			if (e instanceof APIError) return fail(400, { message: e.message ?? 'Could not update role' });
+			if (e instanceof APIError)
+				return fail(400, { message: e.message ?? 'Could not update role' });
 			throw e;
 		}
 	}
