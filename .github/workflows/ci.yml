@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    name: Typecheck & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run check
+
+      - name: Lint
+        run: bun run lint
+
+  build:
+    name: Container Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # GitHub-hosted Ubuntu runners ship Docker, not Podman, by default —
+      # this repo's own infra (agent, build-worker, and this Containerfile
+      # per Phase 08 task 01) is Podman-first throughout.
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+      - name: Build container image
+        run: podman build -f Containerfile -t bakery-control-plane:ci .
