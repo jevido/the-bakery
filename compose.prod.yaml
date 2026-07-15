@@ -1,0 +1,29 @@
+services:
+  # Production hardening for the dev-oriented services in compose.yaml: bind
+  # to loopback only, since Caddy (the agent-managed Quadlet unit, installed
+  # by Phase 08 task 08, fronting both this and every customer app per task
+  # 04's static site blocks) is this box's sole public listener — nothing
+  # else should be reachable from the open internet, even before the host
+  # firewall (task 05) is configured.
+  db:
+    ports:
+      - 127.0.0.1:5434:5432
+  registry:
+    ports:
+      - 127.0.0.1:5050:5000
+
+  # The control plane app itself (Phase 08 task 01). Built from the repo's
+  # own Containerfile with Podman; real secrets come from a production .env
+  # on the box, never committed. Published to loopback only — Caddy proxies
+  # to it over 127.0.0.1, matching how it already reverse-proxies customer
+  # app units (src/lib/server/deploy/proxy.ts's `caddySiteBlock`).
+  bakery:
+    build:
+      context: .
+      dockerfile: Containerfile
+    restart: always
+    env_file: .env
+    depends_on:
+      - db
+    ports:
+      - 127.0.0.1:3000:3000

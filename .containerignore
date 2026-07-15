@@ -1,0 +1,14 @@
+.git
+node_modules
+build
+.svelte-kit
+.env
+.env.*
+!.env.example
+agent
+scripts
+registry-auth/htpasswd
+static/releases/bakery-agent-*
+*.log
+.vscode
+.claude
