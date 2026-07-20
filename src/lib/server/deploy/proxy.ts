@@ -18,6 +18,44 @@ export function caddySiteBlock(hostname: string, upstreamPort: number): string {
 const CADDYFILE_HEADER = `# Managed by bakery-agent. Site blocks for deployed apps and custom
 # domains are added here automatically — avoid hand-editing.`;
 
+// Static site blocks for the control plane's own domain and the private
+// registry's public domain (Phase 08 task 04) — only relevant on the one
+// Bakery host that's *also* running the control plane itself (jevido.app).
+// All four are optional/unset by default: nothing changes for every other
+// host in the system, which have nothing listening on these local ports.
+//
+// Gated on `CONTROL_PLANE_HOST_ID` matching the `hostId` this function is
+// generating for, not just on the domain/port vars being set — env vars are
+// process-global, but `caddyfileContentForHost` runs for *every* Bakery
+// host's regeneration, and a future second host must never also claim to
+// serve jevido.app just because these vars happen to be set on the shared
+// control-plane process.
+// Matches compose.yaml/compose.prod.yaml's registry service port mapping
+// (127.0.0.1:5050:5000) — fixed by that file's convention, not meant to
+// vary per install, so not worth its own env var.
+const REGISTRY_LOCAL_PORT = 5050;
+
+// Read fresh on every call, not cached at module load — matches this
+// codebase's existing convention for env-driven config (e.g. `registry.ts`'s
+// `requireEnv`), and these are process-lifetime-stable values anyway so
+// there's no real cost to re-reading them.
+function staticSiteBlocks(hostId: string): string[] {
+	const controlPlaneHostId = process.env.CONTROL_PLANE_HOST_ID;
+	if (!controlPlaneHostId || hostId !== controlPlaneHostId) return [];
+
+	const blocks: string[] = [];
+	const controlPlaneDomain = process.env.CONTROL_PLANE_DOMAIN;
+	const controlPlanePort = process.env.CONTROL_PLANE_PORT;
+	if (controlPlaneDomain && controlPlanePort) {
+		blocks.push(caddySiteBlock(controlPlaneDomain, Number(controlPlanePort)));
+	}
+	const registryPublicDomain = process.env.BAKERY_REGISTRY_PUBLIC_DOMAIN;
+	if (registryPublicDomain) {
+		blocks.push(caddySiteBlock(registryPublicDomain, REGISTRY_LOCAL_PORT));
+	}
+	return blocks;
+}
+
 /**
  * Full desired Caddyfile for every app scheduled on `hostId`, regenerated
  * from scratch each time rather than patched incrementally — Postgres stays
@@ -34,7 +72,7 @@ export async function caddyfileContentForHost(
 ): Promise<string> {
 	const apps = await db.select().from(app).where(eq(app.hostId, hostId));
 
-	const blocks: string[] = [];
+	const blocks: string[] = [...staticSiteBlocks(hostId)];
 	for (const appRow of apps) {
 		const unitName =
 			appRow.id === flipOverride?.appId
