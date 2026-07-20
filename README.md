@@ -84,3 +84,5 @@ for deploy targets. In production you'll also need:
 - `BAKERY_DOMAIN` set, with wildcard DNS pointed at your infrastructure (apps get `<app>.<guild-slug>.<bakery-domain>`)
 - A real container registry reachable from both the build worker and every host agent
 - `ENCRYPTION_KEY`/`BETTER_AUTH_SECRET` from a real secret store, not `.env` — see the key-rotation notes in `src/lib/server/secrets/crypto.ts` if either ever needs to change
+
+CI runs on every push via `.github/workflows/ci.yml`; the container image is published to GHCR on push to `main` only.
