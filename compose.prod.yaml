@@ -1,19 +1,11 @@
 services:
-  # compose.yaml already binds db/registry to 127.0.0.1 (not 0.0.0.0) by
-  # default, so there's no port override needed here — Compose Specification
-  # merges list fields like `ports:` across -f files (concatenates them)
-  # rather than replacing, so re-declaring `ports:` here would have produced
-  # a second, conflicting binding on the same host port instead of an
-  # override (caught the hard way: `podman-compose up` failed with
-  # "address already in use" against its own just-created container).
-  #
-  # POSTGRES_PASSWORD overrides compose.yaml's hardcoded dev value
-  # ("mysecretpassword") — set in the box's real .env (never committed),
-  # not baked into this file. Only meaningful when this file is actually
-  # used (production); dev never invokes compose.prod.yaml at all.
-  db:
-    environment:
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  # No db/registry overrides needed here at all — compose.yaml already binds
+  # both to 127.0.0.1 (not 0.0.0.0) and sources `db`'s password from .env
+  # directly (see compose.yaml's comments for why: two different cross-file
+  # override attempts here — a second `ports:` entry, then a nested
+  # `environment:` scalar override — both turned out to be unreliable with
+  # podman-compose's file-merging, found the hard way while bootstrapping
+  # production). One mechanism, one source of truth, for both dev and prod.
 
   # The control plane app itself (Phase 08 task 01). References the image
   # task 03's CI already built and pushed to GHCR — never built from source

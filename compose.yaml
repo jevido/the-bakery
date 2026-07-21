@@ -8,9 +8,16 @@ services:
     restart: always
     ports:
       - 127.0.0.1:5434:5432
+    # POSTGRES_PASSWORD comes from .env (see .env.example), not an inline
+    # override in compose.prod.yaml — the podman-compose (Python) package's
+    # cross-file environment-dict merge for a partially-overridden key
+    # turned out to silently keep the *original* file's value instead of
+    # the override in practice, empirically verified while bootstrapping
+    # production (Phase 08 task 05), even though a plain env_file: works
+    # reliably. Single source of truth, one mechanism, for both dev and prod.
+    env_file: .env
     environment:
       POSTGRES_USER: root
-      POSTGRES_PASSWORD: mysecretpassword
       POSTGRES_DB: local
     volumes:
       - pgdata:/var/lib/postgresql
