@@ -9,12 +9,11 @@ services:
     ports:
       - 127.0.0.1:5434:5432
     # POSTGRES_PASSWORD comes from .env (see .env.example), not an inline
-    # override in compose.prod.yaml — the podman-compose (Python) package's
-    # cross-file environment-dict merge for a partially-overridden key
-    # turned out to silently keep the *original* file's value instead of
-    # the override in practice, empirically verified while bootstrapping
-    # production (Phase 08 task 05), even though a plain env_file: works
-    # reliably. Single source of truth, one mechanism, for both dev and prod.
+    # override in compose.prod.yaml — a cross-file environment-dict override
+    # of this one key was unreliable in practice while bootstrapping
+    # production (Phase 08 task 05); env_file: (the same mechanism the
+    # bakery service already uses) verified working via a real authenticated
+    # connection, so it's the one mechanism for both dev and prod here.
     env_file: .env
     environment:
       POSTGRES_USER: root
