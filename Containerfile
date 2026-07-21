@@ -58,5 +58,14 @@ COPY --from=build /app/build ./build
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
 
+# drizzle.config.ts + the migrations themselves — not needed to serve
+# requests, but included so `db:migrate` (drizzle-kit, already present in
+# node_modules per the comment above) can run from this same published
+# image via a one-off container/exec (Phase 08 task 05), with no separate
+# repo checkout needed and zero risk of drift from what actually shipped.
+COPY --from=build /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=build /app/drizzle ./drizzle
+COPY --from=build /app/src/lib/server/db ./src/lib/server/db
+
 EXPOSE 3000
 CMD ["node", "build"]
