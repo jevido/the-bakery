@@ -1,23 +1,19 @@
 services:
-  # Production hardening for the dev-oriented services in compose.yaml: bind
-  # to loopback only, since Caddy (the agent-managed Quadlet unit, installed
-  # by Phase 08 task 08, fronting both this and every customer app per task
-  # 04's static site blocks) is this box's sole public listener — nothing
-  # else should be reachable from the open internet, even before the host
-  # firewall (task 05) is configured.
+  # compose.yaml already binds db/registry to 127.0.0.1 (not 0.0.0.0) by
+  # default, so there's no port override needed here — Compose Specification
+  # merges list fields like `ports:` across -f files (concatenates them)
+  # rather than replacing, so re-declaring `ports:` here would have produced
+  # a second, conflicting binding on the same host port instead of an
+  # override (caught the hard way: `podman-compose up` failed with
+  # "address already in use" against its own just-created container).
   #
   # POSTGRES_PASSWORD overrides compose.yaml's hardcoded dev value
   # ("mysecretpassword") — set in the box's real .env (never committed),
   # not baked into this file. Only meaningful when this file is actually
   # used (production); dev never invokes compose.prod.yaml at all.
   db:
-    ports:
-      - 127.0.0.1:5434:5432
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-  registry:
-    ports:
-      - 127.0.0.1:5050:5000
 
   # The control plane app itself (Phase 08 task 01). References the image
   # task 03's CI already built and pushed to GHCR — never built from source

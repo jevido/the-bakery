@@ -1,9 +1,13 @@
 services:
+  # Bound to loopback, not 0.0.0.0 — makes no difference for local dev
+  # (localhost/127.0.0.1 work identically on the same machine either way)
+  # and means production (compose.prod.yaml, no override needed on top of
+  # this) never exposes a hardcoded dev password to the open internet.
   db:
-    image: postgres
+    image: docker.io/library/postgres
     restart: always
     ports:
-      - 5434:5432
+      - 127.0.0.1:5434:5432
     environment:
       POSTGRES_USER: root
       POSTGRES_PASSWORD: mysecretpassword
@@ -15,10 +19,10 @@ services:
   # Not yet Quadlet-ified since Bakery's own infra isn't containerized that
   # way yet (Phase 05 does that); see registry-auth/README.md for auth setup.
   registry:
-    image: registry:2
+    image: docker.io/library/registry:2
     restart: always
     ports:
-      - 5050:5000
+      - 127.0.0.1:5050:5000
     environment:
       REGISTRY_AUTH: htpasswd
       REGISTRY_AUTH_HTPASSWD_REALM: Bakery Registry
