@@ -73,3 +73,62 @@ jobs:
         run: |
           podman push ${{ env.IMAGE }}:${{ github.sha }}
           podman push ${{ env.IMAGE }}:latest
+
+  deploy:
+    name: Deploy to jevido.app
+    runs-on: ubuntu-latest
+    needs: [publish]
+    steps:
+      - name: SSH deploy, migrate, health-check, roll back on failure
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: bakery
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/bakery
+
+            NEW_TAG="${{ github.sha }}"
+            STATE_FILE="$HOME/bakery/.last-good-tag"
+            PREV_TAG=$(cat "$STATE_FILE" 2>/dev/null || echo "latest")
+
+            deploy_tag() {
+              local tag="$1"
+              podman pull "ghcr.io/jevido/the-bakery:${tag}"
+              sed -i "s/^BAKERY_IMAGE_TAG=.*/BAKERY_IMAGE_TAG=\"${tag}\"/" .env
+              # -T: without it, `run` allocates a pseudo-tty and can consume
+              # bytes from this whole script's own stdin (it arrives over
+              # the same SSH session) — silently truncating everything after
+              # it. --no-deps: db doesn't need recreating just because
+              # bakery's image changed.
+              podman-compose -f compose.yaml -f compose.prod.yaml run --rm -T bakery \
+                node node_modules/.bin/drizzle-kit migrate < /dev/null
+              podman-compose -f compose.yaml -f compose.prod.yaml up -d --force-recreate --no-deps bakery
+            }
+
+            # A failure partway through deploy_tag (pull/migrate/recreate,
+            # not just an app that starts but then crashes) should still
+            # fall through to the health check below rather than aborting
+            # the whole script with no rollback attempt at all.
+            deploy_tag "$NEW_TAG" || true
+
+            healthy=""
+            for _ in $(seq 1 20); do
+              code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/login || echo "000")
+              if [ "$code" = "200" ]; then
+                healthy=1
+                break
+              fi
+              sleep 3
+            done
+
+            if [ -n "$healthy" ]; then
+              echo "$NEW_TAG" > "$STATE_FILE"
+              echo "Deployed $NEW_TAG successfully."
+            else
+              echo "Health check failed for $NEW_TAG — rolling back to $PREV_TAG" >&2
+              deploy_tag "$PREV_TAG"
+              echo "Rolled back to $PREV_TAG." >&2
+              exit 1
+            fi
