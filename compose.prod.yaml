@@ -5,22 +5,32 @@ services:
   # 04's static site blocks) is this box's sole public listener — nothing
   # else should be reachable from the open internet, even before the host
   # firewall (task 05) is configured.
+  #
+  # POSTGRES_PASSWORD overrides compose.yaml's hardcoded dev value
+  # ("mysecretpassword") — set in the box's real .env (never committed),
+  # not baked into this file. Only meaningful when this file is actually
+  # used (production); dev never invokes compose.prod.yaml at all.
   db:
     ports:
       - 127.0.0.1:5434:5432
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
   registry:
     ports:
       - 127.0.0.1:5050:5000
 
-  # The control plane app itself (Phase 08 task 01). Built from the repo's
-  # own Containerfile with Podman; real secrets come from a production .env
-  # on the box, never committed. Published to loopback only — Caddy proxies
-  # to it over 127.0.0.1, matching how it already reverse-proxies customer
-  # app units (src/lib/server/deploy/proxy.ts's `caddySiteBlock`).
+  # The control plane app itself (Phase 08 task 01). References the image
+  # task 03's CI already built and pushed to GHCR — never built from source
+  # on the production box itself, so a deploy is just "pull the new tag,
+  # recreate the container" (task 06), with no build tooling or repo
+  # checkout needed here for this service. `BAKERY_IMAGE_TAG` lets task 06's
+  # CD step pin an exact commit SHA; defaults to `latest` for the initial
+  # bootstrap. Real secrets come from a production .env on the box, never
+  # committed. Published to loopback only — Caddy proxies to it over
+  # 127.0.0.1, matching how it already reverse-proxies customer app units
+  # (src/lib/server/deploy/proxy.ts's `caddySiteBlock`).
   bakery:
-    build:
-      context: .
-      dockerfile: Containerfile
+    image: ghcr.io/jevido/the-bakery:${BAKERY_IMAGE_TAG:-latest}
     restart: always
     env_file: .env
     depends_on:
