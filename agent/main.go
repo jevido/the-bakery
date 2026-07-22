@@ -23,6 +23,8 @@ func main() {
 		cmdDaemon(args)
 	case "setup":
 		cmdSetup(args)
+	case "join":
+		cmdJoin(args)
 	default:
 		fmt.Fprintf(os.Stderr, "bakery: unknown subcommand %q\n", subcommand)
 		os.Exit(2)

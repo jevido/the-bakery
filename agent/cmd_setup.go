@@ -112,7 +112,7 @@ func configureSubIDRanges() error {
 	if err := runCmd("usermod",
 		"--add-subuids", subIDRange,
 		"--add-subgids", subIDRange,
-		"bakery",
+		bakeryUsername,
 	); err != nil {
 		return fmt.Errorf("usermod --add-subuids/--add-subgids: %w", err)
 	}
@@ -128,7 +128,7 @@ func hasSubIDEntry(path string) (bool, error) {
 		return false, fmt.Errorf("reading %s: %w", path, err)
 	}
 	for _, line := range strings.Split(string(data), "\n") {
-		if strings.HasPrefix(line, "bakery:") {
+		if strings.HasPrefix(line, bakeryUsername+":") {
 			return true, nil
 		}
 	}
