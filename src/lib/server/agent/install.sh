@@ -1,15 +1,32 @@
 #!/bin/sh
-# Installs bakery-agent as a rootless systemd --user service.
-# Usage: curl -fsSL <bakery-url>/install.sh | sh -s -- --token=<token> --url=<bakery-url>
+# Root-level install shim: creates the dedicated `bakery` system user and
+# installs the `bakery` binary + supporting root-level bits (bash
+# completion, logrotate). Everything else (rootless Podman prerequisites,
+# per-host enrollment, standing up a brand-new instance) is a `bakery`
+# subcommand from here on (setup/join/bootstrap) — this script's only job
+# is getting the binary onto a box that doesn't have anything yet.
+#
+# Usage:
+#   curl -fsSL <url>/install.sh | bash                    # fresh install
+#   curl -fsSL <url>/install.sh | bash -s -- --update      # replace the binary only
+#
+# <url> is either a running Bakery instance (enrolling an additional host —
+# pass --url=<that-instance> so the binary comes from the exact same build)
+# or the fixed GitHub Releases location (bootstrapping a brand-new
+# instance, before any control plane exists to serve this route at all).
 set -eu
 
-TOKEN=""
+BAKERY_USER="bakery"
+BIN_PATH="/usr/local/bin/bakery"
+GITHUB_RELEASE_BASE="https://github.com/jevido/the-bakery/releases/latest/download"
+
 BAKERY_URL=""
+UPDATE=0
 
 for arg in "$@"; do
 	case "$arg" in
-		--token=*) TOKEN="${arg#--token=}" ;;
 		--url=*) BAKERY_URL="${arg#--url=}" ;;
+		--update) UPDATE=1 ;;
 		*)
 			echo "Unknown argument: $arg" >&2
 			exit 1
@@ -17,8 +34,8 @@ for arg in "$@"; do
 	esac
 done
 
-if [ -z "$TOKEN" ] || [ -z "$BAKERY_URL" ]; then
-	echo "Usage: install.sh --token=<token> --url=<bakery-url>" >&2
+if [ "$(id -u)" -ne 0 ]; then
+	echo "install.sh must be run as root (it creates the $BAKERY_USER system user)" >&2
 	exit 1
 fi
 
@@ -33,7 +50,7 @@ fi
 
 OS="$(uname -s)"
 if [ "$OS" != "Linux" ]; then
-	echo "bakery-agent only supports Linux hosts (detected: $OS)" >&2
+	echo "bakery only supports Linux hosts (detected: $OS)" >&2
 	exit 1
 fi
 
@@ -47,147 +64,150 @@ case "$ARCH_RAW" in
 		;;
 esac
 
-BIN_DIR="$HOME/.local/bin"
-CONFIG_DIR="$HOME/.config/bakery"
-UNIT_DIR="$HOME/.config/systemd/user"
-BIN_PATH="$BIN_DIR/bakery-agent"
-ENV_PATH="$CONFIG_DIR/agent.env"
-UNIT_PATH="$UNIT_DIR/bakery-agent.service"
+# ensure_user — skipped entirely in --update mode: a re-run only replaces
+# the binary, it must never touch the account's config/keys/lingering
+# state that setup/join have since built up.
+if [ "$UPDATE" -eq 0 ]; then
+	if ! id "$BAKERY_USER" >/dev/null 2>&1; then
+		echo "--- Creating $BAKERY_USER system user ---"
+		useradd --system --create-home --home-dir "/home/$BAKERY_USER" --shell /bin/bash "$BAKERY_USER"
+	else
+		# A prior install may have left this account with a nologin shell
+		# (e.g. distro defaults for --system users); bakery subcommands
+		# re-exec into this account via `runuser`, which works either way,
+		# but a real shell is what lets an operator `su - bakery` directly
+		# to debug, matching scripts/bootstrap-host.sh's existing user.
+		CURRENT_SHELL="$(getent passwd "$BAKERY_USER" | cut -d: -f7)"
+		case "$CURRENT_SHELL" in
+			*/nologin | */false) chsh -s /bin/bash "$BAKERY_USER" ;;
+		esac
+	fi
 
-mkdir -p "$BIN_DIR" "$CONFIG_DIR" "$UNIT_DIR"
+	# Rootless systemd --user units (the bakery daemon, Caddy — both set up
+	# by `bakery join`) stop dead the moment this install session ends
+	# unless lingering is enabled for the account up front, same as
+	# scripts/bootstrap-host.sh already does right after creating this
+	# user (Phase 08 task 09 retires that script; this is where the same
+	# step now lives).
+	loginctl enable-linger "$BAKERY_USER"
 
-RELEASE_URL="$BAKERY_URL/releases/bakery-agent-linux-$ARCH"
-echo "Downloading agent from $RELEASE_URL"
-TMP_BIN="$(mktemp)"
+	# The unit file itself — installed but deliberately not started: there
+	# is no agent.env yet (no token/URL known at install time), so
+	# ExecStart would just fail. `bakery join` writes this exact same
+	# content again once it has a token to write into agent.env, and is
+	# what actually enables/starts it — this just means `systemctl --user
+	# status bakery-daemon` shows "loaded" rather than "not found"
+	# immediately after install, matching jevido/bakery-agent's install.sh
+	# shape. Keep in sync with agent/cmd_join.go's installDaemonUnit.
+	BAKERY_HOME="$(getent passwd "$BAKERY_USER" | cut -d: -f6)"
+	UNIT_DIR="$BAKERY_HOME/.config/systemd/user"
+	mkdir -p "$UNIT_DIR" "$BAKERY_HOME/.config/bakery"
+	# mkdir -p leaves intermediate dirs (.config, .config/systemd) root-owned
+	# since only the leaf paths are named above — bakery join later needs to
+	# create its own siblings under .config/ (containers/systemd for the
+	# Caddy Quadlet), so the whole subtree has to come back to bakery, not
+	# just the two leaves.
+	chown -R "$BAKERY_USER:$BAKERY_USER" "$BAKERY_HOME/.config"
+	cat >"$UNIT_DIR/bakery-daemon.service" <<-EOF
+		[Unit]
+		Description=Bakery Agent
+		After=network-online.target
+		Wants=network-online.target
+
+		[Service]
+		Type=simple
+		EnvironmentFile=$BAKERY_HOME/.config/bakery/agent.env
+		ExecStart=$BIN_PATH daemon
+		Restart=on-failure
+		RestartSec=5
+
+		[Install]
+		WantedBy=default.target
+	EOF
+	chown "$BAKERY_USER:$BAKERY_USER" "$UNIT_DIR/bakery-daemon.service"
+	runuser -u "$BAKERY_USER" -- env XDG_RUNTIME_DIR="/run/user/$(id -u "$BAKERY_USER")" systemctl --user daemon-reload || true
+fi
+
+# Download and atomically install the binary. When --url points at a
+# running instance, its own build is authoritative (guarantees control
+# plane/agent version match); otherwise fall back to the fixed GitHub
+# Releases location, since bootstrapping a brand-new instance means
+# nothing is running yet to serve /releases/ from.
+if [ -n "$BAKERY_URL" ]; then
+	RELEASE_BASE="${BAKERY_URL%/}/releases"
+else
+	RELEASE_BASE="$GITHUB_RELEASE_BASE"
+fi
+RELEASE_URL="$RELEASE_BASE/bakery-linux-$ARCH"
+
+echo "Downloading bakery from $RELEASE_URL"
+# Same directory as the final path so the mv below is a same-filesystem
+# rename — atomic, no window where $BIN_PATH is a partially-written file.
+TMP_BIN="$(mktemp /usr/local/bin/.bakery-install-XXXXXX)"
 if ! curl -fsSL "$RELEASE_URL" -o "$TMP_BIN"; then
-	echo "Failed to download agent binary from $RELEASE_URL" >&2
+	echo "Failed to download bakery binary from $RELEASE_URL" >&2
 	rm -f "$TMP_BIN"
 	exit 1
 fi
-chmod +x "$TMP_BIN"
+chmod 755 "$TMP_BIN"
 mv "$TMP_BIN" "$BIN_PATH"
 
-(
-	umask 077
-	cat >"$ENV_PATH" <<-EOF
-		BAKERY_TOKEN=$TOKEN
-		BAKERY_URL=$BAKERY_URL
-	EOF
-)
-chmod 600 "$ENV_PATH"
-
-cat >"$UNIT_PATH" <<-EOF
-	[Unit]
-	Description=Bakery Agent
-	After=network-online.target
-	Wants=network-online.target
-
-	[Service]
-	Type=simple
-	EnvironmentFile=$ENV_PATH
-	ExecStart=$BIN_PATH
-	Restart=on-failure
-	RestartSec=5
-
-	[Install]
-	WantedBy=default.target
-EOF
-
-systemctl --user daemon-reload
-systemctl --user enable --now bakery-agent
-
-echo ""
-echo "bakery-agent installed and started."
-echo "  Status: systemctl --user status bakery-agent"
-echo "  Logs:   journalctl --user -u bakery-agent -f"
-echo ""
-echo "Rootless systemd --user services stop when you fully log out unless"
-echo "lingering is enabled for this account. If this host doesn't stay"
-echo "logged in, run (as a user with sudo):"
-echo "  sudo loginctl enable-linger $(id -un)"
-
-# Bakery manages its own per-host reverse proxy (Caddy) as a second Quadlet-
-# generated unit, installed here rather than pushed as an agent command
-# (Phase 05 task 01): it's fixed infrastructure with no per-deployment
-# identity, so it doesn't fit hostCommand's per-deployment payload model the
-# way app deploys (Phase 04) do, and it needs to exist before the first app
-# deploy can rely on it.
-QUADLET_DIR="$HOME/.config/containers/systemd"
-CADDY_CONFIG_DIR="$HOME/.config/bakery/caddy"
-CADDY_DATA_DIR="$HOME/.local/share/bakery/caddy"
-CADDYFILE="$CADDY_CONFIG_DIR/Caddyfile"
-CADDY_UNIT_PATH="$QUADLET_DIR/caddy.container"
-
-mkdir -p "$QUADLET_DIR" "$CADDY_CONFIG_DIR" "$CADDY_DATA_DIR"
-
-# Only seed a default Caddyfile if one doesn't exist yet — re-running this
-# script (e.g. to reinstall the agent) must not clobber site config that
-# later tasks (02-04) have since written for live domains.
-if [ ! -f "$CADDYFILE" ]; then
-	cat >"$CADDYFILE" <<-EOF
-		# Managed by bakery-agent. Site blocks for deployed apps and custom
-		# domains are added here automatically — avoid hand-editing.
+# Bash completion — best-effort only; a missing bash-completion package
+# just means no tab-completion, never a failed install.
+COMPLETION_DIR=""
+if [ -d /usr/share/bash-completion/completions ]; then
+	COMPLETION_DIR="/usr/share/bash-completion/completions"
+elif [ -d /etc/bash_completion.d ]; then
+	COMPLETION_DIR="/etc/bash_completion.d"
+fi
+if [ -n "$COMPLETION_DIR" ]; then
+	cat >"$COMPLETION_DIR/bakery" <<-'EOF'
+		_bakery_completions() {
+			local cur subcommands
+			cur="${COMP_WORDS[COMP_CWORD]}"
+			subcommands="daemon setup join bootstrap"
+			if [ "$COMP_CWORD" -eq 1 ]; then
+				COMPREPLY=($(compgen -W "$subcommands" -- "$cur"))
+			fi
+		}
+		complete -F _bakery_completions bakery
 	EOF
 fi
 
-# Network=host (not PublishPort) — Caddy has to dial app units by the same
-# 127.0.0.1:<port> the agent's own health probe uses (Phase 05 task 03's
-# `reverse_proxy` target), and app units publish those ports to the *host's*
-# real network namespace, not a per-container one. A separate netns (even
-# with matching PublishPort mappings) can't reach those — only sharing the
-# host's namespace outright can. This also means Caddy's admin API keeps its
-# own default bind (`localhost:2019`), which is now genuinely the host's
-# loopback and nothing else, no extra config needed.
-cat >"$CADDY_UNIT_PATH" <<-EOF
-	[Unit]
-	Description=Bakery Reverse Proxy (Caddy)
-	After=network-online.target
-
-	[Container]
-	Image=docker.io/library/caddy:2
-	Network=host
-	Volume=$CADDY_CONFIG_DIR:/etc/caddy:Z
-	Volume=$CADDY_DATA_DIR:/data:Z
-	AutoUpdate=registry
-
-	[Service]
-	Restart=always
-	TimeoutStartSec=90
-
-	[Install]
-	WantedBy=default.target
-EOF
-
-# Rootless Podman can't bind ports <1024 unless the host allows it, and with
-# Network=host it's Caddy's own bind of :80/:443 that's subject to this, not
-# a port-publish mapping. Best effort only: a `curl | sh` install may have no
-# sudo access at all, and that must not fail the agent install that already
-# succeeded above.
-if command -v sysctl >/dev/null 2>&1; then
-	CURRENT_UNPRIVILEGED_START="$(sysctl -n net.ipv4.ip_unprivileged_port_start 2>/dev/null || echo 1024)"
-	if [ "${CURRENT_UNPRIVILEGED_START:-1024}" -gt 80 ] 2>/dev/null; then
-		if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
-			echo "Allowing rootless binding to ports 80/443 (net.ipv4.ip_unprivileged_port_start=0)"
-			echo "net.ipv4.ip_unprivileged_port_start=0" | sudo tee /etc/sysctl.d/50-bakery-unprivileged-ports.conf >/dev/null
-			sudo sysctl --system >/dev/null
-		else
-			echo "" >&2
-			echo "WARNING: rootless Caddy needs net.ipv4.ip_unprivileged_port_start=0" >&2
-			echo "to bind ports 80/443. Run (as a user with sudo):" >&2
-			echo "  echo 'net.ipv4.ip_unprivileged_port_start=0' | sudo tee /etc/sysctl.d/50-bakery-unprivileged-ports.conf" >&2
-			echo "  sudo sysctl --system" >&2
-		fi
-	fi
+# logrotate — nothing under /var/log/bakery/*.log is written yet (the
+# daemon logs to the systemd journal, rotated by journald itself), but
+# every other root-level piece of state this install creates is set up
+# up front rather than added piecemeal later, so this is here in case a
+# future component (build-worker, bootstrap) ever does write real log
+# files there.
+if [ -d /etc/logrotate.d ]; then
+	mkdir -p /var/log/bakery
+	chown "$BAKERY_USER:$BAKERY_USER" /var/log/bakery
+	cat >/etc/logrotate.d/bakery <<-EOF
+		/var/log/bakery/*.log {
+			weekly
+			rotate 4
+			compress
+			missingok
+			notifempty
+			su $BAKERY_USER $BAKERY_USER
+		}
+	EOF
 fi
 
-systemctl --user daemon-reload
-if systemctl --user enable --now caddy.service; then
+if [ "$UPDATE" -eq 1 ]; then
 	echo ""
-	echo "bakery-managed Caddy reverse proxy installed and started."
-	echo "  Status: systemctl --user status caddy"
-	echo "  Logs:   journalctl --user -u caddy -f"
-else
-	echo "" >&2
-	echo "WARNING: Caddy unit failed to start — check 'journalctl --user -u caddy'." >&2
-	echo "This does not affect bakery-agent, which is already running." >&2
+	echo "bakery updated: $BIN_PATH"
+	exit 0
 fi
+
+echo ""
+echo "bakery installed: $BIN_PATH"
+echo ""
+echo "Next steps (as root):"
+echo "  bakery setup"
+echo ""
+echo "Then either stand up a brand-new instance on this box:"
+echo "  bakery bootstrap --domain=<domain>"
+echo "or enroll this host against an already-running instance:"
+echo "  bakery join --token=<token> --url=<bakery-url>"

@@ -41,6 +41,52 @@ jobs:
       - name: Build container image
         run: podman build -f Containerfile -t bakery-control-plane:ci .
 
+  release-agent:
+    name: Publish Agent Binaries to GitHub Releases
+    runs-on: ubuntu-latest
+    needs: [check]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: agent/go.mod
+
+      # Same cross-compile as the Containerfile's agent-build stage, but
+      # published to a fixed location (GitHub Releases) rather than baked
+      # into a container image — Phase 08 task 04's install.sh needs a
+      # binary source that exists before any Bakery control plane does,
+      # for bootstrapping a brand-new instance from nothing.
+      - name: Cross-compile bakery binaries
+        working-directory: agent
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ../bakery-linux-amd64 .
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o ../bakery-linux-arm64 .
+
+      # Single moving `latest` release, overwritten on every push to main —
+      # there's no versioning scheme for the agent independent of the app
+      # itself yet, so "whatever main currently builds" is the only
+      # release that exists. install.sh's fallback download URL
+      # (github.com/jevido/the-bakery/releases/latest/download/...)
+      # depends on this tag name specifically.
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: latest (auto-updated on every push to main)
+          body: |
+            Automated, moving release: the `bakery` agent binaries and
+            root install shim currently on `main`. Not a versioned
+            software release — always reflects the latest commit.
+          make_latest: true
+          files: |
+            bakery-linux-amd64
+            bakery-linux-arm64
+            src/lib/server/agent/install.sh
+
   publish:
     name: Publish Image to GHCR
     runs-on: ubuntu-latest
