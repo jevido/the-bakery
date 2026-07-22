@@ -126,6 +126,16 @@ jobs:
             if [ -n "$healthy" ]; then
               echo "$NEW_TAG" > "$STATE_FILE"
               echo "Deployed $NEW_TAG successfully."
+
+              # Build-worker (task 07) runs natively, not from the image
+              # above — its own checkout just needs updating to the same
+              # commit and restarting. Only on a successful web app deploy,
+              # never as part of a rollback attempt.
+              cd /opt/bakery/app
+              git fetch origin main
+              git reset --hard origin/main
+              /home/bakery/.bun/bin/bun install --frozen-lockfile
+              systemctl --user restart bakery-build-worker
             else
               echo "Health check failed for $NEW_TAG — rolling back to $PREV_TAG" >&2
               deploy_tag "$PREV_TAG"
