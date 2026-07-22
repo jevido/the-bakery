@@ -21,6 +21,8 @@ func main() {
 	switch subcommand {
 	case "daemon":
 		cmdDaemon(args)
+	case "setup":
+		cmdSetup(args)
 	default:
 		fmt.Fprintf(os.Stderr, "bakery: unknown subcommand %q\n", subcommand)
 		os.Exit(2)
