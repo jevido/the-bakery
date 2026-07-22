@@ -1,3 +1,18 @@
+# Agent builder stage: cross-compiles the bakery-agent binaries served at
+# /releases/bakery-agent-linux-<arch> (src/lib/server/agent/install.sh's
+# download URL). Previously these were never published anywhere — only a
+# manually-built local binary existed (static/releases/, gitignored) — so
+# every CI-built image silently shipped an install.sh that 404s. Building it
+# here means every image always carries a fresh binary matching the agent
+# source, with nothing committed to git.
+FROM docker.io/library/golang:1.25 AS agent-build
+WORKDIR /agent
+COPY agent/go.mod ./
+RUN go mod download
+COPY agent/ ./
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/bakery-agent-linux-amd64 . \
+	&& CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /out/bakery-agent-linux-arm64 .
+
 # Build stage: installs with bun (this project's package manager) and runs
 # the SvelteKit adapter-node build. Built and run with Podman, matching the
 # rest of Bakery's own infra (agent Quadlet units, build-worker) — no Docker
@@ -15,6 +30,11 @@ COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
 COPY . .
+
+# Freshly-built agent binaries land in static/releases/ (gitignored locally,
+# per static/releases/README.md) so `bun run build` bundles them into
+# build/client/releases/ alongside the rest of the static assets.
+COPY --from=agent-build /out/bakery-agent-linux-amd64 /out/bakery-agent-linux-arm64 ./static/releases/
 
 # `bun run build` eagerly validates every var declared in `src/env.ts`'s
 # `defineEnvVars` (SvelteKit's explicitEnvironmentVariables) and aborts if
