@@ -1,4 +1,4 @@
-# bakery-agent
+# bakery
 
 Lightweight Go binary that runs on a customer's host, checks in with the
 Bakery control plane over outbound HTTP, and (from Phase 04 onward)
@@ -6,25 +6,27 @@ executes container lifecycle commands. It holds no local decision-making
 authority — the control plane decides, the agent reports and executes.
 
 This is a standalone Go module, independent of the SvelteKit app's
-`package.json`/tooling.
+`package.json`/tooling. It's a single binary (`bakery`) with subcommands;
+`daemon` is the only one implemented so far — `setup`, `join`, and
+`bootstrap` are added across the rest of Phase 08.
 
 ## Build
 
 ```sh
 cd agent
-go build -o bakery-agent .
+go build -o bakery .
 ```
 
 ## Run
 
 ```sh
-BAKERY_TOKEN=bkry_host_... BAKERY_URL=https://your-bakery.example.com ./bakery-agent
+BAKERY_TOKEN=bkry_host_... BAKERY_URL=https://your-bakery.example.com ./bakery daemon
 ```
 
 Or via flags:
 
 ```sh
-./bakery-agent -token bkry_host_... -url https://your-bakery.example.com
+./bakery daemon -token bkry_host_... -url https://your-bakery.example.com
 ```
 
 | Flag        | Env            | Default | Description                       |
@@ -35,6 +37,10 @@ Or via flags:
 
 Both the token and URL must be supplied (flag or env); the agent exits
 immediately at startup if either is missing.
+
+For backward compatibility with hosts installed before subcommands
+existed, running with no subcommand (or a first argument that looks like a
+flag, e.g. `./bakery -token=...`) defaults to `daemon`.
 
 ## Behavior
 

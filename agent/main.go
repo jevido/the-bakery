@@ -1,37 +1,36 @@
-// Command bakery-agent runs on a customer's host and periodically reports
-// system metrics to the Bakery control plane over outbound HTTP, so it
-// works behind NAT/home routers with no inbound access required.
+// Command bakery is the Bakery host agent CLI. `bakery daemon` runs the
+// check-in loop against a control plane; other subcommands (setup, join,
+// bootstrap — added across this phase) prepare a host to run it in the
+// first place.
 package main
 
 import (
-	"context"
-	"log"
+	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
 )
 
 func main() {
-	cfg, err := loadConfig(os.Args[1:])
-	if err != nil {
-		log.Fatalf("config error: %v", err)
+	args := os.Args[1:]
+
+	subcommand := "daemon"
+	if len(args) > 0 && !looksLikeFlag(args[0]) {
+		subcommand = args[0]
+		args = args[1:]
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	log.Printf("bakery-agent %s starting, control plane %s, interval %s", agentVersion, cfg.controlPlaneURL, cfg.interval)
-
-	// Fails loudly up front rather than only discovering this the first time
-	// a deploy is attempted — metrics reporting still works either way, but
-	// the operator needs to know their install isn't rootless (Phase 02
-	// task 10's install script) well before that first deploy is queued.
-	if err := checkRootless(ctx); err != nil {
-		log.Printf("WARNING: rootless check failed at startup: %v", err)
-		log.Printf("WARNING: deploy/stop/restart commands will be refused until this host is reinstalled rootless")
+	switch subcommand {
+	case "daemon":
+		cmdDaemon(args)
+	default:
+		fmt.Fprintf(os.Stderr, "bakery: unknown subcommand %q\n", subcommand)
+		os.Exit(2)
 	}
+}
 
-	run(ctx, cfg)
-
-	log.Println("bakery-agent shutting down")
+// looksLikeFlag reports whether arg is a flag (e.g. -token=...) rather than
+// a subcommand name — lets the pre-subcommand invocation shape (`bakery
+// -token=... -url=...`) keep working without every already-deployed host's
+// systemd unit needing to say `bakery daemon` explicitly first.
+func looksLikeFlag(arg string) bool {
+	return len(arg) > 0 && arg[0] == '-'
 }
