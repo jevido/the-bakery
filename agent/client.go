@@ -40,8 +40,18 @@ type pendingCommand struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
+// registryAuth mirrors RegistryAuth in src/lib/server/agent/protocol.ts —
+// present only when the control plane has real registry pull credentials
+// configured (task 10, Phase 08).
+type registryAuth struct {
+	Host     string `json:"host"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
 type checkinResponse struct {
 	PendingCommands []pendingCommand `json:"pendingCommands"`
+	RegistryAuth    *registryAuth    `json:"registryAuth"`
 }
 
 func checkin(ctx context.Context, httpClient *http.Client, cfg config, payload checkinPayload) (*checkinResponse, error) {

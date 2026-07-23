@@ -147,5 +147,17 @@ export const POST: RequestHandler = async (event) => {
 		payload: c.payload
 	}));
 
-	return json({ pendingCommands } satisfies CheckinResponse);
+	// Optional — absent whenever any of the three vars isn't set, same as
+	// every other optional instance-level env var in this codebase. Without
+	// this, an agent has no way to authenticate its own image pulls, which a
+	// real (non-anonymous) registry requires.
+	const registryHost = process.env.BAKERY_REGISTRY_HOST;
+	const registryPullUsername = process.env.BAKERY_REGISTRY_PULL_USERNAME;
+	const registryPullPassword = process.env.BAKERY_REGISTRY_PULL_PASSWORD;
+	const registryAuth =
+		registryHost && registryPullUsername && registryPullPassword
+			? { host: registryHost, username: registryPullUsername, password: registryPullPassword }
+			: undefined;
+
+	return json({ pendingCommands, registryAuth } satisfies CheckinResponse);
 };

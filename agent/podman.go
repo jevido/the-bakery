@@ -138,6 +138,25 @@ func collectContainerStats(ctx context.Context) []containerStat {
 	return stats
 }
 
+// podmanLogin authenticates this host's shared Podman auth.json against the
+// registry (task 10, Phase 08) so a later `deploy` command's Quadlet-managed
+// image pull is authenticated — `systemctl --user start` on a deploy unit
+// pulls implicitly, with no per-pull credential of its own, so login has to
+// happen ahead of time, on the host, not per-deploy.
+func podmanLogin(ctx context.Context, auth registryAuth) error {
+	ctx, cancel := context.WithTimeout(ctx, podmanTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "podman", "login", auth.Host,
+		"-u", auth.Username, "--password-stdin")
+	cmd.Stdin = strings.NewReader(auth.Password)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("podman login %s: %w: %s", auth.Host, err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 func runPodman(ctx context.Context, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, podmanTimeout)
 	defer cancel()

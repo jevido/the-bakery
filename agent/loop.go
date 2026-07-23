@@ -48,6 +48,17 @@ func doCheckin(ctx context.Context, httpClient *http.Client, cfg config) {
 	}
 
 	log.Printf("check-in ok, %d pending command(s)", len(resp.PendingCommands))
+
+	// Cheap and idempotent (a repeat `podman login` to the same host just
+	// re-confirms the credential), so it's simplest to just do this on every
+	// check-in that carries it rather than tracking whether it changed —
+	// self-healing if auth.json is ever cleared/corrupted between check-ins.
+	if resp.RegistryAuth != nil {
+		if err := podmanLogin(ctx, *resp.RegistryAuth); err != nil {
+			log.Printf("registry login failed: %v", err)
+		}
+	}
+
 	if len(resp.PendingCommands) > 0 {
 		executeCommands(ctx, httpClient, cfg, resp.PendingCommands)
 	}

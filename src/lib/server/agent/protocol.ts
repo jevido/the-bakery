@@ -69,8 +69,25 @@ export interface PendingCommand {
 	payload: unknown;
 }
 
+/**
+ * Registry pull credentials, included only when `BAKERY_REGISTRY_HOST` /
+ * `BAKERY_REGISTRY_PULL_USERNAME` / `_PASSWORD` are all set — same
+ * "unset by default, no-op otherwise" convention `deploy/proxy.ts`'s
+ * `staticSiteBlocks` already uses. The agent `podman login`s with this on
+ * every check-in it's present (task 10, Phase 08) so a later `deploy`
+ * command's implicit image pull is authenticated — previously nothing
+ * wired pull credentials to hosts at all, and a real htpasswd-authenticated
+ * registry 401s on anonymous pulls.
+ */
+export interface RegistryAuth {
+	host: string;
+	username: string;
+	password: string;
+}
+
 export interface CheckinResponse {
 	pendingCommands: PendingCommand[];
+	registryAuth?: RegistryAuth;
 }
 
 /** Body for `POST /api/v1/agent/commands/[id]/complete` (task 04). */

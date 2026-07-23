@@ -88,6 +88,13 @@ func cmdBootstrap(args []string) {
 	// special-casing between the two.
 	containerDatabaseURL := strings.Replace(databaseURL, "127.0.0.1", "host.containers.internal", 1)
 
+	fmt.Println("Provisioning the private container registry...")
+	registryCreds, err := provisionRegistry(ctx, home, *domain)
+	if err != nil {
+		bootstrapFail("provisioning the registry", err)
+	}
+	fmt.Printf("Registry ready at 127.0.0.1:%d (public host: %s once Caddy is configured for it).\n", registryPort, registryCreds.Host)
+
 	betterAuthSecret, err := randomBase64(32)
 	if err != nil {
 		bootstrapFail("generating BETTER_AUTH_SECRET", err)
