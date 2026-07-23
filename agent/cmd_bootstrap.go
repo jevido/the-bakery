@@ -19,9 +19,18 @@ import (
 )
 
 const (
-	defaultControlPlaneImage = "ghcr.io/jevido/the-bakery:latest"
-	loopbackContainerName    = "bakery-bootstrap"
-	loopbackPort             = 3000
+	loopbackContainerName = "bakery-bootstrap"
+	loopbackPort          = 3000
+
+	defaultSourceRepoURL = "https://github.com/jevido/the-bakery.git"
+	sourceRepoRef        = "main"
+
+	// selfImageBuildOrg/App name the one image-pointing build/app row
+	// bootstrap-api's +server.ts creates directly (no repo/source) — see
+	// task 12 (Phase 08)'s registry.go loopback-registry reasoning for why
+	// this specific image lives at 127.0.0.1, not registry.<domain>.
+	selfImageBuildOrg = "bakery"
+	selfImageBuildApp = "bakery-control-plane"
 )
 
 // cmdBootstrap closes this phase's chicken-and-egg loop: it provisions
@@ -36,11 +45,12 @@ func cmdBootstrap(args []string) {
 	adminEmail := fs.String("admin-email", "", "admin account email (prompted if omitted)")
 	adminPassword := fs.String("admin-password", "", "admin account password (prompted if omitted)")
 	guildName := fs.String("guild-name", "Bakery", "name of the first guild created")
-	image := fs.String("image", defaultControlPlaneImage, "control-plane container image to deploy")
+	image := fs.String("image", "", "control-plane container image to deploy (built from --source locally if omitted)")
+	source := fs.String("source", defaultSourceRepoURL, "git URL to build the control-plane image from, when --image is omitted")
 	fs.Parse(args)
 
 	if *domain == "" {
-		fmt.Fprintln(os.Stderr, "Usage: bakery bootstrap --domain=<domain> [--admin-email=...] [--admin-password=...] [--image=...]")
+		fmt.Fprintln(os.Stderr, "Usage: bakery bootstrap --domain=<domain> [--admin-email=...] [--admin-password=...] [--image=...] [--source=...]")
 		os.Exit(2)
 	}
 
@@ -95,6 +105,19 @@ func cmdBootstrap(args []string) {
 	}
 	fmt.Printf("Registry ready at 127.0.0.1:%d (public host: %s once Caddy is configured for it).\n", registryPort, registryCreds.Host)
 
+	resolvedImage := *image
+	if resolvedImage == "" {
+		fmt.Println()
+		fmt.Println("No --image given: building the control-plane image from source instead")
+		fmt.Println("(there's no build pipeline running yet to do this the normal way — that's")
+		fmt.Println("what this bootstrap is standing up). This can take several minutes.")
+		built, err := buildAndPushSelfImage(ctx, home, *source, registryCreds)
+		if err != nil {
+			bootstrapFail("building the control-plane image", err)
+		}
+		resolvedImage = built
+	}
+
 	betterAuthSecret, err := randomBase64(32)
 	if err != nil {
 		bootstrapFail("generating BETTER_AUTH_SECRET", err)
@@ -115,16 +138,16 @@ func cmdBootstrap(args []string) {
 		"BETTER_AUTH_SECRET":      betterAuthSecret,
 		"ENCRYPTION_KEY":          encryptionKey,
 		"BAKERY_BOOTSTRAP_SECRET": bootstrapSecret,
-		"BAKERY_SELF_IMAGE":       *image,
+		"BAKERY_SELF_IMAGE":       resolvedImage,
 	}
 
-	fmt.Printf("Running database migrations (%s)...\n", *image)
-	if err := runMigrations(ctx, *image, containerEnv); err != nil {
+	fmt.Printf("Running database migrations (%s)...\n", resolvedImage)
+	if err := runMigrations(ctx, resolvedImage, containerEnv); err != nil {
 		bootstrapFail("running migrations", err)
 	}
 
 	fmt.Println("Starting the control plane, loopback-only...")
-	if err := startLoopbackContainer(ctx, *image, containerEnv); err != nil {
+	if err := startLoopbackContainer(ctx, resolvedImage, containerEnv); err != nil {
 		bootstrapFail("starting the control plane", err)
 	}
 
