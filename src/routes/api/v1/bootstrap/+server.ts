@@ -31,7 +31,23 @@ const bootstrapSchema = z.object({
 	databaseUrl: z.string().trim().min(1),
 	origin: z.string().trim().min(1),
 	betterAuthSecret: z.string().trim().min(1),
-	encryptionKey: z.string().trim().min(1)
+	encryptionKey: z.string().trim().min(1),
+	// The registry `bakery bootstrap` already provisioned (Phase 08 task 10)
+	// and the optional GitHub App config it read from its own environment —
+	// without these becoming real envVar rows here, the *real* Quadlet-
+	// managed deployment this endpoint queues (via `startDeployment` below)
+	// would have nothing to build with or authenticate "Connect GitHub"
+	// against once the temporary loopback container is torn down (Phase 08
+	// task 14).
+	registryHost: z.string().trim().min(1),
+	registryPushUsername: z.string().trim().min(1),
+	registryPushPassword: z.string().trim().min(1),
+	registryPullUsername: z.string().trim().min(1),
+	registryPullPassword: z.string().trim().min(1),
+	githubAppId: z.string().trim().optional(),
+	githubAppSlug: z.string().trim().optional(),
+	githubAppPrivateKey: z.string().trim().optional(),
+	githubWebhookSecret: z.string().trim().optional()
 });
 
 function slugify(name: string): string {
@@ -105,8 +121,23 @@ export const POST: RequestHandler = async (event) => {
 		databaseUrl,
 		origin,
 		betterAuthSecret,
-		encryptionKey
+		encryptionKey,
+		registryHost,
+		registryPushUsername,
+		registryPushPassword,
+		registryPullUsername,
+		registryPullPassword,
+		githubAppId,
+		githubAppSlug,
+		githubAppPrivateKey,
+		githubWebhookSecret
 	} = parsed.data;
+	const githubAppConfigured = !!(
+		githubAppId &&
+		githubAppSlug &&
+		githubAppPrivateKey &&
+		githubWebhookSecret
+	);
 
 	let signUpResult;
 	try {
@@ -199,7 +230,7 @@ export const POST: RequestHandler = async (event) => {
 	// `startDeployment` call below queues generates an environment file
 	// identical to what's already running, and the app doesn't restart into
 	// a broken config the moment the daemon takes over.
-	await db.insert(envVar).values([
+	const envVarRows = [
 		{
 			appId: appRow.id,
 			key: 'DATABASE_URL',
@@ -224,8 +255,86 @@ export const POST: RequestHandler = async (event) => {
 			key: 'BAKERY_SELF_IMAGE',
 			valueCiphertext: encrypt(selfImage),
 			isSecret: false
+		},
+		// Without these, the real deployment has nowhere to push/pull once
+		// the loopback container is gone (Phase 08 task 10), and the
+		// registry's own Caddy site block (`staticSiteBlocks` in
+		// deploy/proxy.ts) never appears — that block is gated on
+		// CONTROL_PLANE_HOST_ID matching the host a Caddyfile is being
+		// generated for, which only this endpoint (not the Go agent) knows
+		// as a real row id.
+		{
+			appId: appRow.id,
+			key: 'BAKERY_REGISTRY_HOST',
+			valueCiphertext: encrypt(registryHost),
+			isSecret: false
+		},
+		{
+			appId: appRow.id,
+			key: 'BAKERY_REGISTRY_PUBLIC_DOMAIN',
+			valueCiphertext: encrypt(registryHost),
+			isSecret: false
+		},
+		{
+			appId: appRow.id,
+			key: 'BAKERY_REGISTRY_PUSH_USERNAME',
+			valueCiphertext: encrypt(registryPushUsername),
+			isSecret: true
+		},
+		{
+			appId: appRow.id,
+			key: 'BAKERY_REGISTRY_PUSH_PASSWORD',
+			valueCiphertext: encrypt(registryPushPassword),
+			isSecret: true
+		},
+		{
+			appId: appRow.id,
+			key: 'BAKERY_REGISTRY_PULL_USERNAME',
+			valueCiphertext: encrypt(registryPullUsername),
+			isSecret: true
+		},
+		{
+			appId: appRow.id,
+			key: 'BAKERY_REGISTRY_PULL_PASSWORD',
+			valueCiphertext: encrypt(registryPullPassword),
+			isSecret: true
+		},
+		{
+			appId: appRow.id,
+			key: 'CONTROL_PLANE_HOST_ID',
+			valueCiphertext: encrypt(hostRow.id),
+			isSecret: false
 		}
-	]);
+	];
+	if (githubAppConfigured) {
+		envVarRows.push(
+			{
+				appId: appRow.id,
+				key: 'GITHUB_APP_ID',
+				valueCiphertext: encrypt(githubAppId!),
+				isSecret: false
+			},
+			{
+				appId: appRow.id,
+				key: 'GITHUB_APP_SLUG',
+				valueCiphertext: encrypt(githubAppSlug!),
+				isSecret: false
+			},
+			{
+				appId: appRow.id,
+				key: 'GITHUB_APP_PRIVATE_KEY',
+				valueCiphertext: encrypt(githubAppPrivateKey!),
+				isSecret: true
+			},
+			{
+				appId: appRow.id,
+				key: 'GITHUB_WEBHOOK_SECRET',
+				valueCiphertext: encrypt(githubWebhookSecret!),
+				isSecret: true
+			}
+		);
+	}
+	await db.insert(envVar).values(envVarRows);
 
 	// Queues the first `deploy` hostCommand for this host/app right away —
 	// it just sits in the queue (dispatch doesn't require the host to be

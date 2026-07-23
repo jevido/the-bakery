@@ -72,14 +72,19 @@ func TestCallBootstrapAPI(t *testing.T) {
 	}
 
 	token, err := callBootstrapAPI(context.Background(), baseURL, bootstrapAPIRequest{
-		Email:            "admin@example.com",
-		Password:         "supersecret1",
-		GuildName:        "Bakery",
-		Domain:           "bakery.example.com",
-		DatabaseURL:      "postgres://root:test@host.containers.internal:5432/local",
-		Origin:           "https://bakery.example.com",
-		BetterAuthSecret: "test-better-auth-secret-value",
-		EncryptionKey:    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+		Email:                "admin@example.com",
+		Password:             "supersecret1",
+		GuildName:            "Bakery",
+		Domain:               "bakery.example.com",
+		DatabaseURL:          "postgres://root:test@host.containers.internal:5432/local",
+		Origin:               "https://bakery.example.com",
+		BetterAuthSecret:     "test-better-auth-secret-value",
+		EncryptionKey:        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+		RegistryHost:         "registry.bakery.example.com",
+		RegistryPushUsername: "push",
+		RegistryPushPassword: "test-push-password",
+		RegistryPullUsername: "pull",
+		RegistryPullPassword: "test-pull-password",
 	}, os.Getenv("BAKERY_BOOTSTRAP_SECRET"))
 	if err != nil {
 		t.Fatalf("callBootstrapAPI: %v", err)

@@ -131,14 +131,62 @@ func cmdBootstrap(args []string) {
 		bootstrapFail("generating bootstrap secret", err)
 	}
 
+	// Read from this process's own environment (e.g. a .env the operator
+	// sourced before running bootstrap) rather than a new flag — these are
+	// long, sometimes multi-line values (a PEM private key) that don't fit
+	// the CLI-flag/interactive-prompt shape the admin email/password use.
+	// Optional as a set: without them, self-hosting still completes, just
+	// with "Connect GitHub" left non-functional until set later the same
+	// way any customer configures their own app's env vars.
+	githubAppID := os.Getenv("GITHUB_APP_ID")
+	githubAppSlug := os.Getenv("GITHUB_APP_SLUG")
+	githubAppPrivateKey := os.Getenv("GITHUB_APP_PRIVATE_KEY")
+	githubWebhookSecret := os.Getenv("GITHUB_WEBHOOK_SECRET")
+	githubAppConfigured := githubAppID != "" && githubAppSlug != "" &&
+		githubAppPrivateKey != "" && githubWebhookSecret != ""
+	if !githubAppConfigured {
+		fmt.Println()
+		fmt.Println("GITHUB_APP_ID/GITHUB_APP_SLUG/GITHUB_APP_PRIVATE_KEY/GITHUB_WEBHOOK_SECRET")
+		fmt.Println("are not all set — skipping GitHub App config. \"Connect GitHub\" won't work")
+		fmt.Println("until these are set later, the same way any app's env vars are.")
+	}
+
 	origin := "https://" + *domain
 	containerEnv := map[string]string{
-		"DATABASE_URL":            containerDatabaseURL,
-		"ORIGIN":                  origin,
-		"BETTER_AUTH_SECRET":      betterAuthSecret,
-		"ENCRYPTION_KEY":          encryptionKey,
-		"BAKERY_BOOTSTRAP_SECRET": bootstrapSecret,
-		"BAKERY_SELF_IMAGE":       resolvedImage,
+		"DATABASE_URL":                  containerDatabaseURL,
+		"ORIGIN":                        origin,
+		"BETTER_AUTH_SECRET":            betterAuthSecret,
+		"ENCRYPTION_KEY":                encryptionKey,
+		"BAKERY_BOOTSTRAP_SECRET":       bootstrapSecret,
+		"BAKERY_SELF_IMAGE":             resolvedImage,
+		"BAKERY_REGISTRY_HOST":          registryCreds.Host,
+		"BAKERY_REGISTRY_PUBLIC_DOMAIN": registryCreds.Host,
+		"BAKERY_REGISTRY_PUSH_USERNAME": registryCreds.PushUsername,
+		"BAKERY_REGISTRY_PUSH_PASSWORD": registryCreds.PushPassword,
+		"BAKERY_REGISTRY_PULL_USERNAME": registryCreds.PullUsername,
+		"BAKERY_REGISTRY_PULL_PASSWORD": registryCreds.PullPassword,
+	}
+	if githubAppConfigured {
+		containerEnv["GITHUB_APP_ID"] = githubAppID
+		containerEnv["GITHUB_APP_SLUG"] = githubAppSlug
+		containerEnv["GITHUB_APP_PRIVATE_KEY"] = githubAppPrivateKey
+		containerEnv["GITHUB_WEBHOOK_SECRET"] = githubWebhookSecret
+	}
+
+	fmt.Println("Provisioning the build worker...")
+	buildWorkerEnv := map[string]string{
+		"DATABASE_URL":                  databaseURL, // host-perspective — this runs natively, not in a container
+		"ENCRYPTION_KEY":                encryptionKey,
+		"BAKERY_REGISTRY_HOST":          registryCreds.Host,
+		"BAKERY_REGISTRY_PUSH_USERNAME": registryCreds.PushUsername,
+		"BAKERY_REGISTRY_PUSH_PASSWORD": registryCreds.PushPassword,
+	}
+	if githubAppConfigured {
+		buildWorkerEnv["GITHUB_APP_ID"] = githubAppID
+		buildWorkerEnv["GITHUB_APP_PRIVATE_KEY"] = githubAppPrivateKey
+	}
+	if err := provisionBuildWorker(ctx, home, *source, buildWorkerEnv); err != nil {
+		bootstrapFail("provisioning the build worker", err)
 	}
 
 	fmt.Printf("Running database migrations (%s)...\n", resolvedImage)
@@ -158,16 +206,28 @@ func cmdBootstrap(args []string) {
 	}
 
 	fmt.Println("Creating the first admin account, guild, host, and app...")
-	hostToken, err := callBootstrapAPI(ctx, loopbackURL, bootstrapAPIRequest{
-		Email:            *adminEmail,
-		Password:         *adminPassword,
-		GuildName:        *guildName,
-		Domain:           *domain,
-		DatabaseURL:      containerDatabaseURL,
-		Origin:           origin,
-		BetterAuthSecret: betterAuthSecret,
-		EncryptionKey:    encryptionKey,
-	}, bootstrapSecret)
+	apiRequest := bootstrapAPIRequest{
+		Email:                *adminEmail,
+		Password:             *adminPassword,
+		GuildName:            *guildName,
+		Domain:               *domain,
+		DatabaseURL:          containerDatabaseURL,
+		Origin:               origin,
+		BetterAuthSecret:     betterAuthSecret,
+		EncryptionKey:        encryptionKey,
+		RegistryHost:         registryCreds.Host,
+		RegistryPushUsername: registryCreds.PushUsername,
+		RegistryPushPassword: registryCreds.PushPassword,
+		RegistryPullUsername: registryCreds.PullUsername,
+		RegistryPullPassword: registryCreds.PullPassword,
+	}
+	if githubAppConfigured {
+		apiRequest.GithubAppID = githubAppID
+		apiRequest.GithubAppSlug = githubAppSlug
+		apiRequest.GithubAppPrivateKey = githubAppPrivateKey
+		apiRequest.GithubWebhookSecret = githubWebhookSecret
+	}
+	hostToken, err := callBootstrapAPI(ctx, loopbackURL, apiRequest, bootstrapSecret)
 	if err != nil {
 		if strings.Contains(err.Error(), "already completed") {
 			// A previous run got far enough to create the user/guild/host but
@@ -389,6 +449,22 @@ type bootstrapAPIRequest struct {
 	Origin           string `json:"origin"`
 	BetterAuthSecret string `json:"betterAuthSecret"`
 	EncryptionKey    string `json:"encryptionKey"`
+
+	// Persisted as real envVar rows on the self-app (Phase 08 task 14) so
+	// the *real*, post-handoff deployment has them too, not just the
+	// temporary loopback container this same process is about to start —
+	// without this, the "Connect GitHub" step (task 13) and every future
+	// build would have nothing to authenticate with once the loopback
+	// container is torn down.
+	RegistryHost         string `json:"registryHost"`
+	RegistryPushUsername string `json:"registryPushUsername"`
+	RegistryPushPassword string `json:"registryPushPassword"`
+	RegistryPullUsername string `json:"registryPullUsername"`
+	RegistryPullPassword string `json:"registryPullPassword"`
+	GithubAppID          string `json:"githubAppId,omitempty"`
+	GithubAppSlug        string `json:"githubAppSlug,omitempty"`
+	GithubAppPrivateKey  string `json:"githubAppPrivateKey,omitempty"`
+	GithubWebhookSecret  string `json:"githubWebhookSecret,omitempty"`
 }
 
 type bootstrapAPIResponse struct {
