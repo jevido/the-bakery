@@ -9,6 +9,7 @@
 # Usage:
 #   curl -fsSL <url>/install.sh | bash                    # fresh install
 #   curl -fsSL <url>/install.sh | bash -s -- --update      # replace the binary only
+#   curl -fsSL <url>/install.sh | bash -s -- --ssh-key="$(cat key.pub)"
 #
 # <url> is either a running Bakery instance (enrolling an additional host —
 # pass --url=<that-instance> so the binary comes from the exact same build)
@@ -22,11 +23,13 @@ GITHUB_RELEASE_BASE="https://github.com/jevido/the-bakery/releases/latest/downlo
 
 BAKERY_URL=""
 UPDATE=0
+SSH_KEY=""
 
 for arg in "$@"; do
 	case "$arg" in
 		--url=*) BAKERY_URL="${arg#--url=}" ;;
 		--update) UPDATE=1 ;;
+		--ssh-key=*) SSH_KEY="${arg#--ssh-key=}" ;;
 		*)
 			echo "Unknown argument: $arg" >&2
 			exit 1
@@ -76,17 +79,30 @@ if [ "$UPDATE" -eq 0 ]; then
 		# (e.g. distro defaults for --system users); bakery subcommands
 		# re-exec into this account via `runuser`, which works either way,
 		# but a real shell is what lets an operator `su - bakery` directly
-		# to debug, matching scripts/bootstrap-host.sh's existing user.
+		# to debug, matching the old root-bootstrap script's user.
 		CURRENT_SHELL="$(getent passwd "$BAKERY_USER" | cut -d: -f7)"
 		case "$CURRENT_SHELL" in
 			*/nologin | */false) chsh -s /bin/bash "$BAKERY_USER" ;;
 		esac
 	fi
 
+	# Optional — the old root-bootstrap script always prompted for this so the
+	# operator could still SSH in as bakery directly afterward; here it's
+	# opt-in via --ssh-key since most installs run non-interactively and
+	# `sudo runuser -u bakery -- bash` from whatever account ran this script
+	# works just as well for occasional debugging.
+	if [ -n "$SSH_KEY" ]; then
+		BAKERY_HOME_DIR="$(getent passwd "$BAKERY_USER" | cut -d: -f6)"
+		install -d -o "$BAKERY_USER" -g "$BAKERY_USER" -m 700 "$BAKERY_HOME_DIR/.ssh"
+		echo "$SSH_KEY" >>"$BAKERY_HOME_DIR/.ssh/authorized_keys"
+		chown "$BAKERY_USER:$BAKERY_USER" "$BAKERY_HOME_DIR/.ssh/authorized_keys"
+		chmod 600 "$BAKERY_HOME_DIR/.ssh/authorized_keys"
+	fi
+
 	# Rootless systemd --user units (the bakery daemon, Caddy — both set up
 	# by `bakery join`) stop dead the moment this install session ends
 	# unless lingering is enabled for the account up front, same as
-	# scripts/bootstrap-host.sh already does right after creating this
+	# the old root-bootstrap script already did right after creating this
 	# user (Phase 08 task 09 retires that script; this is where the same
 	# step now lives).
 	loginctl enable-linger "$BAKERY_USER"

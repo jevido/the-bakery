@@ -40,7 +40,7 @@ func reexecAsBakeryUser(args []string) {
 // explicitly before any systemctl --user/rootless Podman call — a
 // non-interactive runuser/SSH session doesn't reliably inherit the D-Bus
 // session pam_systemd sets up for a real login, even with lingering
-// enabled (first hit, and documented, in scripts/bootstrap-host.sh's
+// enabled (first hit, and documented, in the old root-bootstrap script's
 // phase-2 script).
 func ensureUserSessionEnv() {
 	if os.Getenv("XDG_RUNTIME_DIR") != "" {

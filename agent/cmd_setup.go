@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// requiredPackages mirrors scripts/bootstrap-host.sh's root-level package
+// requiredPackages mirrors the old root-bootstrap script's root-level package
 // list: rootless Podman plus its helper binaries, ufw, and the utilities
 // later setup/bootstrap steps shell out to.
 var requiredPackages = []string{
@@ -32,11 +32,16 @@ const (
 // cmdSetup idempotently installs everything a fresh box needs before any
 // Podman/Quadlet work can happen: rootless Podman and its helper packages,
 // subuid/subgid ranges for the bakery user, the unprivileged-port sysctl,
-// and firewall rules. Ported from scripts/bootstrap-host.sh's root-level
+// and firewall rules. Ported from the old root-bootstrap script's root-level
 // section, but safe to re-run (that script explicitly wasn't).
 func cmdSetup(args []string) {
 	if os.Geteuid() != 0 {
 		fmt.Fprintln(os.Stderr, "bakery: setup must run as root")
+		os.Exit(1)
+	}
+
+	if err := checkDebian13(); err != nil {
+		fmt.Fprintf(os.Stderr, "bakery: setup: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -61,6 +66,31 @@ func cmdSetup(args []string) {
 	fmt.Println()
 	fmt.Println("Setup complete: rootless Podman prerequisites, subuid/subgid ranges,")
 	fmt.Println("unprivileged-port binding, and firewall rules are all in place.")
+}
+
+// checkDebian13 ports the old root-bootstrap script's OS check — requiredPackages
+// below assumes apt-get/dpkg specifically, so a clear error here beats an
+// oblique "apt-get: command not found" partway through installPackages.
+func checkDebian13() error {
+	data, err := os.ReadFile("/etc/os-release")
+	if err != nil {
+		return fmt.Errorf("reading /etc/os-release: %w", err)
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if line == `VERSION_ID="13"` {
+			return nil
+		}
+	}
+	return fmt.Errorf("this only supports Debian 13 (found: %s)", firstLineWithPrefix(string(data), "PRETTY_NAME="))
+}
+
+func firstLineWithPrefix(data, prefix string) string {
+	for _, line := range strings.Split(data, "\n") {
+		if strings.HasPrefix(line, prefix) {
+			return strings.TrimPrefix(line, prefix)
+		}
+	}
+	return "unknown"
 }
 
 func installPackages() error {
@@ -159,7 +189,7 @@ func allowUnprivilegedPorts() error {
 
 // configureFirewall opens only 22/80/443 — Postgres and any other
 // Bakery-managed service stay loopback-only, never published beyond
-// 127.0.0.1, matching scripts/bootstrap-host.sh's existing posture.
+// 127.0.0.1, matching the old root-bootstrap script's existing posture.
 func configureFirewall() error {
 	for _, port := range []string{"22/tcp", "80/tcp", "443/tcp"} {
 		if ufwRuleExists(port) {

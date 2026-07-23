@@ -21,7 +21,7 @@ const (
 	postgresReadyDelay   = 2 * time.Second
 )
 
-// provisionPostgres ports scripts/bootstrap-host.sh's phase-2 Postgres setup
+// provisionPostgres ports the old root-bootstrap script's phase-2 Postgres setup
 // into Go for `bakery bootstrap`: writes and starts the db Quadlet unit,
 // waits for readiness, and returns the resulting DATABASE_URL. Must run as
 // the bakery user (same rootless Podman/systemd --user session every other

@@ -71,18 +71,49 @@ See `.env.example` for the full list with explanations. At minimum for local dev
 ## The host agent
 
 `agent/` is a separate Go module (its own `go.mod`, independent of this
-app's `package.json`) meant to be built and installed on each host you
-deploy to — see `agent/README.md`. The control plane also serves an install
-script at `GET /install.sh` for a one-line rootless setup on a fresh host.
+app's `package.json`) — a single `bakery` binary with subcommands, meant to
+be installed on each host you deploy to. See `agent/README.md` for the full
+subcommand reference. In short:
+
+- `curl -fsSL <url>/install.sh | bash` — root-level shim: creates the
+  dedicated `bakery` system user and installs the binary. `<url>` is either
+  an already-running Bakery instance (pass `--url=<that-instance>`) or the
+  fixed GitHub Releases location, for a box with nothing running yet.
+- `bakery setup` — idempotently installs rootless Podman and its
+  prerequisites, subuid/subgid ranges, the unprivileged-port sysctl, and
+  firewall rules.
+- `bakery join --token=... --url=...` — enrolls this host against an
+  already-running instance (the flow behind the UI's "Add Host" button).
+- `bakery bootstrap --domain=...` — stands up a brand-new, self-hosted
+  instance from nothing: provisions Postgres, brings up the control plane
+  loopback-only, creates the first admin/guild/host/app, then hands off
+  into `bakery join` so the control plane ends up managed by its own real
+  deployment engine.
 
 ## Deploying The Bakery itself
 
-This repo uses `@sveltejs/adapter-node`; see the [SvelteKit adapter docs](https://svelte.dev/docs/kit/adapters)
-for deploy targets. In production you'll also need:
+The one-line self-hosting path is: on a fresh Debian 13 box with DNS for
+your domain already pointed at it,
+
+```sh
+curl -fsSL https://github.com/jevido/the-bakery/releases/latest/download/install.sh | bash
+bakery setup
+bakery bootstrap --domain=<your-domain>
+```
+
+This ends with `https://<domain>` serving the control plane over a real
+certificate, dogfooding itself through its own deployment engine. See
+`agent/README.md` and `phases/08-self-hosted-bootstrap` in the planning
+repo for the full design.
+
+Deploying to something other than this flow (e.g. a different platform
+entirely) still works via `@sveltejs/adapter-node` — see the
+[SvelteKit adapter docs](https://svelte.dev/docs/kit/adapters). Either way,
+production needs:
 
 - Real Postgres (not the dev `compose.yaml` container)
 - `BAKERY_DOMAIN` set, with wildcard DNS pointed at your infrastructure (apps get `<app>.<guild-slug>.<bakery-domain>`)
 - A real container registry reachable from both the build worker and every host agent
 - `ENCRYPTION_KEY`/`BETTER_AUTH_SECRET` from a real secret store, not `.env` — see the key-rotation notes in `src/lib/server/secrets/crypto.ts` if either ever needs to change
 
-CI runs on every push via `.github/workflows/ci.yml`; the container image is published to GHCR on push to `main` only.
+CI runs on every push via `.github/workflows/ci.yml`; the container image is published to GHCR, and the `bakery` agent binaries + install shim to a moving GitHub Release, on push to `main` only.

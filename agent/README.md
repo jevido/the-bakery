@@ -6,9 +6,19 @@ executes container lifecycle commands. It holds no local decision-making
 authority — the control plane decides, the agent reports and executes.
 
 This is a standalone Go module, independent of the SvelteKit app's
-`package.json`/tooling. It's a single binary (`bakery`) with subcommands;
-`daemon` is the only one implemented so far — `setup`, `join`, and
-`bootstrap` are added across the rest of Phase 08.
+`package.json`/tooling. It's a single binary (`bakery`) with subcommands:
+
+| Subcommand                          | What it does                                                                                                                                                       |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bakery daemon`                     | The check-in loop (below) — what actually runs long-term, as a systemd `--user` unit.                                                                              |
+| `bakery setup`                      | Idempotently installs rootless Podman + prerequisites, subuid/subgid ranges, the unprivileged-port sysctl, and firewall rules.                                     |
+| `bakery join --token=... --url=...` | Enrolls this host against an already-running instance: writes the daemon's config, installs its systemd unit, sets up the per-host Caddy Quadlet.                  |
+| `bakery bootstrap --domain=...`     | Stands up a brand-new, self-hosted instance from nothing — Postgres, the control plane itself, the first admin/guild/host/app — then hands off into `bakery join`. |
+
+`setup`/`join`/`bootstrap` all run as (or re-exec into) a dedicated
+`bakery` system user, created by `install.sh` (`src/lib/server/agent/install.sh`,
+served at `<instance>/install.sh` or the project's GitHub Releases for a
+box with nothing running yet).
 
 ## Build
 

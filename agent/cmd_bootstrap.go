@@ -202,7 +202,7 @@ func randomBase64(n int) (string, error) {
 	return base64.StdEncoding.EncodeToString(buf), nil
 }
 
-// checkDNSPointsHere ports scripts/bootstrap-host.sh's DNS precondition
+// checkDNSPointsHere ports the old root-bootstrap script's DNS precondition
 // check into Go: `bakery join`'s Caddy can't get a real certificate for
 // `domain` unless it already resolves to this exact box.
 func checkDNSPointsHere(domain string) error {
@@ -232,7 +232,7 @@ func checkDNSPointsHere(domain string) error {
 	return nil
 }
 
-// publicIPv4 mirrors scripts/bootstrap-host.sh's `curl -4 ifconfig.me` — the
+// publicIPv4 mirrors the old root-bootstrap script's `curl -4 ifconfig.me` — the
 // dialer is forced to tcp4 so a dual-stack box's IPv6 address (which a bare
 // `http.Get` might prefer) never gets compared against the domain's A
 // record by mistake.
