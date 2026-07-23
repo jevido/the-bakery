@@ -26,6 +26,17 @@ var requiredPackages = []string{
 	// present on a minimal Debian 13 image. Found live: `bakery bootstrap`
 	// failed provisioning the build worker without it.
 	"unzip",
+	// better-sqlite3 (an optional peer dep pulled in transitively by
+	// better-auth/drizzle-orm, even though this app only ever uses
+	// Postgres) has a native addon that needs compiling on `bun install`
+	// for the build worker's checkout — same reasoning the Containerfile's
+	// build stage already installs these for its own `bun install`. Found
+	// live: `make`/`g++` weren't present on a minimal Debian 13 image
+	// (python3 happened to already be there, but not documented/guaranteed,
+	// so listed explicitly here too).
+	"python3",
+	"make",
+	"g++",
 }
 
 const (

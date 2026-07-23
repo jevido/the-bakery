@@ -116,9 +116,32 @@ func ensureBunInstalled(ctx context.Context, home string) (string, error) {
 	return bunBin, nil
 }
 
+// runBunInstall installs node-gyp first — found live: better-sqlite3 (an
+// optional peer dep pulled in transitively by better-auth/drizzle-orm's
+// multi-dialect support, even though this app only ever uses Postgres) has
+// a native addon whose install script directly invokes `node-gyp` by name,
+// which isn't present anywhere on a fresh box (no Node.js/npm at all, only
+// Bun) and fails the whole `bun install` outright ("node-gyp: command not
+// found") without it. `bun install -g` puts it in the same bin directory as
+// bun itself; `make`/`g++`/`python3` (the actual compiler toolchain
+// node-gyp drives) are OS packages `bakery setup` now installs — same
+// reasoning the Containerfile's own build stage already applies for its
+// (containerized, so unaffected by any of this) `bun install`.
 func runBunInstall(ctx context.Context, bunBin, dir string) error {
+	bunDir := filepath.Dir(bunBin)
+	env := append(os.Environ(), "PATH="+bunDir+":"+os.Getenv("PATH"))
+
+	nodeGyp := exec.CommandContext(ctx, bunBin, "install", "-g", "node-gyp")
+	nodeGyp.Env = env
+	nodeGyp.Stdout = os.Stdout
+	nodeGyp.Stderr = os.Stderr
+	if err := nodeGyp.Run(); err != nil {
+		return fmt.Errorf("installing node-gyp: %w", err)
+	}
+
 	cmd := exec.CommandContext(ctx, bunBin, "install", "--frozen-lockfile")
 	cmd.Dir = dir
+	cmd.Env = env
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
