@@ -25,6 +25,8 @@ func main() {
 		cmdSetup(args)
 	case "join":
 		cmdJoin(args)
+	case "bootstrap":
+		cmdBootstrap(args)
 	default:
 		fmt.Fprintf(os.Stderr, "bakery: unknown subcommand %q\n", subcommand)
 		os.Exit(2)

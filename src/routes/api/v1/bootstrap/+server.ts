@@ -5,8 +5,10 @@ import type { RequestHandler } from './$types';
 import { auth } from '$lib/server/auth';
 import { APIError } from 'better-auth/api';
 import { db } from '$lib/server/db';
-import { user, organization, host, app, build, domain } from '$lib/server/db/schema';
+import { user, organization, host, app, build, domain, envVar } from '$lib/server/db/schema';
 import { issueHostToken } from '$lib/server/hosts/tokens';
+import { encrypt } from '$lib/server/secrets/crypto';
+import { startDeployment } from '$lib/server/deploy/orchestrator';
 
 const bootstrapSchema = z.object({
 	email: z.string().trim().email(),
@@ -19,7 +21,17 @@ const bootstrapSchema = z.object({
 	// shared instance), there's no other tenant to protect against here —
 	// this domain resolving to this exact box is the precondition for
 	// `bakery bootstrap` to have been run against it at all.
-	domain: z.string().trim().min(1).max(253)
+	domain: z.string().trim().min(1).max(253),
+	// The exact env vars the *real* Quadlet-managed redeploy of this same
+	// app needs to actually run — `bakery bootstrap` (task 07) already
+	// generated/holds these to start the loopback bootstrap container in
+	// the first place, so it passes them through here rather than this
+	// endpoint regenerating a second, different set that would drift from
+	// what the loopback container actually ran with.
+	databaseUrl: z.string().trim().min(1),
+	origin: z.string().trim().min(1),
+	betterAuthSecret: z.string().trim().min(1),
+	encryptionKey: z.string().trim().min(1)
 });
 
 function slugify(name: string): string {
@@ -84,7 +96,17 @@ export const POST: RequestHandler = async (event) => {
 	if (!parsed.success) {
 		error(400, parsed.error.issues[0]?.message ?? 'Invalid bootstrap payload');
 	}
-	const { email, password, name, guildName, domain: controlPlaneDomain } = parsed.data;
+	const {
+		email,
+		password,
+		name,
+		guildName,
+		domain: controlPlaneDomain,
+		databaseUrl,
+		origin,
+		betterAuthSecret,
+		encryptionKey
+	} = parsed.data;
 
 	let signUpResult;
 	try {
@@ -131,7 +153,7 @@ export const POST: RequestHandler = async (event) => {
 			tokenLastFour: issued.lastFour,
 			status: 'pending'
 		})
-		.returning({ id: host.id });
+		.returning();
 
 	const [appRow] = await db
 		.insert(app)
@@ -140,7 +162,7 @@ export const POST: RequestHandler = async (event) => {
 			name: 'bakery',
 			hostId: hostRow.id
 		})
-		.returning({ id: app.id });
+		.returning();
 
 	// No repo/source — this is the one image-pointing build the schema
 	// supports directly (bakery.schema.ts's build.repoId, task 06). Already
@@ -149,17 +171,20 @@ export const POST: RequestHandler = async (event) => {
 	// from. commitSha still gets a real value (used by orchestrator.ts's
 	// versionedUnitName for the deploy unit name), branch stays null (no
 	// repo, nothing to display).
-	await db.insert(build).values({
-		appId: appRow.id,
-		repoId: null,
-		commitSha: randomBytes(4).toString('hex'),
-		branch: null,
-		triggeredBy: 'bootstrap',
-		status: 'succeeded',
-		imageRef: selfImage,
-		startedAt: new Date(),
-		finishedAt: new Date()
-	});
+	const [buildRow] = await db
+		.insert(build)
+		.values({
+			appId: appRow.id,
+			repoId: null,
+			commitSha: randomBytes(4).toString('hex'),
+			branch: null,
+			triggeredBy: 'bootstrap',
+			status: 'succeeded',
+			imageRef: selfImage,
+			startedAt: new Date(),
+			finishedAt: new Date()
+		})
+		.returning();
 
 	await db.insert(domain).values({
 		appId: appRow.id,
@@ -167,6 +192,48 @@ export const POST: RequestHandler = async (event) => {
 		isDefaultSubdomain: false,
 		verifiedAt: new Date()
 	});
+
+	// The exact env vars the manually-started loopback container is already
+	// running with — encrypted the same way any other app's secrets are
+	// (secrets/crypto.ts), so the real Quadlet-managed redeploy this
+	// `startDeployment` call below queues generates an environment file
+	// identical to what's already running, and the app doesn't restart into
+	// a broken config the moment the daemon takes over.
+	await db.insert(envVar).values([
+		{
+			appId: appRow.id,
+			key: 'DATABASE_URL',
+			valueCiphertext: encrypt(databaseUrl),
+			isSecret: true
+		},
+		{ appId: appRow.id, key: 'ORIGIN', valueCiphertext: encrypt(origin), isSecret: false },
+		{
+			appId: appRow.id,
+			key: 'BETTER_AUTH_SECRET',
+			valueCiphertext: encrypt(betterAuthSecret),
+			isSecret: true
+		},
+		{
+			appId: appRow.id,
+			key: 'ENCRYPTION_KEY',
+			valueCiphertext: encrypt(encryptionKey),
+			isSecret: true
+		},
+		{
+			appId: appRow.id,
+			key: 'BAKERY_SELF_IMAGE',
+			valueCiphertext: encrypt(selfImage),
+			isSecret: false
+		}
+	]);
+
+	// Queues the first `deploy` hostCommand for this host/app right away —
+	// it just sits in the queue (dispatch doesn't require the host to be
+	// online yet) until the daemon `bakery join` is about to install
+	// actually checks in for the first time and picks it up, which is what
+	// turns this from "a manually-started loopback container" into "a real
+	// Bakery-managed deployment of itself."
+	await startDeployment({ appRow, buildRow, hostRow, triggeredBy: 'bootstrap' });
 
 	return json({
 		hostToken: issued.plaintext,
