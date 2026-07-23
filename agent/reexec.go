@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
 )
 
 // reexecAsBakeryUser re-execs the current process as the bakery system user
@@ -25,6 +26,25 @@ func reexecAsBakeryUser(args []string) {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	// `runuser -u bakery --` doesn't chdir for the child process — it
+	// inherits the caller's cwd as-is, unresolved. An operator invoking
+	// `bakery bootstrap` from an interactive root shell is very often sat
+	// in `/root` (mode 0700), which the bakery user has no permission to
+	// even stat. Podman needs to resolve its own cwd for some of its
+	// internal operations (confirmed live: `podman exec`/`podman inspect`
+	// fail outright with "cannot chdir to /root: Permission denied" when
+	// left at an inherited root-owned cwd, even though `XDG_RUNTIME_DIR`/
+	// `DBUS_SESSION_BUS_ADDRESS` are already correct) — so every
+	// Postgres/registry/build-worker readiness check downstream failed
+	// silently until this was traced on a real box. Bakery's own home
+	// directory is always accessible to bakery and always exists by the
+	// time this runs (install.sh creates it before any subcommand does
+	// anything), so it's a safe, unconditional choice regardless of where
+	// the operator happened to invoke this from.
+	if bakeryUser, err := user.Lookup(bakeryUsername); err == nil {
+		cmd.Dir = bakeryUser.HomeDir
+	}
 
 	if err := cmd.Run(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
