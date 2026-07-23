@@ -30,9 +30,10 @@ const CADDYFILE_HEADER = `# Managed by bakery-agent. Site blocks for deployed ap
 // host's regeneration, and a future second host must never also claim to
 // serve jevido.app just because these vars happen to be set on the shared
 // control-plane process.
-// Matches compose.yaml/compose.prod.yaml's registry service port mapping
-// (127.0.0.1:5050:5000) — fixed by that file's convention, not meant to
-// vary per install, so not worth its own env var.
+// Matches compose.yaml's dev registry service *and* agent/registry.go's
+// registryPort constant (the native production Quadlet unit, Phase 08 task
+// 10) — fixed by convention across both, not meant to vary per install, so
+// not worth its own env var.
 const REGISTRY_LOCAL_PORT = 5050;
 
 // Read fresh on every call, not cached at module load — matches this

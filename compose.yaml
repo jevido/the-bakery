@@ -1,19 +1,18 @@
 services:
-  # Bound to loopback, not 0.0.0.0 — makes no difference for local dev
-  # (localhost/127.0.0.1 work identically on the same machine either way)
-  # and means production (compose.prod.yaml, no override needed on top of
-  # this) never exposes a hardcoded dev password to the open internet.
+  # Local dev only — this file has no production role at all anymore.
+  # Production Postgres is provisioned natively as a rootless Podman Quadlet
+  # unit by `bakery bootstrap` (agent/postgres.go, Phase 08 task 05), not
+  # via compose. Bound to loopback since that's this file's own convention
+  # for every dev-only service here, not because anything downstream
+  # depends on it.
   db:
     image: docker.io/library/postgres
     restart: always
     ports:
       - 127.0.0.1:5434:5432
-    # POSTGRES_PASSWORD comes from .env (see .env.example), not an inline
-    # override in compose.prod.yaml — a cross-file environment-dict override
-    # of this one key was unreliable in practice while bootstrapping
-    # production (Phase 08 task 05); env_file: (the same mechanism the
-    # bakery service already uses) verified working via a real authenticated
-    # connection, so it's the one mechanism for both dev and prod here.
+    # POSTGRES_PASSWORD comes from .env (see .env.example) via env_file:,
+    # same mechanism the bakery service used to use here before production
+    # moved off compose entirely (Phase 08 task 14).
     env_file: .env
     environment:
       POSTGRES_USER: root
@@ -21,9 +20,10 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql
   # Bakery-hosted private registry (task 08) — the distribution/distribution
-  # reference implementation, run as a plain compose service for local dev.
-  # Not yet Quadlet-ified since Bakery's own infra isn't containerized that
-  # way yet (Phase 05 does that); see registry-auth/README.md for auth setup.
+  # reference implementation, run as a plain compose service for local dev
+  # only. Production runs its own instance of this same image as a native
+  # Quadlet unit instead (agent/registry.go, Phase 08 task 10) — see
+  # registry-auth/README.md for this dev instance's auth setup.
   registry:
     image: docker.io/library/registry:2
     restart: always

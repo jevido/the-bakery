@@ -36,6 +36,7 @@ Requires [Bun](https://bun.sh) and Docker (for local Postgres + registry).
 ```sh
 cp .env.example .env   # fill in the required values, see below
 bun install
+bunx simple-git-hooks   # one-time: enables the pre-push typecheck/lint hook
 bun run db:start        # starts Postgres + the local registry (compose.yaml)
 bun run db:push         # applies the Drizzle schema
 bun run dev              # or: bun run dev -- --open
@@ -137,4 +138,11 @@ production needs:
 - A real container registry reachable from both the build worker and every host agent
 - `ENCRYPTION_KEY`/`BETTER_AUTH_SECRET` from a real secret store, not `.env` — see the key-rotation notes in `src/lib/server/secrets/crypto.ts` if either ever needs to change
 
-CI runs on every push via `.github/workflows/ci.yml`; the container image is published to GHCR on push to `main` only. (The `bakery` agent binaries and install shim are no longer published there — `install.sh` builds the binary from source itself now; see "The host agent" above.)
+There is no CI/CD pipeline — no GitHub Actions workflow builds, publishes,
+or deploys anything in this project, deliberately. Typecheck/lint run as a
+local pre-push git hook instead (`bunx simple-git-hooks` once, after
+`bun install`, to enable it — see `package.json`'s `simple-git-hooks`
+config). Builds and deploys, including of the control plane's own image,
+go through Bakery's own build-worker/agent pipeline (see "Deploying The
+Bakery itself" above) — the same pipeline, with the same guarantees, every
+customer app uses.

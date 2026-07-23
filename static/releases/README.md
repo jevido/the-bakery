@@ -1,16 +1,17 @@
 Agent release binaries served at `/releases/bakery-linux-<arch>`
-(referenced by `/install.sh` when invoked with `--url` pointing at a
-running instance) are manually uploaded here for now — no build/release
-pipeline exists yet for this route specifically (every CI-built container
-image bakes fresh ones in via the Containerfile's `agent-build` stage).
+(referenced by `install.sh` when invoked with `--url` pointing at a
+running instance) land here at container build time — the Containerfile's
+`agent-build` stage cross-compiles fresh ones into `static/releases/` on
+every real build (the build-worker's own pipeline now, not CI; see
+Phase 08 tasks 12/13), so a running instance always serves a binary that
+matches its own exact deployed version.
 
-Files placed directly in this directory are gitignored, since committing
-compiled binaries to the app repo isn't the long-term plan. Task 12
-(agent self-update) replaces this with a real `agentRelease` table and
-versioned download endpoint.
+Files placed directly in this directory are gitignored for local dev, since
+committing compiled binaries to the app repo isn't the plan; only what the
+build produces at image-build time is what a running instance actually
+serves.
 
-The separate, fixed-location copies published to GitHub Releases (used by
-the generalized `install.sh` shim for bootstrapping a brand-new instance,
-before any Bakery control plane exists to serve this route) are built by
-`.github/workflows/ci.yml`'s `release-agent` job, not by anything in this
-directory.
+A truly fresh box (no `--url`, nothing running yet) doesn't hit this route
+at all — `install.sh` builds the agent from source itself instead
+(`git clone` + `go build`, Phase 08 task 11). There is no GitHub Releases
+fallback anymore.
