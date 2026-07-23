@@ -203,11 +203,21 @@ export const build = pgTable(
 		appId: uuid('app_id')
 			.notNull()
 			.references(() => app.id, { onDelete: 'cascade' }),
-		repoId: uuid('repo_id')
-			.notNull()
-			.references(() => repo.id, { onDelete: 'cascade' }),
+		// Nullable — a build normally always has a repo (webhook/manual "Build
+		// now", both always set this), except the one exception created
+		// directly by the bootstrap endpoint (Phase 08 task 06) for the
+		// control plane's own self-deploy, which points `imageRef` straight at
+		// an already-published image with no source repo involved at all.
+		repoId: uuid('repo_id').references(() => repo.id, { onDelete: 'cascade' }),
+		// Doubles as the deploy pipeline's version identifier (orchestrator.ts's
+		// `versionedUnitName`), not just a git commit display value, so it
+		// stays required even for a repo-less build — the bootstrap endpoint
+		// sets it to a generated identifier instead of a real commit sha.
 		commitSha: text('commit_sha').notNull(),
-		branch: text('branch').notNull(),
+		// Unlike commitSha, branch is pure display/clone metadata — never read
+		// by the deploy pipeline itself — so it's the one that's genuinely
+		// meaningless and left null for a repo-less build.
+		branch: text('branch'),
 		// A user id (see auth.schema `user`), or the literal 'webhook' — not an FK
 		// since it's polymorphic between the two.
 		triggeredBy: text('triggered_by'),

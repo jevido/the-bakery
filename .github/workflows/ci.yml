@@ -111,6 +111,7 @@ jobs:
       - name: Build and tag image
         run: |
           podman build -f Containerfile \
+            --build-arg BAKERY_SELF_IMAGE=${{ env.IMAGE }}:${{ github.sha }} \
             -t ${{ env.IMAGE }}:${{ github.sha }} \
             -t ${{ env.IMAGE }}:latest \
             .

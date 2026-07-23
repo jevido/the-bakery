@@ -58,8 +58,18 @@ function runStreamed(
 export async function processBuild(buildRow: Build): Promise<void> {
 	let workDir: string | null = null;
 	try {
-		const [repoRow] = await db.select().from(repo).where(eq(repo.id, buildRow.repoId));
-		if (!repoRow) throw new BuildFailure(`repo ${buildRow.repoId} not found`);
+		// Only the bootstrap endpoint's own succeeded, repo-less build (Phase
+		// 08 task 06) has these null — that build is never queued, so
+		// claimNextBuild should never hand one to this function at all.
+		// Guarding here anyway is cheap insurance against that invariant
+		// drifting, since the columns themselves no longer enforce it — and
+		// narrows the types for the rest of this function.
+		const { repoId, branch, commitSha } = buildRow;
+		if (!repoId || !branch) {
+			throw new BuildFailure(`build ${buildRow.id} has no repoId/branch and cannot be run`);
+		}
+		const [repoRow] = await db.select().from(repo).where(eq(repo.id, repoId));
+		if (!repoRow) throw new BuildFailure(`repo ${repoId} not found`);
 
 		const [appRow] = await db.select().from(app).where(eq(app.id, buildRow.appId));
 		if (!appRow) throw new BuildFailure(`app ${buildRow.appId} not found`);
@@ -72,17 +82,11 @@ export async function processBuild(buildRow: Build): Promise<void> {
 		workDir = await mkdtemp(join(tmpdir(), 'bakery-build-'));
 		const cloneDir = join(workDir, 'repo');
 
-		await appendBuildLog(buildRow.id, `Cloning ${repoRow.fullName}@${buildRow.commitSha}...`);
+		await appendBuildLog(buildRow.id, `Cloning ${repoRow.fullName}@${commitSha}...`);
 		const token = await getInstallationAccessToken(sourceRow.githubInstallationId);
 		const authedUrl = `https://x-access-token:${token}@github.com/${repoRow.fullName}.git`;
-		await runStreamed(buildRow.id, 'git', [
-			'clone',
-			'--branch',
-			buildRow.branch,
-			authedUrl,
-			cloneDir
-		]);
-		await runStreamed(buildRow.id, 'git', ['checkout', buildRow.commitSha], cloneDir);
+		await runStreamed(buildRow.id, 'git', ['clone', '--branch', branch, authedUrl, cloneDir]);
+		await runStreamed(buildRow.id, 'git', ['checkout', commitSha], cloneDir);
 
 		// `buildContextDir`, not `cloneDir`, becomes podman's build context
 		// below, so relative COPY/ADD paths in the Dockerfile resolve against
@@ -108,7 +112,7 @@ export async function processBuild(buildRow: Build): Promise<void> {
 			await appendBuildLog(buildRow.id, `Detected ${detected.filename} at ${detected.path}`);
 		}
 
-		const imageRef = registryImageRef(appRow.organizationId, appRow.id, buildRow.commitSha);
+		const imageRef = registryImageRef(appRow.organizationId, appRow.id, commitSha);
 		await appendBuildLog(buildRow.id, `Building ${dockerfile} -> ${imageRef}...`);
 		await runStreamed(buildRow.id, 'podman', [
 			'build',

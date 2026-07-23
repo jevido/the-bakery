@@ -596,7 +596,7 @@
 									<div class="flex-1 min-w-0">
 										<div class="flex items-center gap-[8px]">
 											<span class="font-mono-jb text-[12.5px] text-[var(--tx)] font-semibold"
-												>{d.commitSha.slice(0, 7)} · {d.branch}</span
+												>{d.commitSha.slice(0, 7)} · {d.branch ?? 'external image'}</span
 											>
 											{#if isCurrent}
 												<span
@@ -660,7 +660,7 @@
 								></div>
 								<div>
 									<div class="font-mono-jb text-[13.5px] text-[var(--tx)] font-semibold">
-										{b.commitSha.slice(0, 7)} · {b.branch}
+										{b.commitSha.slice(0, 7)} · {b.branch ?? 'external image'}
 									</div>
 									<div class="text-[11.5px] text-[var(--tx-3)] mt-[2px]">
 										triggered by {b.triggeredBy ?? 'unknown'}

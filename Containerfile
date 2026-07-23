@@ -74,6 +74,16 @@ ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
 
+# Baked in by CI at publish time (`--build-arg BAKERY_SELF_IMAGE=...`) so a
+# running instance always knows its own exact image reference, down to the
+# commit sha — read by the bootstrap endpoint (Phase 08 task 06) to create
+# the control plane's own `app`/`build` rows without hardcoding any
+# operator/fork-specific registry path. Empty by default (e.g. local `bun
+# run dev`, where bootstrap doesn't apply) rather than a required env var,
+# since it's meaningless outside a CI-published image.
+ARG BAKERY_SELF_IMAGE=""
+ENV BAKERY_SELF_IMAGE=$BAKERY_SELF_IMAGE
+
 COPY --from=build /app/build ./build
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
