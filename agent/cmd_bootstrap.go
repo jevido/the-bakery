@@ -335,7 +335,13 @@ func publicIPv4() (string, error) {
 			},
 		},
 	}
-	resp, err := client.Get("https://ifconfig.me")
+	// /ip specifically, not the root path: ifconfig.me's root only returns
+	// plain text when it recognizes the client as a CLI tool (curl's
+	// default User-Agent) — Go's own default User-Agent ("Go-http-client/…")
+	// isn't recognized, so the root path serves the full HTML page instead,
+	// which then got treated as "the IP" and always failed the comparison
+	// below. /ip is a dedicated plain-text endpoint, unaffected by User-Agent.
+	resp, err := client.Get("https://ifconfig.me/ip")
 	if err != nil {
 		return "", err
 	}

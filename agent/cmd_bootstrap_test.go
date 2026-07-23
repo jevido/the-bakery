@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -9,6 +10,27 @@ import (
 	"testing"
 	"time"
 )
+
+// TestPublicIPv4 guards against a real regression: ifconfig.me's root path
+// only returns plain text when it recognizes the client as a CLI tool
+// (curl's default User-Agent) — Go's own default User-Agent isn't
+// recognized, so the root path serves a full HTML page instead, which
+// silently broke every DNS check (comparing the box's real IP against an
+// entire HTML document, always "mismatched"). /ip is a dedicated
+// plain-text endpoint, unaffected by User-Agent — this asserts the
+// response actually parses as an IPv4 address, not just that the request
+// succeeded, so a regression back to the HTML-serving endpoint would fail
+// loudly here instead of only at DNS-check time.
+func TestPublicIPv4(t *testing.T) {
+	ip, err := publicIPv4()
+	if err != nil {
+		t.Skipf("no network access to verify against: %v", err)
+	}
+	parsed := net.ParseIP(ip)
+	if parsed == nil || parsed.To4() == nil {
+		t.Fatalf("expected a plain IPv4 address, got: %q", ip)
+	}
+}
 
 // TestCheckDNSPointsHere hits the real internet (ifconfig.me + real DNS) —
 // read-only and safe to run by default, but skipped rather than failed if
