@@ -107,6 +107,20 @@ func randomHex(n int) (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
+// writePostgresUnit publishes to 0.0.0.0, not 127.0.0.1 — found live: a
+// socket bound strictly to loopback refuses connections that arrive via a
+// container's gateway interface (host.containers.internal), even though
+// DNS resolves it correctly, since the kernel only accepts genuinely
+// loopback-originated traffic on a 127.0.0.1-bound socket. Every consumer
+// that isn't a native host process — the migration container,
+// startLoopbackContainer, and eventually the real Quadlet-managed control
+// plane deployment itself — reaches Postgres exactly that way via
+// host.containers.internal (see cmd_bootstrap.go's containerDatabaseURL),
+// so loopback-only wasn't just unnecessary here, it was actually broken.
+// Still not exposed externally: `bakery setup`'s ufw rules only allow
+// 22/80/443 in, default-deny otherwise, so this relies on the same
+// firewall boundary every other Bakery-internal port already does, not on
+// this bind address as its own defense layer.
 func writePostgresUnit(unitPath, pgDataDir, password string) error {
 	unit := fmt.Sprintf(`[Unit]
 Description=Bakery Postgres
@@ -117,7 +131,7 @@ Environment=POSTGRES_USER=root
 Environment=POSTGRES_DB=local
 Environment=POSTGRES_PASSWORD=%s
 Volume=%s:/var/lib/postgresql:Z
-PublishPort=127.0.0.1:%d:5432
+PublishPort=0.0.0.0:%d:5432
 
 [Service]
 Restart=always

@@ -203,9 +203,11 @@ func allowUnprivilegedPorts() error {
 	return nil
 }
 
-// configureFirewall opens only 22/80/443 — Postgres and any other
-// Bakery-managed service stay loopback-only, never published beyond
-// 127.0.0.1, matching the old root-bootstrap script's existing posture.
+// configureFirewall opens only 22/80/443, default-deny otherwise — the
+// actual boundary keeping Postgres and the registry off the public
+// internet, regardless of which interface(s) they publish to on the box
+// itself (see postgres.go's writePostgresUnit for why Postgres can't
+// stay strictly loopback-only despite that once being the intent here).
 func configureFirewall() error {
 	for _, port := range []string{"22/tcp", "80/tcp", "443/tcp"} {
 		if ufwRuleExists(port) {
