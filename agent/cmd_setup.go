@@ -21,6 +21,11 @@ var requiredPackages = []string{
 	"curl",
 	"ca-certificates",
 	"openssl",
+	// Bun's official installer (ensureBunInstalled in build_worker.go,
+	// Phase 08 task 14) needs unzip to extract its release archive — not
+	// present on a minimal Debian 13 image. Found live: `bakery bootstrap`
+	// failed provisioning the build worker without it.
+	"unzip",
 }
 
 const (
