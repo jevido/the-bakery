@@ -64,6 +64,26 @@
 	const app = $derived(mockApp ?? realAppDisplay);
 	const meta = $derived(app ? statusMeta(app.status) : null);
 
+	let selectedConnectRepoId = $state('');
+	let connectingRepo = $state(false);
+	async function connectRepo() {
+		if (!selectedConnectRepoId) return;
+		connectingRepo = true;
+		try {
+			const body = new FormData();
+			body.set('repoId', selectedConnectRepoId);
+			const res = await fetch('?/connectRepo', { method: 'POST', body });
+			if (res.ok) {
+				toast.success('Repository connected');
+				await invalidateAll();
+			} else {
+				toast.error('Could not connect that repository');
+			}
+		} finally {
+			connectingRepo = false;
+		}
+	}
+
 	let buildingNow = $state(false);
 	async function buildNow() {
 		buildingNow = true;
@@ -556,7 +576,41 @@
 
 			<!-- Deployments / Build history -->
 			{#if activeTab === 'deployments'}
-				{#if data.realApp}
+				{#if data.realApp && !data.realApp.repoId}
+					<div
+						class="bg-[var(--card)] border border-[var(--line)] rounded-[13px] p-[18px] mb-[14px]"
+					>
+						<div class="text-[13px] font-bold mb-1">No repository connected</div>
+						<div class="text-[12.5px] text-[var(--tx-2)] mb-[12px]">
+							{app.name} has no source to build from yet — pick one of this guild's connected repos.
+							{#if data.connectableRepos.length === 0}
+								Connect GitHub on the <a
+									href="/{guildId}/deploy/sources"
+									class="text-[var(--grn-2)]">Sources page</a
+								> first.
+							{/if}
+						</div>
+						{#if data.connectableRepos.length > 0}
+							<div class="flex items-center gap-[10px]">
+								<select
+									bind:value={selectedConnectRepoId}
+									class="flex-1 bg-[var(--card-2)] border border-[var(--line-2)] rounded-[8px] px-[13px] py-[9px] font-mono-jb text-[13px] text-[var(--tx)]"
+								>
+									<option value="">Select a repository…</option>
+									{#each data.connectableRepos as r (r.id)}
+										<option value={r.id}>{r.fullName}</option>
+									{/each}
+								</select>
+								<button
+									onclick={connectRepo}
+									disabled={connectingRepo || !selectedConnectRepoId}
+									class="bg-[var(--grn)] text-[#07130c] rounded-[8px] px-[14px] py-[9px] text-[13px] font-bold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+									>{connectingRepo ? 'Connecting…' : 'Connect'}</button
+								>
+							</div>
+						{/if}
+					</div>
+				{:else if data.realApp}
 					<div class="flex items-center justify-between mb-[14px]">
 						<div class="text-[12.5px] text-[var(--tx-2)]">
 							Real builds for <span class="text-[var(--tx)]">{app.name}</span>, from {data.repo

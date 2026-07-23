@@ -114,6 +114,19 @@ certificate, dogfooding itself through its own deployment engine. See
 `agent/README.md` and `phases/08-self-hosted-bootstrap` in the planning
 repo for the full design.
 
+At this point the running instance's own `bakery` app has no repo
+connected yet — bootstrap seeds it with a working, already-built image
+(see `phases/08-self-hosted-bootstrap/12-bootstrap-builds-local-image.md`)
+but nothing to build from on future pushes. One manual browser step closes
+that loop (the only step in this whole flow that can't be scripted, since
+it's a real GitHub OAuth-style redirect): sign in, go to **Sources**,
+click **Connect GitHub**, and install the app on this repo. Then open the
+`bakery` app's **Deployments** tab — with no repo connected yet it shows a
+repo picker instead of the usual build history — and connect the repo you
+just installed. From that point on, every push to `main` goes through the
+exact same webhook → build → registry → deploy pipeline as any other app,
+no special-casing.
+
 Deploying to something other than this flow (e.g. a different platform
 entirely) still works via `@sveltejs/adapter-node` — see the
 [SvelteKit adapter docs](https://svelte.dev/docs/kit/adapters). Either way,

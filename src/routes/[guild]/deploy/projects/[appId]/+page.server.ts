@@ -13,6 +13,7 @@ import {
 	volume,
 	appMetricSample
 } from '$lib/server/db/schema';
+import { z } from 'zod';
 import { getLatestCommitSha } from '$lib/server/github/app-auth';
 import { quadletContent, versionedUnitName } from '$lib/server/deploy/quadlet';
 import { startDeployment, refreshProxyConfigForApp } from '$lib/server/deploy/orchestrator';
@@ -55,6 +56,7 @@ export const load: PageServerLoad = async (event) => {
 		return {
 			realApp: null,
 			repo: null,
+			connectableRepos: [],
 			builds: [],
 			domains: [],
 			volumes: [],
@@ -62,6 +64,18 @@ export const load: PageServerLoad = async (event) => {
 			latestAppMetricSample: null
 		};
 	}
+
+	// Only queried for a repo-less app (created via `bakery bootstrap`, task
+	// 12, Phase 08, or one whose `repo` row was removed via `onDelete: 'set
+	// null'` after a GitHub App uninstall) — every normal app already picked
+	// its repo at creation time (`projects/new`) and never needs this list.
+	const connectableRepos = appRow.repoId
+		? []
+		: await db
+				.select({ id: repo.id, fullName: repo.fullName, defaultBranch: repo.defaultBranch })
+				.from(repo)
+				.innerJoin(source, eq(repo.sourceId, source.id))
+				.where(eq(source.organizationId, organization.id));
 
 	const [repoRow] = appRow.repoId
 		? await db.select().from(repo).where(eq(repo.id, appRow.repoId))
@@ -132,6 +146,7 @@ export const load: PageServerLoad = async (event) => {
 	return {
 		realApp: appRow,
 		repo: repoRow,
+		connectableRepos,
 		builds,
 		realQuadletContent,
 		deployments,
@@ -142,7 +157,48 @@ export const load: PageServerLoad = async (event) => {
 	};
 };
 
+const connectRepoSchema = z.object({ repoId: z.string().uuid() });
+
 export const actions: Actions = {
+	// Points a repo-less app at one of the guild's already-synced repos —
+	// the counterpart to `projects/new`'s creation-time repo pick, for an
+	// app that either never had one (`bakery bootstrap`, task 12, Phase 08)
+	// or lost it (`app.repoId`'s `onDelete: 'set null'`, e.g. a GitHub App
+	// uninstall). `buildContext` isn't asked for here — it already defaults
+	// to `.` at the schema level, same as `projects/new`, and an operator
+	// can adjust it via a later action if this app really does need a
+	// non-root build context.
+	connectRepo: async (event) => {
+		const { organization } = await requireGuild(event, { permission: 'deploy_apps' });
+
+		const [appRow] = await db
+			.select()
+			.from(app)
+			.where(and(eq(app.id, event.params.appId), eq(app.organizationId, organization.id)));
+		if (!appRow) return fail(404, { message: 'App not found' });
+
+		const formData = await event.request.formData();
+		const parsed = connectRepoSchema.safeParse({ repoId: formData.get('repoId') });
+		if (!parsed.success) return fail(400, { message: 'Pick a repository' });
+
+		const [repoRow] = await db
+			.select({ id: repo.id, sourceId: repo.sourceId })
+			.from(repo)
+			.where(eq(repo.id, parsed.data.repoId));
+		if (!repoRow) return fail(400, { message: 'That repository is no longer available' });
+
+		const [sourceRow] = await db
+			.select({ organizationId: source.organizationId })
+			.from(source)
+			.where(eq(source.id, repoRow.sourceId));
+		if (!sourceRow || sourceRow.organizationId !== organization.id) {
+			return fail(400, { message: 'That repository is no longer available' });
+		}
+
+		await db.update(app).set({ repoId: repoRow.id }).where(eq(app.id, appRow.id));
+
+		return { success: true };
+	},
 	buildNow: async (event) => {
 		const { organization, userId } = await requireGuild(event, { permission: 'deploy_apps' });
 
