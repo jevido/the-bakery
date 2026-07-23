@@ -76,9 +76,13 @@ be installed on each host you deploy to. See `agent/README.md` for the full
 subcommand reference. In short:
 
 - `curl -fsSL <url>/install.sh | bash` — root-level shim: creates the
-  dedicated `bakery` system user and installs the binary. `<url>` is either
-  an already-running Bakery instance (pass `--url=<that-instance>`) or the
-  fixed GitHub Releases location, for a box with nothing running yet.
+  dedicated `bakery` system user and installs the binary. Pass
+  `--url=<that-instance>` to enroll against an already-running instance (the
+  binary is downloaded from that instance's own `/releases/` route, built by
+  its own build-worker); omit it entirely on a box with nothing running yet
+  and the script builds the binary from source itself (`git clone` + `go
+build`, installing Go/git first if missing) — no GitHub Release, no
+  pre-built artifact, ever.
 - `bakery setup` — idempotently installs rootless Podman and its
   prerequisites, subuid/subgid ranges, the unprivileged-port sysctl, and
   firewall rules.
@@ -96,10 +100,14 @@ The one-line self-hosting path is: on a fresh Debian 13 box with DNS for
 your domain already pointed at it,
 
 ```sh
-curl -fsSL https://github.com/jevido/the-bakery/releases/latest/download/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jevido/the-bakery/main/src/lib/server/agent/install.sh | bash
 bakery setup
 bakery bootstrap --domain=<your-domain>
 ```
+
+(`raw.githubusercontent.com` is plain source hosting, not CI — the same
+distinction that lets `install.sh` itself `git clone` the repo below. No
+GitHub Actions job publishes anything either of these commands depends on.)
 
 This ends with `https://<domain>` serving the control plane over a real
 certificate, dogfooding itself through its own deployment engine. See
@@ -116,4 +124,4 @@ production needs:
 - A real container registry reachable from both the build worker and every host agent
 - `ENCRYPTION_KEY`/`BETTER_AUTH_SECRET` from a real secret store, not `.env` — see the key-rotation notes in `src/lib/server/secrets/crypto.ts` if either ever needs to change
 
-CI runs on every push via `.github/workflows/ci.yml`; the container image is published to GHCR, and the `bakery` agent binaries + install shim to a moving GitHub Release, on push to `main` only.
+CI runs on every push via `.github/workflows/ci.yml`; the container image is published to GHCR on push to `main` only. (The `bakery` agent binaries and install shim are no longer published there — `install.sh` builds the binary from source itself now; see "The host agent" above.)

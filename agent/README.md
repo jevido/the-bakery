@@ -17,8 +17,10 @@ This is a standalone Go module, independent of the SvelteKit app's
 
 `setup`/`join`/`bootstrap` all run as (or re-exec into) a dedicated
 `bakery` system user, created by `install.sh` (`src/lib/server/agent/install.sh`,
-served at `<instance>/install.sh` or the project's GitHub Releases for a
-box with nothing running yet).
+served at `<instance>/install.sh` when enrolling against a running instance;
+built from source on the box itself, via `git clone` + `go build`, when
+bootstrapping a box with nothing running yet — no GitHub Release involved
+either way).
 
 ## Build
 

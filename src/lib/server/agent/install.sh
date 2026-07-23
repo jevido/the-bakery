@@ -12,14 +12,18 @@
 #   curl -fsSL <url>/install.sh | bash -s -- --ssh-key="$(cat key.pub)"
 #
 # <url> is either a running Bakery instance (enrolling an additional host —
-# pass --url=<that-instance> so the binary comes from the exact same build)
-# or the fixed GitHub Releases location (bootstrapping a brand-new
-# instance, before any control plane exists to serve this route at all).
+# pass --url=<that-instance> so the binary comes from the exact same build,
+# downloaded from that instance's own /releases/ route) or omitted entirely
+# (bootstrapping a brand-new instance, before any control plane exists to
+# serve that route at all) — in which case the binary is built from source
+# right here (git clone + `go build`), not downloaded from anywhere. No CI,
+# no pre-built artifact, ever.
 set -eu
 
 BAKERY_USER="bakery"
 BIN_PATH="/usr/local/bin/bakery"
-GITHUB_RELEASE_BASE="https://github.com/jevido/the-bakery/releases/latest/download"
+SOURCE_REPO_URL="https://github.com/jevido/the-bakery.git"
+SOURCE_REPO_REF="main"
 
 BAKERY_URL=""
 UPDATE=0
@@ -144,27 +148,62 @@ if [ "$UPDATE" -eq 0 ]; then
 	runuser -u "$BAKERY_USER" -- env XDG_RUNTIME_DIR="/run/user/$(id -u "$BAKERY_USER")" systemctl --user daemon-reload || true
 fi
 
-# Download and atomically install the binary. When --url points at a
-# running instance, its own build is authoritative (guarantees control
-# plane/agent version match); otherwise fall back to the fixed GitHub
-# Releases location, since bootstrapping a brand-new instance means
-# nothing is running yet to serve /releases/ from.
-if [ -n "$BAKERY_URL" ]; then
-	RELEASE_BASE="${BAKERY_URL%/}/releases"
-else
-	RELEASE_BASE="$GITHUB_RELEASE_BASE"
-fi
-RELEASE_URL="$RELEASE_BASE/bakery-linux-$ARCH"
-
-echo "Downloading bakery from $RELEASE_URL"
+# Get the binary onto this box, then atomically install it. When --url
+# points at a running instance, its own build is authoritative (guarantees
+# control plane/agent version match) — download from its /releases/ route.
+# Otherwise (a genuinely fresh box, nothing running anywhere yet) build it
+# from source right here instead: no GitHub Release, no CI-produced
+# artifact, nowhere else this could come from.
+#
 # Same directory as the final path so the mv below is a same-filesystem
 # rename — atomic, no window where $BIN_PATH is a partially-written file.
 TMP_BIN="$(mktemp /usr/local/bin/.bakery-install-XXXXXX)"
-if ! curl -fsSL "$RELEASE_URL" -o "$TMP_BIN"; then
-	echo "Failed to download bakery binary from $RELEASE_URL" >&2
-	rm -f "$TMP_BIN"
-	exit 1
+
+if [ -n "$BAKERY_URL" ]; then
+	RELEASE_URL="${BAKERY_URL%/}/releases/bakery-linux-$ARCH"
+	echo "Downloading bakery from $RELEASE_URL"
+	if ! curl -fsSL "$RELEASE_URL" -o "$TMP_BIN"; then
+		echo "Failed to download bakery binary from $RELEASE_URL" >&2
+		rm -f "$TMP_BIN"
+		exit 1
+	fi
+else
+	echo "No --url given: nothing is running yet to download from, so building"
+	echo "bakery from source instead (git clone + go build). This needs Go and"
+	echo "git — installing them if missing. This step can take a few minutes."
+
+	if ! command -v go >/dev/null 2>&1; then
+		echo "--- Installing Go ---"
+		apt-get update -qq
+		apt-get install -y golang-go
+	fi
+	if ! command -v git >/dev/null 2>&1; then
+		echo "--- Installing git ---"
+		apt-get update -qq
+		apt-get install -y git
+	fi
+
+	SRC_DIR="$(mktemp -d /tmp/bakery-src-XXXXXX)"
+	trap 'rm -rf "$SRC_DIR"' EXIT
+
+	echo "--- Cloning $SOURCE_REPO_URL ($SOURCE_REPO_REF) ---"
+	if ! git clone --quiet --depth=1 --branch="$SOURCE_REPO_REF" "$SOURCE_REPO_URL" "$SRC_DIR"; then
+		echo "Failed to clone $SOURCE_REPO_URL" >&2
+		rm -f "$TMP_BIN"
+		exit 1
+	fi
+
+	echo "--- Building bakery ($ARCH) ---"
+	# Same build invocation agent/README.md's "Build" section and the
+	# Containerfile's agent-build stage already use, so this binary behaves
+	# identically to the one baked into every build-worker-driven image.
+	if ! (cd "$SRC_DIR/agent" && CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -o "$TMP_BIN" .); then
+		echo "Failed to build bakery from source" >&2
+		rm -f "$TMP_BIN"
+		exit 1
+	fi
 fi
+
 chmod 755 "$TMP_BIN"
 mv "$TMP_BIN" "$BIN_PATH"
 
