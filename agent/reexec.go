@@ -42,10 +42,19 @@ func reexecAsBakeryUser(args []string) {
 // session pam_systemd sets up for a real login, even with lingering
 // enabled (first hit, and documented, in the old root-bootstrap script's
 // phase-2 script).
+//
+// Always overwrites rather than only setting when empty: `runuser -u
+// bakery -- <self>` (reexecAsBakeryUser) doesn't clear the caller's
+// environment, so when this runs after re-execing from root, it's not
+// that XDG_RUNTIME_DIR is unset — it's that it's already set, to *root's*
+// runtime dir (/run/user/0), inherited from the parent process. A
+// present-but-wrong value looked "already set" to a bare emptiness check
+// and was left alone, so every `systemctl --user`/rootless Podman call
+// downstream tried to reach root's session bus instead of bakery's and
+// failed with "Operation not permitted". Recomputing unconditionally from
+// the current (by now already re-exec'd) UID is correct either way —
+// harmless when it's already right, since it produces the same value.
 func ensureUserSessionEnv() {
-	if os.Getenv("XDG_RUNTIME_DIR") != "" {
-		return
-	}
 	runtimeDir := fmt.Sprintf("/run/user/%d", os.Getuid())
 	os.Setenv("XDG_RUNTIME_DIR", runtimeDir)
 	os.Setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path="+runtimeDir+"/bus")
