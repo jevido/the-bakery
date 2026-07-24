@@ -1,6 +1,6 @@
 import { desc, eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
-import { deployment, app, member, user, host } from '$lib/server/db/schema';
+import { deployment, app, member, user, host, build } from '$lib/server/db/schema';
 
 export interface ActivityEvent {
 	dot: string;
@@ -36,10 +36,12 @@ export async function recentActivity(organizationId: string): Promise<ActivityEv
 				status: deployment.status,
 				startedAt: deployment.startedAt,
 				triggeredBy: deployment.triggeredBy,
-				appName: app.name
+				appName: app.name,
+				commitSha: build.commitSha
 			})
 			.from(deployment)
 			.innerJoin(app, eq(app.id, deployment.appId))
+			.innerJoin(build, eq(build.id, deployment.buildId))
 			.where(eq(app.organizationId, organizationId))
 			.orderBy(desc(deployment.startedAt))
 			.limit(EVENTS_PER_SOURCE),
@@ -73,7 +75,7 @@ export async function recentActivity(organizationId: string): Promise<ActivityEv
 		events.push({
 			dot: DEPLOYMENT_STATUS_DOT[d.status] ?? '#3fb984',
 			who,
-			text: ` deployed ${d.appName} (${d.status})`,
+			text: ` deployed ${d.appName} (${d.commitSha.slice(0, 7)}, ${d.status})`,
 			at: d.startedAt
 		});
 	}
