@@ -39,7 +39,8 @@
 		storage: 'Storage',
 		members: 'Members',
 		roles: 'Roles',
-		settings: 'Guild Settings'
+		settings: 'Guild Settings',
+		account: 'Account'
 	};
 	const crumb = $derived(sectionLabels[section] ?? section);
 	const pageTitle = $derived(`${crumb} · ${guildName} — The Bakery`);

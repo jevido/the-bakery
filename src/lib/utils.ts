@@ -14,6 +14,17 @@ export function formatBytes(bytes: number): string {
 	return `${exp === 0 ? value : value.toFixed(1)} ${units[exp]}`;
 }
 
+/** e.g. `"Jane Doe"` -> `"JD"`. Used anywhere a user's real name needs a compact avatar fallback. */
+export function initialsFrom(name: string): string {
+	return name
+		.trim()
+		.split(/\s+/)
+		.slice(0, 2)
+		.map((part) => part[0])
+		.join('')
+		.toUpperCase();
+}
+
 /** e.g. a Date 2 minutes ago -> `"2m ago"`. Used by the overview dashboard's activity feed. */
 export function formatRelativeTime(date: Date): string {
 	const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));

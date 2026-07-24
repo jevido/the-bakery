@@ -5,6 +5,7 @@
 	import * as Popover from '$lib/components/ui/popover';
 	import { mode, toggleMode } from 'mode-watcher';
 	import { authClient } from '$lib/auth-client';
+	import { initialsFrom } from '$lib/utils';
 
 	let {
 		guildId,
@@ -22,15 +23,7 @@
 
 	const resources = $derived(GUILD_RESOURCES[guildId]);
 
-	const userInitials = $derived(
-		user.name
-			.trim()
-			.split(/\s+/)
-			.slice(0, 2)
-			.map((part) => part[0])
-			.join('')
-			.toUpperCase()
-	);
+	const userInitials = $derived(initialsFrom(user.name));
 
 	let guildMenuOpen = $state(false);
 	let sidebarEl = $state<HTMLElement | null>(null);
