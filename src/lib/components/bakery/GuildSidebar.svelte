@@ -2,6 +2,9 @@
 	import { GUILD_RESOURCES } from '$lib/data/bakery';
 	import { goto } from '$app/navigation';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
+	import * as Popover from '$lib/components/ui/popover';
+	import { mode, toggleMode } from 'mode-watcher';
+	import { authClient } from '$lib/auth-client';
 
 	let {
 		guildId,
@@ -32,6 +35,8 @@
 	let guildMenuOpen = $state(false);
 	let sidebarEl = $state<HTMLElement | null>(null);
 	let leaveDialogOpen = $state(false);
+	let logoutDialogOpen = $state(false);
+	let accountMenuOpen = $state(false);
 
 	function toggleGuildMenu() {
 		guildMenuOpen = !guildMenuOpen;
@@ -89,6 +94,47 @@
 			}
 		}
 	];
+
+	function closeAccountMenu() {
+		accountMenuOpen = false;
+	}
+
+	// Theme toggle mechanism only (mode-watcher's `.dark` class + persisted
+	// preference) — the Bakery shell's own design tokens (`.bakery-shell` in
+	// layout.css) have no light-mode variants defined, so switching to
+	// "light" won't visibly re-theme the real app yet. That's a separate,
+	// larger design task, deliberately out of scope here.
+	const accountMenuItems = $derived([
+		{
+			icon: 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.36 6.36l-.71-.71M6.34 6.34l-.71-.71m12.02 0l-.71.71M6.34 17.66l-.71.71M12 8a4 4 0 100 8 4 4 0 000-8z',
+			label: mode.current === 'dark' ? 'Switch to light theme' : 'Switch to dark theme',
+			color: 'var(--tx)',
+			action: () => toggleMode()
+		},
+		{
+			icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z',
+			label: 'Account',
+			color: 'var(--tx)',
+			action: () => {
+				closeAccountMenu();
+				nav('deploy/account');
+			}
+		},
+		{
+			icon: 'M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z',
+			label: 'Log out',
+			color: '#f0836b',
+			action: () => {
+				closeAccountMenu();
+				logoutDialogOpen = true;
+			}
+		}
+	]);
+
+	async function confirmLogout() {
+		await authClient.signOut();
+		goto('/login');
+	}
 </script>
 
 <svelte:window onclick={handleWindowClick} />
@@ -105,6 +151,21 @@
 		<AlertDialog.Footer>
 			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
 			<AlertDialog.Action>Leave guild</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
+
+<AlertDialog.Root bind:open={logoutDialogOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Log out?</AlertDialog.Title>
+			<AlertDialog.Description
+				>You'll need to sign in again to access your guilds.</AlertDialog.Description
+			>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Action onclick={confirmLogout}>Log out</AlertDialog.Action>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>
 </AlertDialog.Root>
@@ -331,30 +392,66 @@
 	<div
 		class="h-[56px] shrink-0 bg-black/[0.22] border-t border-t-[var(--line)] flex items-center gap-[9px] px-[10px]"
 	>
-		<div class="relative size-[34px] shrink-0">
-			{#if user.image}
-				<img src={user.image} alt={user.name} class="size-[34px] rounded-[11px] object-cover" />
-			{:else}
-				<div
-					class="size-[34px] rounded-[11px] bg-gradient-to-br from-[#d98a4a] to-[#b5632c] flex items-center justify-center font-bold text-[13px] text-[#1a0f07]"
-				>
-					{userInitials}
-				</div>
-			{/if}
-			<div
-				class="absolute right-[-2px] bottom-[-2px] size-3 rounded-full bg-[var(--ok)] border-[2.5px] border-[var(--sidebar)]"
-			></div>
-		</div>
-		<div class="min-w-0 flex-1">
-			<div
-				class="text-[13px] font-semibold text-[var(--tx)] whitespace-nowrap overflow-hidden text-ellipsis"
+		<Popover.Root bind:open={accountMenuOpen}>
+			<Popover.Trigger
+				class="flex items-center gap-[9px] min-w-0 flex-1 text-left cursor-pointer rounded-[8px] hover:bg-white/5 -mx-[6px] px-[6px] py-1"
 			>
-				{user.name}
-			</div>
-			<div class="text-[11px] text-[var(--tx-3)] whitespace-nowrap overflow-hidden text-ellipsis">
-				{user.email}
-			</div>
-		</div>
+				<div class="relative size-[34px] shrink-0">
+					{#if user.image}
+						<img src={user.image} alt={user.name} class="size-[34px] rounded-[11px] object-cover" />
+					{:else}
+						<div
+							class="size-[34px] rounded-[11px] bg-gradient-to-br from-[#d98a4a] to-[#b5632c] flex items-center justify-center font-bold text-[13px] text-[#1a0f07]"
+						>
+							{userInitials}
+						</div>
+					{/if}
+					<div
+						class="absolute right-[-2px] bottom-[-2px] size-3 rounded-full bg-[var(--ok)] border-[2.5px] border-[var(--sidebar)]"
+					></div>
+				</div>
+				<div class="min-w-0 flex-1">
+					<div
+						class="text-[13px] font-semibold text-[var(--tx)] whitespace-nowrap overflow-hidden text-ellipsis"
+					>
+						{user.name}
+					</div>
+					<div
+						class="text-[11px] text-[var(--tx-3)] whitespace-nowrap overflow-hidden text-ellipsis"
+					>
+						{user.email}
+					</div>
+				</div>
+			</Popover.Trigger>
+			<Popover.Content
+				side="top"
+				align="start"
+				class="!bg-[var(--panel)] !text-[var(--tx)] border !border-[var(--line-2)] !rounded-[11px] !p-[6px] !shadow-[0_18px_46px_rgba(0,0,0,.55)] !w-[220px] !gap-0"
+			>
+				{#each accountMenuItems as m (m.label)}
+					<div
+						onclick={m.action}
+						onkeydown={(e) => e.key === 'Enter' && m.action()}
+						role="button"
+						tabindex="0"
+						class="flex items-center gap-[10px] px-[10px] py-[9px] rounded-[8px] cursor-pointer hover:bg-white/5"
+					>
+						<svg
+							width="16"
+							height="16"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke={m.color}
+							stroke-width="1.8"
+							class="shrink-0"
+						>
+							<path d={m.icon} />
+						</svg>
+						<span class="flex-1 text-[13px] font-semibold" style:color={m.color}>{m.label}</span>
+					</div>
+				{/each}
+			</Popover.Content>
+		</Popover.Root>
 		<div class="flex gap-0.5 text-[var(--tx-2)]">
 			<button
 				onclick={() => nav('deploy/settings')}
