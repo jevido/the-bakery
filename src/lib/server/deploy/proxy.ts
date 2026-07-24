@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, notInArray } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { app, build, deployment, domain } from '$lib/server/db/schema';
 import { publishedPort, versionedUnitName } from './quadlet';
@@ -107,4 +107,34 @@ export async function runningUnitName(appId: string, appName: string): Promise<s
 	if (!row) return null;
 
 	return versionedUnitName(appName, row.commitSha);
+}
+
+/**
+ * Unit name -> deployment id for every deployment of an app that could
+ * still have a live container — everything except `failed`/`rolled_back`,
+ * which are the only two statuses that never have (or no longer have) a
+ * running unit behind them. Unlike `runningUnitName` (the single `running`
+ * row), this covers a new deployment still `starting_new`/`flipping_proxy`
+ * (alive and producing output before it's cut over) and an old one still
+ * `stopping_old` (alive until its `stop` command completes) — both matter
+ * to the check-in endpoint (Phase 09 task 02), which would otherwise drop
+ * their log output entirely just because it isn't the one `running` row.
+ */
+export async function activeDeploymentUnitNames(
+	appId: string,
+	appName: string
+): Promise<Map<string, string>> {
+	const rows = await db
+		.select({ deploymentId: deployment.id, commitSha: build.commitSha })
+		.from(deployment)
+		.innerJoin(build, eq(build.id, deployment.buildId))
+		.where(
+			and(eq(deployment.appId, appId), notInArray(deployment.status, ['failed', 'rolled_back']))
+		);
+
+	const unitNames = new Map<string, string>();
+	for (const row of rows) {
+		unitNames.set(versionedUnitName(appName, row.commitSha), row.deploymentId);
+	}
+	return unitNames;
 }

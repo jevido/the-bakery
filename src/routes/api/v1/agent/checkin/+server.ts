@@ -13,7 +13,7 @@ import {
 } from '$lib/server/db/schema';
 import { authenticateHost } from '$lib/server/agent/auth';
 import { podmanVolumeName } from '$lib/server/deploy/quadlet';
-import { runningUnitName } from '$lib/server/deploy/proxy';
+import { runningUnitName, activeDeploymentUnitNames } from '$lib/server/deploy/proxy';
 import { redactSecrets, secretValuesForApp } from '$lib/server/secrets/redact';
 import {
 	checkinPayloadSchema,
@@ -94,20 +94,30 @@ export const POST: RequestHandler = async (event) => {
 
 		for (const appRow of appRows) {
 			const unitName = await runningUnitName(appRow.id, appRow.name);
-			if (!unitName) continue;
-
-			const stat = statByUnitName.get(unitName);
-			if (stat) {
-				await db.insert(appMetricSample).values({
-					appId: appRow.id,
-					hostId: matchedHost.id,
-					cpuPct: stat.cpuPct,
-					memBytes: stat.memBytes
-				});
+			if (unitName) {
+				const stat = statByUnitName.get(unitName);
+				if (stat) {
+					await db.insert(appMetricSample).values({
+						appId: appRow.id,
+						hostId: matchedHost.id,
+						cpuPct: stat.cpuPct,
+						memBytes: stat.memBytes
+					});
+				}
 			}
 
-			const lines = logsByUnitName.get(unitName);
-			if (lines?.length) {
+			// Logs are matched against *every* unit that could still be alive
+			// for this app (Phase 09 task 02) — not just the single `running`
+			// one metrics above use — so a new deployment's output (still
+			// `starting_new`/`flipping_proxy`, before cutover) and an old one's
+			// tail (still `stopping_old`, before its `stop` command completes)
+			// both get captured instead of silently dropped just because
+			// neither is *the* currently-running unit.
+			const activeUnits = await activeDeploymentUnitNames(appRow.id, appRow.name);
+			const matchedLines = [...activeUnits].flatMap(([activeUnitName, deploymentId]) =>
+				(logsByUnitName.get(activeUnitName) ?? []).map((l) => ({ ...l, deploymentId }))
+			);
+			if (matchedLines.length) {
 				// `ts` defaults to `now()`, which is constant for every row in one
 				// INSERT (transaction-time, not per-row) — the live-tail viewer's
 				// polling cursor (task 05's SSE endpoint) needs distinct
@@ -121,9 +131,10 @@ export const POST: RequestHandler = async (event) => {
 				// quantity worth scrubbing on the way in.
 				const secrets = await secretValuesForApp(appRow.id);
 				await db.insert(appLogLine).values(
-					lines.map((l, i) => ({
+					matchedLines.map((l, i) => ({
 						appId: appRow.id,
 						hostId: matchedHost.id,
+						deploymentId: l.deploymentId,
 						ts: new Date(baseTs + i),
 						message: redactSecrets(l.message, secrets)
 					}))
