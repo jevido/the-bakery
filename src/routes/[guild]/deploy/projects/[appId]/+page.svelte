@@ -263,7 +263,31 @@
 	let envSel = $state<'production' | 'staging'>('production');
 	let reveal = $state(false);
 
-	const containers = $derived(APP_CONTAINERS[appId] ?? []);
+	// Bakery's real deploy model is exactly one container per app -- no
+	// sidecar concept anywhere in the schema or the Quadlet generator -- so
+	// `data.realContainers` (Phase 11) is always 0 or 1 rows. cpu/mem/status
+	// are mapped in here rather than stored on `realContainers` itself: they
+	// already exist as `latestAppMetricSample`/`app.status`, no need for a
+	// second copy of that data.
+	const containers = $derived(
+		data.realApp
+			? data.realContainers.map((c) => ({
+					name: c.name,
+					image: c.image,
+					nets: c.nets,
+					cpu:
+						data.latestAppMetricSample?.cpuPct != null
+							? `${data.latestAppMetricSample.cpuPct.toFixed(1)}%`
+							: '—',
+					mem:
+						data.latestAppMetricSample?.memBytes != null
+							? formatBytes(data.latestAppMetricSample.memBytes)
+							: '—',
+					status: app?.status ?? 'stopped'
+				}))
+			: (APP_CONTAINERS[appId] ?? [])
+	);
+
 	const envVars = $derived(
 		(ENV_SETS[envSel] ?? []).map((e) => ({
 			...e,
@@ -332,6 +356,16 @@
 	function selectTab(tabId: Tab) {
 		goto(`?tab=${tabId}`, { replaceState: true, noScroll: true, keepFocus: true });
 	}
+
+	// Keeps the Containers tab live while it's open (task's explicit "real
+	// time" ask) -- same setInterval(invalidateAll)/clearInterval shape the
+	// Hosts page already uses for its own live-refresh, gated here on the
+	// tab being active rather than a form step.
+	$effect(() => {
+		if (activeTab !== 'containers' || !data.realApp) return;
+		const interval = setInterval(() => invalidateAll(), 5000);
+		return () => clearInterval(interval);
+	});
 
 	const port = $derived(app?.port === '—' ? '3000' : (app?.port ?? '3000'));
 </script>
@@ -517,19 +551,21 @@
 							one quadlet pod.
 						</div>
 					</div>
-					<button
-						class="flex items-center gap-[7px] bg-[var(--card-2)] border border-[var(--line)] text-[var(--tx)] rounded-[8px] px-3 py-2 text-[12.5px] font-semibold cursor-pointer"
-					>
-						<svg
-							width="14"
-							height="14"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2.2"><path d="M12 5v14M5 12h14" /></svg
+					{#if !data.realApp}
+						<button
+							class="flex items-center gap-[7px] bg-[var(--card-2)] border border-[var(--line)] text-[var(--tx)] rounded-[8px] px-3 py-2 text-[12.5px] font-semibold cursor-pointer"
 						>
-						Add container
-					</button>
+							<svg
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2.2"><path d="M12 5v14M5 12h14" /></svg
+							>
+							Add container
+						</button>
+					{/if}
 				</div>
 				<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] overflow-hidden">
 					<div
