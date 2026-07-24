@@ -15,7 +15,7 @@ import {
 } from '$lib/server/db/schema';
 import { z } from 'zod';
 import { getLatestCommitSha } from '$lib/server/github/app-auth';
-import { quadletContent, versionedUnitName } from '$lib/server/deploy/quadlet';
+import { quadletContent, versionedUnitName, guildNetworkName } from '$lib/server/deploy/quadlet';
 import { startDeployment, refreshProxyConfigForApp } from '$lib/server/deploy/orchestrator';
 import { resolveHostForApp } from '$lib/server/deploy/host-assignment';
 import { verifyCnameTarget } from '$lib/server/deploy/custom-domain';
@@ -61,7 +61,8 @@ export const load: PageServerLoad = async (event) => {
 			domains: [],
 			volumes: [],
 			appMetricHistory: [],
-			latestAppMetricSample: null
+			latestAppMetricSample: null,
+			realContainers: []
 		};
 	}
 
@@ -116,12 +117,32 @@ export const load: PageServerLoad = async (event) => {
 			finishedAt: deployment.finishedAt,
 			buildId: deployment.buildId,
 			commitSha: build.commitSha,
-			branch: build.branch
+			branch: build.branch,
+			imageRef: build.imageRef
 		})
 		.from(deployment)
 		.innerJoin(build, eq(build.id, deployment.buildId))
 		.where(eq(deployment.appId, appRow.id))
 		.orderBy(desc(deployment.startedAt));
+
+	// Bakery's real deploy model is exactly one container per app (no sidecar
+	// concept anywhere in the schema or `quadletContent()`), so the Containers
+	// tab (Phase 11) is inherently a 0-or-1-row list: the one deployment
+	// that's actually serving traffic right now, same "find the `running`
+	// one" logic the Rollouts list already uses client-side for
+	// `currentDeploymentId` — done here instead since `versionedUnitName`/
+	// `guildNetworkName` are server-only.
+	const currentDeployment = deployments.find((d) => d.status === 'running');
+	const realContainers = currentDeployment
+		? [
+				{
+					name: appRow.name,
+					unit: versionedUnitName(appRow.name, currentDeployment.commitSha),
+					image: currentDeployment.imageRef ?? 'unknown',
+					nets: guildNetworkName(organization.id)
+				}
+			]
+		: [];
 
 	const domains = await db
 		.select()
@@ -153,7 +174,8 @@ export const load: PageServerLoad = async (event) => {
 		domains,
 		volumes,
 		appMetricHistory,
-		latestAppMetricSample
+		latestAppMetricSample,
+		realContainers
 	};
 };
 
