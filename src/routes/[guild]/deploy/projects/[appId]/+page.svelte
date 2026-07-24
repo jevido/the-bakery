@@ -260,7 +260,6 @@
 		| 'domains'
 		| 'storage'
 		| 'quadlet';
-	let activeTab = $state<Tab>('overview');
 	let envSel = $state<'production' | 'staging'>('production');
 	let reveal = $state(false);
 
@@ -321,6 +320,18 @@
 		{ id: 'storage', label: 'Storage' },
 		{ id: 'quadlet', label: 'Quadlet' }
 	];
+
+	// Sourced from the URL (not local-only state) so a refresh, or a link
+	// shared straight to one tab, lands on that tab instead of always
+	// resetting to Overview — an invalid/missing `?tab=` falls back to it.
+	const activeTab = $derived(
+		(tabs.some((t) => t.id === page.url.searchParams.get('tab'))
+			? page.url.searchParams.get('tab')
+			: 'overview') as Tab
+	);
+	function selectTab(tabId: Tab) {
+		goto(`?tab=${tabId}`, { replaceState: true, noScroll: true, keepFocus: true });
+	}
 
 	const port = $derived(app?.port === '—' ? '3000' : (app?.port ?? '3000'));
 </script>
@@ -408,7 +419,7 @@
 			<!-- Tab bar -->
 			<div class="flex gap-0.5 mt-[18px] border-b border-b-[var(--line)]">
 				{#each tabs as t (t.id)}
-					<button onclick={() => (activeTab = t.id)} class={tabCls(t.id)}>{t.label}</button>
+					<button onclick={() => selectTab(t.id)} class={tabCls(t.id)}>{t.label}</button>
 				{/each}
 			</div>
 		</div>
