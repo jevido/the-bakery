@@ -126,11 +126,19 @@ export const appLogLine = pgTable(
 		hostId: uuid('host_id')
 			.notNull()
 			.references(() => host.id, { onDelete: 'cascade' }),
+		// Nullable — a log line is still meaningful app history even after the
+		// deployment it came from is gone (same "keep the row, drop the link"
+		// pattern as `build.repoId`), and older lines predating this column
+		// simply never had a deployment attributed to them.
+		deploymentId: uuid('deployment_id').references(() => deployment.id, { onDelete: 'set null' }),
 		ts: timestamp('ts').defaultNow().notNull(),
 		level: text('level'),
 		message: text('message').notNull()
 	},
-	(table) => [index('appLogLine_appId_ts_idx').on(table.appId, table.ts)]
+	(table) => [
+		index('appLogLine_appId_ts_idx').on(table.appId, table.ts),
+		index('appLogLine_deploymentId_ts_idx').on(table.deploymentId, table.ts)
+	]
 );
 
 export const appLogLineRelations = relations(appLogLine, ({ one }) => ({
@@ -141,6 +149,10 @@ export const appLogLineRelations = relations(appLogLine, ({ one }) => ({
 	host: one(host, {
 		fields: [appLogLine.hostId],
 		references: [host.id]
+	}),
+	deployment: one(deployment, {
+		fields: [appLogLine.deploymentId],
+		references: [deployment.id]
 	})
 }));
 

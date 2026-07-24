@@ -1,0 +1,3 @@
+ALTER TABLE "app_log_line" ADD COLUMN "deployment_id" uuid;--> statement-breakpoint
+ALTER TABLE "app_log_line" ADD CONSTRAINT "app_log_line_deployment_id_deployment_id_fk" FOREIGN KEY ("deployment_id") REFERENCES "public"."deployment"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "appLogLine_deploymentId_ts_idx" ON "app_log_line" USING btree ("deployment_id","ts");
