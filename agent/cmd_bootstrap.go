@@ -257,8 +257,21 @@ func cmdBootstrap(args []string) {
 		bootstrapFail("calling the bootstrap API", err)
 	}
 
+	// Points the daemon at the *loopback* URL first, not the real public
+	// origin — found live: the real domain has nothing serving it yet at
+	// this point (Caddy's Caddyfile is still just the empty skeleton, no
+	// site block, no TLS cert for it), so a daemon pointed there from the
+	// start can never successfully check in at all, which means it can
+	// never receive the very "deploy" command that would be the thing to
+	// fix that — a real chicken-and-egg circularity, not a transient
+	// timing issue. `host.last_seen_at` stayed NULL and the `deploy`
+	// hostCommand stayed `pending` indefinitely against the real domain,
+	// confirmed against an actual box, with Caddy and the daemon both
+	// genuinely running the whole time. The loopback control plane is
+	// already up and serving `/api/v1/agent/checkin` right now — that's
+	// reachable immediately.
 	fmt.Println("Enrolling this host (bakery join)...")
-	if err := writeDaemonConfig(home, hostToken, origin); err != nil {
+	if err := writeDaemonConfig(home, hostToken, loopbackURL); err != nil {
 		bootstrapFail("writing daemon config", err)
 	}
 	if err := installDaemonUnit(home); err != nil {
@@ -276,7 +289,20 @@ func cmdBootstrap(args []string) {
 		fmt.Fprintln(os.Stderr, "The daemon and host are enrolled — check 'systemctl --user status bakery-daemon caddy'")
 		fmt.Fprintln(os.Stderr, "and the host's status in the Bakery UI once it's reachable.")
 	} else {
-		fmt.Println("Real deployment is healthy — stopping the temporary loopback instance...")
+		// Now that the real deployment has taken over and Caddy has a real
+		// site block + certificate for it, switch the daemon to the public
+		// URL for good — it can't keep pointing at loopback, since the
+		// loopback container is about to be removed. `installDaemonUnit`'s
+		// `enable --now` won't pick up the rewritten env file on its own
+		// (systemd only reads EnvironmentFile= at process start), so this
+		// needs an explicit restart, not just a re-enable.
+		fmt.Println("Real deployment is healthy — switching the daemon to the public URL...")
+		if err := writeDaemonConfig(home, hostToken, origin); err != nil {
+			fmt.Fprintf(os.Stderr, "WARNING: failed to switch the daemon to %s: %v\n", origin, err)
+		} else if err := runCmd("systemctl", "--user", "restart", "bakery-daemon.service"); err != nil {
+			fmt.Fprintf(os.Stderr, "WARNING: failed to restart the daemon after switching its URL: %v\n", err)
+		}
+		fmt.Println("Stopping the temporary loopback instance...")
 		_ = stopLoopbackContainer(ctx)
 	}
 
