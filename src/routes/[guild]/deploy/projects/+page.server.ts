@@ -92,6 +92,8 @@ export const load: PageServerLoad = async (event) => {
 				: latestBuild
 					? 'building'
 					: 'never built',
+			commitSha: latestBuild?.commitSha,
+			branch: latestBuild?.branch,
 			port: '—',
 			initial: appRow.name.charAt(0).toUpperCase() || 'A',
 			unit: `${appRow.name}.container`,

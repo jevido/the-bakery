@@ -135,6 +135,11 @@
 
 				<!-- Deployed -->
 				<div class="text-right">
+					{#if a.commitSha}
+						<div class="font-mono-jb text-[11px] text-[var(--tx-3)]">
+							{a.commitSha.slice(0, 7)} · {a.branch ?? 'external image'}
+						</div>
+					{/if}
 					<div class="text-[12px] text-[var(--tx-2)]">{a.deployed}</div>
 				</div>
 			</div>

@@ -14,6 +14,8 @@ export interface App {
 	initial: string;
 	unit: string;
 	quadletPath: string;
+	commitSha?: string;
+	branch?: string | null;
 }
 
 export interface Host {
