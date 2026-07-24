@@ -128,6 +128,11 @@
 	// startedAt-desc order, not necessarily data.deployments[0].
 	const currentDeploymentId = $derived(data.deployments?.find((d) => d.status === 'running')?.id);
 
+	let expandedDeploymentId = $state<string | null>(null);
+	function toggleDeploymentLogs(deploymentId: string) {
+		expandedDeploymentId = expandedDeploymentId === deploymentId ? null : deploymentId;
+	}
+
 	let rollingBackId = $state<string | null>(null);
 	async function rollback(deploymentId: string) {
 		rollingBackId = deploymentId;
@@ -645,44 +650,68 @@
 										: d.status === 'failed'
 											? '#f0836b'
 											: '#e0a83e'}
-								<div
-									class="flex items-center gap-[14px] px-[18px] py-[12px] border-b border-b-[var(--line)] last:border-b-0"
-								>
+								<div class="border-b border-b-[var(--line)] last:border-b-0">
 									<div
-										class="size-[10px] rounded-full shrink-0"
-										style:background={color}
-										class:animate-pulse={inProgress}
-									></div>
-									<div class="flex-1 min-w-0">
-										<div class="flex items-center gap-[8px]">
-											<span class="font-mono-jb text-[12.5px] text-[var(--tx)] font-semibold"
-												>{d.commitSha.slice(0, 7)} · {d.branch ?? 'external image'}</span
-											>
-											{#if isCurrent}
-												<span
-													class="font-mono-jb text-[10px] font-semibold px-[7px] py-[2px] rounded-[6px] bg-[var(--grn-dim)] text-[var(--grn)]"
-													>current</span
+										onclick={() => toggleDeploymentLogs(d.id)}
+										onkeydown={(e) => {
+											if (e.key === 'Enter' || e.key === ' ') {
+												e.preventDefault();
+												toggleDeploymentLogs(d.id);
+											}
+										}}
+										role="button"
+										tabindex="0"
+										class="flex items-center gap-[14px] px-[18px] py-[12px] cursor-pointer hover:bg-white/[0.02]"
+									>
+										<div
+											class="size-[10px] rounded-full shrink-0"
+											style:background={color}
+											class:animate-pulse={inProgress}
+										></div>
+										<div class="flex-1 min-w-0">
+											<div class="flex items-center gap-[8px]">
+												<span class="font-mono-jb text-[12.5px] text-[var(--tx)] font-semibold"
+													>{d.commitSha.slice(0, 7)} · {d.branch ?? 'external image'}</span
 												>
-											{/if}
+												{#if isCurrent}
+													<span
+														class="font-mono-jb text-[10px] font-semibold px-[7px] py-[2px] rounded-[6px] bg-[var(--grn-dim)] text-[var(--grn)]"
+														>current</span
+													>
+												{/if}
+											</div>
+											<div class="text-[11px] mt-[2px]" style:color>
+												{d.status} · triggered by {d.triggeredBy ?? 'unknown'}
+											</div>
 										</div>
-										<div class="text-[11px] mt-[2px]" style:color>
-											{d.status} · triggered by {d.triggeredBy ?? 'unknown'}
+										<div class="text-[11px] text-[var(--tx-3)] text-right shrink-0">
+											{d.finishedAt
+												? new Date(d.finishedAt).toLocaleString()
+												: new Date(d.startedAt).toLocaleString()}
 										</div>
+										{#if d.status === 'running' && !isCurrent}
+											<button
+												onclick={(e) => {
+													e.stopPropagation();
+													rollback(d.id);
+												}}
+												disabled={rollingBackId === d.id}
+												class="shrink-0 bg-[var(--card-2)] border border-[var(--line)] text-[var(--tx)] rounded-[8px] px-3 py-[7px] text-[11.5px] font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+												>{rollingBackId === d.id
+													? 'Rolling back…'
+													: 'Rollback to this deploy'}</button
+											>
+										{/if}
 									</div>
-									<div class="text-[11px] text-[var(--tx-3)] text-right shrink-0">
-										{d.finishedAt
-											? new Date(d.finishedAt).toLocaleString()
-											: new Date(d.startedAt).toLocaleString()}
-									</div>
-									{#if d.status === 'running' && !isCurrent}
-										<button
-											onclick={() => rollback(d.id)}
-											disabled={rollingBackId === d.id}
-											class="shrink-0 bg-[var(--card-2)] border border-[var(--line)] text-[var(--tx)] rounded-[8px] px-3 py-[7px] text-[11.5px] font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-											>{rollingBackId === d.id
-												? 'Rolling back…'
-												: 'Rollback to this deploy'}</button
-										>
+									{#if expandedDeploymentId === d.id}
+										<div class="bg-[#080c09] border-t border-t-[var(--line)] overflow-hidden">
+											<div
+												class="px-4 py-[10px] border-b border-b-[var(--line)] bg-[var(--card)] text-[12.5px] font-semibold"
+											>
+												Live log · {d.commitSha.slice(0, 7)} · {d.status}
+											</div>
+											<BuildLogViewer logsUrl={`/api/v1/deployments/${d.id}/logs/stream`} />
+										</div>
 									{/if}
 								</div>
 							{/each}
