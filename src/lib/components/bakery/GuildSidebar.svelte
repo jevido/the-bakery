@@ -7,15 +7,27 @@
 		guildId,
 		guildName,
 		memberCount,
-		activeSection
+		activeSection,
+		user
 	}: {
 		guildId: string;
 		guildName: string;
 		memberCount: number;
 		activeSection: string;
+		user: { name: string; email: string; image?: string | null };
 	} = $props();
 
 	const resources = $derived(GUILD_RESOURCES[guildId]);
+
+	const userInitials = $derived(
+		user.name
+			.trim()
+			.split(/\s+/)
+			.slice(0, 2)
+			.map((part) => part[0])
+			.join('')
+			.toUpperCase()
+	);
 
 	let guildMenuOpen = $state(false);
 	let sidebarEl = $state<HTMLElement | null>(null);
@@ -320,23 +332,28 @@
 		class="h-[56px] shrink-0 bg-black/[0.22] border-t border-t-[var(--line)] flex items-center gap-[9px] px-[10px]"
 	>
 		<div class="relative size-[34px] shrink-0">
-			<div
-				class="size-[34px] rounded-[11px] bg-gradient-to-br from-[#d98a4a] to-[#b5632c] flex items-center justify-center font-bold text-[13px] text-[#1a0f07]"
-			>
-				RY
-			</div>
+			{#if user.image}
+				<img src={user.image} alt={user.name} class="size-[34px] rounded-[11px] object-cover" />
+			{:else}
+				<div
+					class="size-[34px] rounded-[11px] bg-gradient-to-br from-[#d98a4a] to-[#b5632c] flex items-center justify-center font-bold text-[13px] text-[#1a0f07]"
+				>
+					{userInitials}
+				</div>
+			{/if}
 			<div
 				class="absolute right-[-2px] bottom-[-2px] size-3 rounded-full bg-[var(--ok)] border-[2.5px] border-[var(--sidebar)]"
 			></div>
 		</div>
 		<div class="min-w-0 flex-1">
-			<div class="text-[13px] font-semibold text-[var(--tx)] flex items-center gap-[5px]">
-				Rye
-				<svg width="11" height="11" viewBox="0 0 24 24" fill="#e0a83e"
-					><path d="M5 16L3 6l5 4 4-6 4 6 5-4-2 10z" /></svg
-				>
+			<div
+				class="text-[13px] font-semibold text-[var(--tx)] whitespace-nowrap overflow-hidden text-ellipsis"
+			>
+				{user.name}
 			</div>
-			<div class="text-[11px] text-[var(--tx-3)]">Guild Master</div>
+			<div class="text-[11px] text-[var(--tx-3)] whitespace-nowrap overflow-hidden text-ellipsis">
+				{user.email}
+			</div>
 		</div>
 		<div class="flex gap-0.5 text-[var(--tx-2)]">
 			<button

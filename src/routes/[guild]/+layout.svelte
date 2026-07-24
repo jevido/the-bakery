@@ -57,7 +57,7 @@
 	class="bakery-shell flex h-screen w-screen overflow-hidden bg-[var(--main)] text-[var(--tx)] font-bakery antialiased"
 >
 	<AppRail {guildId} onOpenJourney={() => (guildJourneyOpen = true)} />
-	<GuildSidebar {guildId} {guildName} {memberCount} activeSection={section} />
+	<GuildSidebar {guildId} {guildName} {memberCount} activeSection={section} user={data.user} />
 
 	<div class="flex-1 min-w-0 flex flex-col bg-[var(--main)]">
 		<TopBar {guildName} {section} {onDeploy} />
