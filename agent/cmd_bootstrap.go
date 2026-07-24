@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"time"
 )
@@ -68,6 +69,42 @@ func cmdBootstrap(args []string) {
 	}
 	if *adminEmail == "" || *adminPassword == "" {
 		bootstrapFail("validating input", fmt.Errorf("admin email and password are both required"))
+	}
+
+	// Read from this process's own environment (e.g. a .env the operator
+	// sourced before running bootstrap) rather than a new flag — these are
+	// long, sometimes multi-line values (a PEM private key) that don't fit
+	// the CLI-flag/interactive-prompt shape the admin email/password use.
+	//
+	// Found live: these were originally treated as optional here — self-
+	// hosting "still completes, just with Connect GitHub non-functional
+	// until set later." That's wrong. SvelteKit's `defineEnvVars`
+	// (src/env.ts) declares all six as required for the app to boot *at
+	// all* — GITHUB_CLIENT_ID/_SECRET (GitHub OAuth login) were never even
+	// read here before this fix, so the real, post-migration control-plane
+	// container crash-looped on startup with no visible error beyond a
+	// generic 2-minute "connection refused" from the health-wait loop
+	// outside it. Failing fast here, before Postgres/registry/the image
+	// build even start, turns a silent ~5+ minute dead end into an
+	// immediate, actionable error.
+	githubClientID := os.Getenv("GITHUB_CLIENT_ID")
+	githubClientSecret := os.Getenv("GITHUB_CLIENT_SECRET")
+	githubAppID := os.Getenv("GITHUB_APP_ID")
+	githubAppSlug := os.Getenv("GITHUB_APP_SLUG")
+	githubAppPrivateKey := os.Getenv("GITHUB_APP_PRIVATE_KEY")
+	githubWebhookSecret := os.Getenv("GITHUB_WEBHOOK_SECRET")
+	if missing := missingRequiredGithubEnvVars(map[string]string{
+		"GITHUB_CLIENT_ID":       githubClientID,
+		"GITHUB_CLIENT_SECRET":   githubClientSecret,
+		"GITHUB_APP_ID":          githubAppID,
+		"GITHUB_APP_SLUG":        githubAppSlug,
+		"GITHUB_APP_PRIVATE_KEY": githubAppPrivateKey,
+		"GITHUB_WEBHOOK_SECRET":  githubWebhookSecret,
+	}); len(missing) > 0 {
+		bootstrapFail("validating input", fmt.Errorf(
+			"the control plane can't start without these set in this process's own environment (e.g. `set -a; source .env; set +a` before running bootstrap): %s",
+			strings.Join(missing, ", "),
+		))
 	}
 
 	fmt.Printf("Checking that %s resolves to this box...\n", *domain)
@@ -131,26 +168,6 @@ func cmdBootstrap(args []string) {
 		bootstrapFail("generating bootstrap secret", err)
 	}
 
-	// Read from this process's own environment (e.g. a .env the operator
-	// sourced before running bootstrap) rather than a new flag — these are
-	// long, sometimes multi-line values (a PEM private key) that don't fit
-	// the CLI-flag/interactive-prompt shape the admin email/password use.
-	// Optional as a set: without them, self-hosting still completes, just
-	// with "Connect GitHub" left non-functional until set later the same
-	// way any customer configures their own app's env vars.
-	githubAppID := os.Getenv("GITHUB_APP_ID")
-	githubAppSlug := os.Getenv("GITHUB_APP_SLUG")
-	githubAppPrivateKey := os.Getenv("GITHUB_APP_PRIVATE_KEY")
-	githubWebhookSecret := os.Getenv("GITHUB_WEBHOOK_SECRET")
-	githubAppConfigured := githubAppID != "" && githubAppSlug != "" &&
-		githubAppPrivateKey != "" && githubWebhookSecret != ""
-	if !githubAppConfigured {
-		fmt.Println()
-		fmt.Println("GITHUB_APP_ID/GITHUB_APP_SLUG/GITHUB_APP_PRIVATE_KEY/GITHUB_WEBHOOK_SECRET")
-		fmt.Println("are not all set — skipping GitHub App config. \"Connect GitHub\" won't work")
-		fmt.Println("until these are set later, the same way any app's env vars are.")
-	}
-
 	origin := "https://" + *domain
 	containerEnv := map[string]string{
 		"DATABASE_URL":                  containerDatabaseURL,
@@ -165,12 +182,12 @@ func cmdBootstrap(args []string) {
 		"BAKERY_REGISTRY_PUSH_PASSWORD": registryCreds.PushPassword,
 		"BAKERY_REGISTRY_PULL_USERNAME": registryCreds.PullUsername,
 		"BAKERY_REGISTRY_PULL_PASSWORD": registryCreds.PullPassword,
-	}
-	if githubAppConfigured {
-		containerEnv["GITHUB_APP_ID"] = githubAppID
-		containerEnv["GITHUB_APP_SLUG"] = githubAppSlug
-		containerEnv["GITHUB_APP_PRIVATE_KEY"] = githubAppPrivateKey
-		containerEnv["GITHUB_WEBHOOK_SECRET"] = githubWebhookSecret
+		"GITHUB_CLIENT_ID":              githubClientID,
+		"GITHUB_CLIENT_SECRET":          githubClientSecret,
+		"GITHUB_APP_ID":                 githubAppID,
+		"GITHUB_APP_SLUG":               githubAppSlug,
+		"GITHUB_APP_PRIVATE_KEY":        githubAppPrivateKey,
+		"GITHUB_WEBHOOK_SECRET":         githubWebhookSecret,
 	}
 
 	fmt.Println("Provisioning the build worker...")
@@ -180,10 +197,8 @@ func cmdBootstrap(args []string) {
 		"BAKERY_REGISTRY_HOST":          registryCreds.Host,
 		"BAKERY_REGISTRY_PUSH_USERNAME": registryCreds.PushUsername,
 		"BAKERY_REGISTRY_PUSH_PASSWORD": registryCreds.PushPassword,
-	}
-	if githubAppConfigured {
-		buildWorkerEnv["GITHUB_APP_ID"] = githubAppID
-		buildWorkerEnv["GITHUB_APP_PRIVATE_KEY"] = githubAppPrivateKey
+		"GITHUB_APP_ID":                 githubAppID,
+		"GITHUB_APP_PRIVATE_KEY":        githubAppPrivateKey,
 	}
 	if err := provisionBuildWorker(ctx, home, *source, buildWorkerEnv); err != nil {
 		bootstrapFail("provisioning the build worker", err)
@@ -220,12 +235,12 @@ func cmdBootstrap(args []string) {
 		RegistryPushPassword: registryCreds.PushPassword,
 		RegistryPullUsername: registryCreds.PullUsername,
 		RegistryPullPassword: registryCreds.PullPassword,
-	}
-	if githubAppConfigured {
-		apiRequest.GithubAppID = githubAppID
-		apiRequest.GithubAppSlug = githubAppSlug
-		apiRequest.GithubAppPrivateKey = githubAppPrivateKey
-		apiRequest.GithubWebhookSecret = githubWebhookSecret
+		GithubClientID:       githubClientID,
+		GithubClientSecret:   githubClientSecret,
+		GithubAppID:          githubAppID,
+		GithubAppSlug:        githubAppSlug,
+		GithubAppPrivateKey:  githubAppPrivateKey,
+		GithubWebhookSecret:  githubWebhookSecret,
 	}
 	hostToken, err := callBootstrapAPI(ctx, loopbackURL, apiRequest, bootstrapSecret)
 	if err != nil {
@@ -275,6 +290,22 @@ func cmdBootstrap(args []string) {
 func bootstrapFail(step string, err error) {
 	fmt.Fprintf(os.Stderr, "bakery: bootstrap: %s: %v\n", step, err)
 	os.Exit(1)
+}
+
+// missingRequiredGithubEnvVars returns the sorted (for stable, testable
+// output) names of any empty values — pulled out of cmdBootstrap so this
+// specific check (found live: silently-optional here meant a real, crash-
+// looping container two provisioning steps and several minutes later) has
+// a unit test of its own, not just end-to-end coverage.
+func missingRequiredGithubEnvVars(vars map[string]string) []string {
+	var missing []string
+	for name, value := range vars {
+		if value == "" {
+			missing = append(missing, name)
+		}
+	}
+	sort.Strings(missing)
+	return missing
 }
 
 func promptLine(prompt string) string {
@@ -467,10 +498,18 @@ type bootstrapAPIRequest struct {
 	RegistryPushPassword string `json:"registryPushPassword"`
 	RegistryPullUsername string `json:"registryPullUsername"`
 	RegistryPullPassword string `json:"registryPullPassword"`
-	GithubAppID          string `json:"githubAppId,omitempty"`
-	GithubAppSlug        string `json:"githubAppSlug,omitempty"`
-	GithubAppPrivateKey  string `json:"githubAppPrivateKey,omitempty"`
-	GithubWebhookSecret  string `json:"githubWebhookSecret,omitempty"`
+
+	// Required, not optional: SvelteKit's `defineEnvVars` (src/env.ts)
+	// declares all six of these as needed for the app to boot at all, so
+	// `cmdBootstrap` already fails fast before any of this runs if any are
+	// missing from its own environment — found live, the hard way, when
+	// "optional" here just meant a silently crash-looping container later.
+	GithubClientID      string `json:"githubClientId"`
+	GithubClientSecret  string `json:"githubClientSecret"`
+	GithubAppID         string `json:"githubAppId"`
+	GithubAppSlug       string `json:"githubAppSlug"`
+	GithubAppPrivateKey string `json:"githubAppPrivateKey"`
+	GithubWebhookSecret string `json:"githubWebhookSecret"`
 }
 
 type bootstrapAPIResponse struct {

@@ -33,21 +33,29 @@ const bootstrapSchema = z.object({
 	betterAuthSecret: z.string().trim().min(1),
 	encryptionKey: z.string().trim().min(1),
 	// The registry `bakery bootstrap` already provisioned (Phase 08 task 10)
-	// and the optional GitHub App config it read from its own environment —
-	// without these becoming real envVar rows here, the *real* Quadlet-
+	// — without these becoming real envVar rows here, the *real* Quadlet-
 	// managed deployment this endpoint queues (via `startDeployment` below)
-	// would have nothing to build with or authenticate "Connect GitHub"
-	// against once the temporary loopback container is torn down (Phase 08
-	// task 14).
+	// would have nothing to build with once the temporary loopback
+	// container is torn down (Phase 08 task 14).
 	registryHost: z.string().trim().min(1),
 	registryPushUsername: z.string().trim().min(1),
 	registryPushPassword: z.string().trim().min(1),
 	registryPullUsername: z.string().trim().min(1),
 	registryPullPassword: z.string().trim().min(1),
-	githubAppId: z.string().trim().optional(),
-	githubAppSlug: z.string().trim().optional(),
-	githubAppPrivateKey: z.string().trim().optional(),
-	githubWebhookSecret: z.string().trim().optional()
+	// Required, not optional: `src/env.ts`'s `defineEnvVars` declares all
+	// six of these GitHub-related vars as needed for the app to boot at
+	// all — `bakery bootstrap` (Phase 08 task 14) already fails fast before
+	// any of this runs if its own environment is missing any of them, so by
+	// the time a request reaches here they're always present. Found live,
+	// the hard way: treating them as optional here just meant the *real*
+	// deployment this endpoint queues crash-looped on startup with no
+	// visible error.
+	githubClientId: z.string().trim().min(1),
+	githubClientSecret: z.string().trim().min(1),
+	githubAppId: z.string().trim().min(1),
+	githubAppSlug: z.string().trim().min(1),
+	githubAppPrivateKey: z.string().trim().min(1),
+	githubWebhookSecret: z.string().trim().min(1)
 });
 
 function slugify(name: string): string {
@@ -127,17 +135,13 @@ export const POST: RequestHandler = async (event) => {
 		registryPushPassword,
 		registryPullUsername,
 		registryPullPassword,
+		githubClientId,
+		githubClientSecret,
 		githubAppId,
 		githubAppSlug,
 		githubAppPrivateKey,
 		githubWebhookSecret
 	} = parsed.data;
-	const githubAppConfigured = !!(
-		githubAppId &&
-		githubAppSlug &&
-		githubAppPrivateKey &&
-		githubWebhookSecret
-	);
 
 	let signUpResult;
 	try {
@@ -304,36 +308,44 @@ export const POST: RequestHandler = async (event) => {
 			key: 'CONTROL_PLANE_HOST_ID',
 			valueCiphertext: encrypt(hostRow.id),
 			isSecret: false
+		},
+		{
+			appId: appRow.id,
+			key: 'GITHUB_CLIENT_ID',
+			valueCiphertext: encrypt(githubClientId),
+			isSecret: false
+		},
+		{
+			appId: appRow.id,
+			key: 'GITHUB_CLIENT_SECRET',
+			valueCiphertext: encrypt(githubClientSecret),
+			isSecret: true
+		},
+		{
+			appId: appRow.id,
+			key: 'GITHUB_APP_ID',
+			valueCiphertext: encrypt(githubAppId),
+			isSecret: false
+		},
+		{
+			appId: appRow.id,
+			key: 'GITHUB_APP_SLUG',
+			valueCiphertext: encrypt(githubAppSlug),
+			isSecret: false
+		},
+		{
+			appId: appRow.id,
+			key: 'GITHUB_APP_PRIVATE_KEY',
+			valueCiphertext: encrypt(githubAppPrivateKey),
+			isSecret: true
+		},
+		{
+			appId: appRow.id,
+			key: 'GITHUB_WEBHOOK_SECRET',
+			valueCiphertext: encrypt(githubWebhookSecret),
+			isSecret: true
 		}
 	];
-	if (githubAppConfigured) {
-		envVarRows.push(
-			{
-				appId: appRow.id,
-				key: 'GITHUB_APP_ID',
-				valueCiphertext: encrypt(githubAppId!),
-				isSecret: false
-			},
-			{
-				appId: appRow.id,
-				key: 'GITHUB_APP_SLUG',
-				valueCiphertext: encrypt(githubAppSlug!),
-				isSecret: false
-			},
-			{
-				appId: appRow.id,
-				key: 'GITHUB_APP_PRIVATE_KEY',
-				valueCiphertext: encrypt(githubAppPrivateKey!),
-				isSecret: true
-			},
-			{
-				appId: appRow.id,
-				key: 'GITHUB_WEBHOOK_SECRET',
-				valueCiphertext: encrypt(githubWebhookSecret!),
-				isSecret: true
-			}
-		);
-	}
 	await db.insert(envVar).values(envVarRows);
 
 	// Queues the first `deploy` hostCommand for this host/app right away —

@@ -11,6 +11,36 @@ import (
 	"time"
 )
 
+// TestMissingRequiredGithubEnvVars guards a real regression: these six vars
+// used to be treated as an optional set — SvelteKit's `defineEnvVars`
+// (src/env.ts) actually requires all of them for the app to boot at all, so
+// "optional" here just meant the real control-plane container crash-looped
+// on startup, minutes after Postgres/registry/the image build had already
+// succeeded, with nothing but a generic "connection refused" to show for it.
+func TestMissingRequiredGithubEnvVars(t *testing.T) {
+	t.Run("all present", func(t *testing.T) {
+		got := missingRequiredGithubEnvVars(map[string]string{
+			"GITHUB_CLIENT_ID":     "a",
+			"GITHUB_CLIENT_SECRET": "b",
+		})
+		if len(got) != 0 {
+			t.Fatalf("expected no missing vars, got %v", got)
+		}
+	})
+
+	t.Run("some missing, reported sorted", func(t *testing.T) {
+		got := missingRequiredGithubEnvVars(map[string]string{
+			"GITHUB_WEBHOOK_SECRET": "",
+			"GITHUB_APP_ID":         "set",
+			"GITHUB_APP_SLUG":       "",
+		})
+		want := []string{"GITHUB_APP_SLUG", "GITHUB_WEBHOOK_SECRET"}
+		if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	})
+}
+
 // TestPublicIPv4 guards against a real regression: ifconfig.me's root path
 // only returns plain text when it recognizes the client as a CLI tool
 // (curl's default User-Agent) — Go's own default User-Agent isn't
@@ -107,6 +137,12 @@ func TestCallBootstrapAPI(t *testing.T) {
 		RegistryPushPassword: "test-push-password",
 		RegistryPullUsername: "pull",
 		RegistryPullPassword: "test-pull-password",
+		GithubClientID:       "test-github-client-id",
+		GithubClientSecret:   "test-github-client-secret",
+		GithubAppID:          "123456",
+		GithubAppSlug:        "test-app-slug",
+		GithubAppPrivateKey:  "-----BEGIN PRIVATE KEY-----\nFAKE\n-----END PRIVATE KEY-----",
+		GithubWebhookSecret:  "test-webhook-secret",
 	}, os.Getenv("BAKERY_BOOTSTRAP_SECRET"))
 	if err != nil {
 		t.Fatalf("callBootstrapAPI: %v", err)
