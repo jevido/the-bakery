@@ -35,6 +35,12 @@
 	);
 
 	function realAppStatus(): AppStatus {
+		// Checked first, not just the latest build's own status — a
+		// successful build sits at `status: 'succeeded'`, which matched none
+		// of the branches below and fell through to 'stopped' even for an
+		// app with a real, currently-running deployment (found live,
+		// dogfooding Bakery's own self-hosted deployment, Phase 08).
+		if (data.deployments?.some((d) => d.status === 'running')) return 'running';
 		const latest = data.builds[0];
 		if (!latest) return 'stopped';
 		if (latest.status === 'building' || latest.status === 'queued') return 'building';

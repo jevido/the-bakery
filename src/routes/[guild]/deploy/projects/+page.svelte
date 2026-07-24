@@ -4,10 +4,17 @@
 	import StatusDot from '$lib/components/bakery/StatusDot.svelte';
 	import AppIcon from '$lib/components/bakery/AppIcon.svelte';
 	import { goto } from '$app/navigation';
+	import type { PageProps } from './$types';
+
+	let { data }: PageProps = $props();
 
 	const guildId = $derived(page.params.guild ?? '');
 	const resources = $derived(GUILD_RESOURCES[guildId]);
-	const apps = $derived(resources?.apps ?? []);
+	// Real apps first, then any demo/mock ones — GUILD_RESOURCES is only
+	// ever keyed by fixed demo guild slugs (e.g. "sourdough"), never a real
+	// guild's own slug, so for a genuine guild `resources` is undefined and
+	// this is just `data.realApps` on its own.
+	const apps = $derived([...data.realApps, ...(resources?.apps ?? [])]);
 
 	let filter = $state<'all' | 'running' | 'issues'>('all');
 
