@@ -198,6 +198,30 @@ export async function handleCommandCompletion(
 		});
 		return;
 	}
+
+	// A `stop` completion for a deployment tagged directly with its own id
+	// (Phase 16 task 04's reconciliation, Phase 17 task 01's manual stop) —
+	// as opposed to the `stopping_old` branch above, which is a *new*
+	// deployment's own transition driven by stopping a *different* old one.
+	// Excludes `failed`: `dispatchCleanupStop` (used when a brand-new
+	// deployment's own `deploy`/`configureProxy` step fails, above) also
+	// dispatches a `stop` tagged to that same deployment's id, but only
+	// after it's already `failed` — a deployment that never successfully
+	// ran must stay `failed`, not get overwritten to `stopped`, which would
+	// misrepresent what actually happened. Idempotent otherwise (a no-op if
+	// already `stopped`), matching this handler's existing
+	// optimistic-regardless-of-outcome philosophy.
+	if (
+		commandRow.type === 'stop' &&
+		deploymentRow.status !== 'stopping_old' &&
+		deploymentRow.status !== 'failed'
+	) {
+		await db
+			.update(deployment)
+			.set({ status: 'stopped', finishedAt: new Date() })
+			.where(eq(deployment.id, deploymentRow.id));
+		return;
+	}
 }
 
 async function findRunningDeployment(
