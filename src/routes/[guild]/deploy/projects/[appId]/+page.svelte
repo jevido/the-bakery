@@ -17,6 +17,7 @@
 	import { toast } from 'svelte-sonner';
 	import { formatBytes, formatDuration } from '$lib/utils';
 	import { AreaChart } from 'layerchart';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -165,6 +166,33 @@
 			}
 		} finally {
 			rollingBackId = null;
+		}
+	}
+
+	let stopDialogOpen = $state(false);
+	let deploymentIdToStop = $state<string | null>(null);
+	let stoppingId = $state<string | null>(null);
+	function requestStopDeployment(deploymentId: string) {
+		deploymentIdToStop = deploymentId;
+		stopDialogOpen = true;
+	}
+	async function confirmStopDeployment() {
+		const deploymentId = deploymentIdToStop;
+		if (!deploymentId) return;
+		stoppingId = deploymentId;
+		try {
+			const body = new FormData();
+			body.set('deploymentId', deploymentId);
+			const res = await fetch('?/stop', { method: 'POST', body });
+			if (res.ok) {
+				toast.success('Deployment stopped');
+				await invalidateAll();
+			} else {
+				toast.error('Could not stop deployment');
+			}
+		} finally {
+			stoppingId = null;
+			deploymentIdToStop = null;
 		}
 	}
 
@@ -772,6 +800,17 @@
 													: 'Rollback to this deploy'}</button
 											>
 										{/if}
+										{#if isCurrent}
+											<button
+												onclick={(e) => {
+													e.stopPropagation();
+													requestStopDeployment(d.id);
+												}}
+												disabled={stoppingId === d.id}
+												class="shrink-0 bg-[var(--card-2)] border border-[var(--line)] text-[#f0836b] rounded-[8px] px-3 py-[7px] text-[11.5px] font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+												>{stoppingId === d.id ? 'Stopping…' : 'Stop'}</button
+											>
+										{/if}
 									</div>
 									{#if expandedDeploymentId === d.id}
 										<div class="bg-[#080c09] border-t border-t-[var(--line)] overflow-hidden">
@@ -1260,3 +1299,18 @@
 		</div>
 	</div>
 {/if}
+
+<AlertDialog.Root bind:open={stopDialogOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Stop this deployment?</AlertDialog.Title>
+			<AlertDialog.Description>
+				The app will be unreachable until a new deployment is started or this one is redeployed.
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Action onclick={confirmStopDeployment}>Stop deployment</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>

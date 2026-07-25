@@ -345,3 +345,45 @@ export async function refreshProxyConfigForApp(appId: string): Promise<void> {
 		payload: { caddyfileContent }
 	});
 }
+
+/**
+ * Manually stops an app's currently `running` deployment (Phase 17 task 01),
+ * taking the app offline rather than superseding it with a new one. The DB
+ * update lands first so the freshly-regenerated Caddyfile below naturally
+ * omits this app's site block via the same `runningUnitName` mechanism
+ * `refreshProxyConfigForApp` relies on elsewhere — that helper can't be
+ * reused here, since it depends on finding a still-`running` deployment,
+ * which by design won't exist anymore by the time the proxy needs
+ * refreshing. Both dispatched commands tag `deploymentId` to this same
+ * now-`stopped` row (nothing else to tag them to); the `stop` completion is
+ * confirmed by `handleCommandCompletion`'s general branch above, and the
+ * `configureProxy` completion is inert for the same documented reason
+ * `refreshProxyConfigForApp` already relies on.
+ */
+export async function stopDeployment(deploymentRow: Deployment): Promise<void> {
+	if (!deploymentRow.hostId) return;
+
+	const unitName = await unitNameForDeployment(deploymentRow);
+
+	await db
+		.update(deployment)
+		.set({ status: 'stopped', finishedAt: new Date() })
+		.where(eq(deployment.id, deploymentRow.id));
+
+	if (unitName) {
+		await db.insert(hostCommand).values({
+			hostId: deploymentRow.hostId,
+			deploymentId: deploymentRow.id,
+			type: 'stop',
+			payload: { unitName }
+		});
+	}
+
+	const caddyfileContent = await caddyfileContentForHost(deploymentRow.hostId);
+	await db.insert(hostCommand).values({
+		hostId: deploymentRow.hostId,
+		deploymentId: deploymentRow.id,
+		type: 'configureProxy',
+		payload: { caddyfileContent }
+	});
+}

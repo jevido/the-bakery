@@ -16,7 +16,11 @@ import {
 import { z } from 'zod';
 import { getLatestCommitSha } from '$lib/server/github/app-auth';
 import { quadletContent, versionedUnitName, guildNetworkName } from '$lib/server/deploy/quadlet';
-import { startDeployment, refreshProxyConfigForApp } from '$lib/server/deploy/orchestrator';
+import {
+	startDeployment,
+	refreshProxyConfigForApp,
+	stopDeployment
+} from '$lib/server/deploy/orchestrator';
 import { resolveHostForApp } from '$lib/server/deploy/host-assignment';
 import { verifyCnameTarget } from '$lib/server/deploy/custom-domain';
 
@@ -336,6 +340,39 @@ export const actions: Actions = {
 		if (!hostRow) return fail(400, { message: 'No host available — add a host first' });
 
 		await startDeployment({ appRow, buildRow, hostRow, triggeredBy: userId });
+
+		return { success: true };
+	},
+
+	stop: async (event) => {
+		const { organization } = await requireGuild(event, { permission: 'deploy_apps' });
+
+		const [appRow] = await db
+			.select()
+			.from(app)
+			.where(and(eq(app.id, event.params.appId), eq(app.organizationId, organization.id)));
+		if (!appRow) return fail(404, { message: 'App not found' });
+
+		const formData = await event.request.formData();
+		const targetDeploymentId = formData.get('deploymentId');
+		if (typeof targetDeploymentId !== 'string' || !targetDeploymentId) {
+			return fail(400, { message: 'Missing deployment to stop' });
+		}
+
+		const [targetDeployment] = await db
+			.select()
+			.from(deployment)
+			.where(and(eq(deployment.id, targetDeploymentId), eq(deployment.appId, appRow.id)));
+		if (!targetDeployment) return fail(404, { message: 'Deployment not found' });
+
+		// Stopping only makes sense for the deployment actually serving traffic
+		// right now — anything else either isn't running (nothing to stop) or
+		// is mid-rollout (stopping it here would fight the state machine).
+		if (targetDeployment.status !== 'running') {
+			return fail(400, { message: 'Only the currently running deployment can be stopped' });
+		}
+
+		await stopDeployment(targetDeployment);
 
 		return { success: true };
 	},
