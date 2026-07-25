@@ -439,7 +439,7 @@ func runMigrations(ctx context.Context, image string, env map[string]string) err
 
 	cmd := exec.CommandContext(ctx, "podman", "run", "--rm",
 		"--env-file", envFile,
-		image, "node", "node_modules/.bin/drizzle-kit", "migrate",
+		image, "bun", "node_modules/.bin/drizzle-kit", "migrate",
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
