@@ -25,6 +25,21 @@ export function initialsFrom(name: string): string {
 		.toUpperCase();
 }
 
+/** e.g. `754_000` -> `"12m 34s"`. Used for build durations and deployment uptime. */
+export function formatDuration(ms: number): string {
+	const seconds = Math.max(0, Math.floor(ms / 1000));
+	if (seconds < 60) return `${seconds}s`;
+	const minutes = Math.floor(seconds / 60);
+	const remSeconds = seconds % 60;
+	if (minutes < 60) return remSeconds > 0 ? `${minutes}m ${remSeconds}s` : `${minutes}m`;
+	const hours = Math.floor(minutes / 60);
+	const remMinutes = minutes % 60;
+	if (hours < 24) return remMinutes > 0 ? `${hours}h ${remMinutes}m` : `${hours}h`;
+	const days = Math.floor(hours / 24);
+	const remHours = hours % 24;
+	return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
+}
+
 /** e.g. a Date 2 minutes ago -> `"2m ago"`. Used by the overview dashboard's activity feed. */
 export function formatRelativeTime(date: Date): string {
 	const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
