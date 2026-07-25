@@ -1,5 +1,5 @@
 import { json, error } from '@sveltejs/kit';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, lt } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import {
@@ -16,12 +16,19 @@ import {
 import { authenticateHost } from '$lib/server/agent/auth';
 import { podmanVolumeName, versionedUnitName } from '$lib/server/deploy/quadlet';
 import { runningUnitName, activeDeploymentUnitNames } from '$lib/server/deploy/proxy';
+import { handleCommandCompletion } from '$lib/server/deploy/orchestrator';
 import { redactSecrets, secretValuesForApp } from '$lib/server/secrets/redact';
 import {
 	checkinPayloadSchema,
 	type CheckinResponse,
 	type PendingCommand
 } from '$lib/server/agent/protocol';
+
+// Long enough that a command genuinely still in flight (agent picked it up,
+// hasn't finished yet) is never mistaken for stuck; short enough that a
+// truly orphaned one (agent crashed after claiming it, never calls back)
+// doesn't block retries for too long.
+const STALE_DELIVERED_COMMAND_MS = 10 * 60 * 1000;
 
 export const POST: RequestHandler = async (event) => {
 	const matchedHost = await authenticateHost(event.request);
@@ -57,6 +64,37 @@ export const POST: RequestHandler = async (event) => {
 		.update(host)
 		.set({ lastSeenAt: new Date(), status: 'online', agentVersion })
 		.where(eq(host.id, matchedHost.id));
+
+	// Stale `delivered`-command reaper (Phase 16 task 06): a command the
+	// agent claimed but never confirmed complete (crash, lost network) would
+	// otherwise sit in `delivered` forever — nothing else ever revisits it.
+	// Pre-existing gap (would already stall a normal deploy's own
+	// `stopping_old` step if it happened), and more important now that
+	// reconciliation (below) treats an outstanding `pending`/`delivered` stop
+	// as "already being handled," which a permanently-stuck one would make
+	// permanently true. Runs before reconciliation in this same check-in so
+	// a command reaped just now can be retried immediately, not next cycle.
+	const staleCommands = await db
+		.select()
+		.from(hostCommand)
+		.where(
+			and(
+				eq(hostCommand.hostId, matchedHost.id),
+				eq(hostCommand.status, 'delivered'),
+				lt(hostCommand.deliveredAt, new Date(Date.now() - STALE_DELIVERED_COMMAND_MS))
+			)
+		);
+	for (const stale of staleCommands) {
+		await db
+			.update(hostCommand)
+			.set({
+				status: 'failed',
+				completedAt: new Date(),
+				errorMessage: 'timed out waiting for agent to report completion'
+			})
+			.where(eq(hostCommand.id, stale.id));
+		await handleCommandCompletion(stale, 'failed');
+	}
 
 	// The agent reports real Podman volume names (task 07), not the
 	// user-declared logical ones — recompute the expected name per row
