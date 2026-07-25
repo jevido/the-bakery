@@ -1,5 +1,5 @@
 import { json, error } from '@sveltejs/kit';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import {
@@ -9,10 +9,12 @@ import {
 	volume,
 	app,
 	appMetricSample,
-	appLogLine
+	appLogLine,
+	deployment,
+	build
 } from '$lib/server/db/schema';
 import { authenticateHost } from '$lib/server/agent/auth';
-import { podmanVolumeName } from '$lib/server/deploy/quadlet';
+import { podmanVolumeName, versionedUnitName } from '$lib/server/deploy/quadlet';
 import { runningUnitName, activeDeploymentUnitNames } from '$lib/server/deploy/proxy';
 import { redactSecrets, secretValuesForApp } from '$lib/server/secrets/redact';
 import {
@@ -139,6 +141,55 @@ export const POST: RequestHandler = async (event) => {
 						message: redactSecrets(l.message, secrets)
 					}))
 				);
+			}
+
+			// Reconciliation (Phase 16 task 04): a container the agent reports
+			// as genuinely still alive, but whose deployment the DB already
+			// believes is `stopped`/`failed` — a stop that silently failed
+			// earlier (no retry exists anywhere in the agent's own stop
+			// execution). Deliberately narrow to just those two terminal
+			// statuses: every other non-`running` status (`starting_new`,
+			// `health_checking`, `flipping_proxy`, `stopping_old`) legitimately
+			// has a live container as part of a normal, healthy rollout —
+			// treating those as orphans would actively sabotage an in-progress
+			// deploy, not fix anything.
+			const appDeployments = await db
+				.select({ id: deployment.id, status: deployment.status, commitSha: build.commitSha })
+				.from(deployment)
+				.innerJoin(build, eq(build.id, deployment.buildId))
+				.where(eq(deployment.appId, appRow.id));
+
+			for (const d of appDeployments) {
+				if (d.status !== 'stopped' && d.status !== 'failed') continue;
+
+				const orphanUnitName = versionedUnitName(appRow.name, d.commitSha);
+				if (!statByUnitName.has(orphanUnitName)) continue;
+
+				// Avoid re-dispatching every check-in cycle while a previous
+				// attempt is still in flight — a failed stop leaves the
+				// pending/delivered set immediately (the completion endpoint
+				// updates hostCommand.status before handleCommandCompletion
+				// runs), so this naturally retries on the very next check-in
+				// rather than needing its own separate backoff logic.
+				const [existingStop] = await db
+					.select({ id: hostCommand.id })
+					.from(hostCommand)
+					.where(
+						and(
+							eq(hostCommand.deploymentId, d.id),
+							eq(hostCommand.type, 'stop'),
+							inArray(hostCommand.status, ['pending', 'delivered'])
+						)
+					)
+					.limit(1);
+				if (existingStop) continue;
+
+				await db.insert(hostCommand).values({
+					hostId: matchedHost.id,
+					deploymentId: d.id,
+					type: 'stop',
+					payload: { unitName: orphanUnitName }
+				});
 			}
 		}
 	}
