@@ -111,14 +111,15 @@ export async function runningUnitName(appId: string, appName: string): Promise<s
 
 /**
  * Unit name -> deployment id for every deployment of an app that could
- * still have a live container — everything except `failed`/`rolled_back`,
- * which are the only two statuses that never have (or no longer have) a
- * running unit behind them. Unlike `runningUnitName` (the single `running`
- * row), this covers a new deployment still `starting_new`/`flipping_proxy`
- * (alive and producing output before it's cut over) and an old one still
- * `stopping_old` (alive until its `stop` command completes) — both matter
- * to the check-in endpoint (Phase 09 task 02), which would otherwise drop
- * their log output entirely just because it isn't the one `running` row.
+ * still have a live container — everything except `failed`/`rolled_back`/
+ * `stopped` (Phase 16), the three statuses that never have (or no longer
+ * have) a running unit behind them. Unlike `runningUnitName` (the single
+ * `running` row), this covers a new deployment still
+ * `starting_new`/`flipping_proxy` (alive and producing output before it's
+ * cut over) and an old one still `stopping_old` (alive until its `stop`
+ * command completes) — both matter to the check-in endpoint (Phase 09 task
+ * 02), which would otherwise drop their log output entirely just because it
+ * isn't the one `running` row.
  */
 export async function activeDeploymentUnitNames(
 	appId: string,
@@ -129,7 +130,10 @@ export async function activeDeploymentUnitNames(
 		.from(deployment)
 		.innerJoin(build, eq(build.id, deployment.buildId))
 		.where(
-			and(eq(deployment.appId, appId), notInArray(deployment.status, ['failed', 'rolled_back']))
+			and(
+				eq(deployment.appId, appId),
+				notInArray(deployment.status, ['failed', 'rolled_back', 'stopped'])
+			)
 		);
 
 	const unitNames = new Map<string, string>();
