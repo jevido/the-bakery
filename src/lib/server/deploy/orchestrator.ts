@@ -167,19 +167,35 @@ export async function handleCommandCompletion(
 			.update(deployment)
 			.set({ status: 'stopping_old' })
 			.where(eq(deployment.id, deploymentRow.id));
-		await dispatchStopOld(deploymentRow, deploymentRow.hostId, oldUnitName);
+		await dispatchStopOld(deploymentRow, deploymentRow.hostId, oldUnitName, oldDeploymentRow.id);
 		return;
 	}
 
 	if (commandRow.type === 'stop' && deploymentRow.status === 'stopping_old') {
 		// The new unit is already healthy and serving on its own port
 		// regardless of how cleanly the old one stopped, so a failure here
-		// doesn't fail the deploy — it just leaves the old unit lingering,
-		// which task 08's history view can surface for manual cleanup.
-		await db
-			.update(deployment)
-			.set({ status: 'running', finishedAt: new Date() })
-			.where(eq(deployment.id, deploymentRow.id));
+		// doesn't fail the deploy — it just leaves the old unit lingering
+		// (Phase 16's reconciliation, not this handler, is what catches that
+		// case now). Both writes land in one transaction: a crash between two
+		// separate updates would otherwise strand the old row `running`
+		// forever with nothing to ever notice, since reconciliation only acts
+		// on state the DB itself already flags as wrong.
+		await db.transaction(async (tx) => {
+			await tx
+				.update(deployment)
+				.set({ status: 'running', finishedAt: new Date() })
+				.where(eq(deployment.id, deploymentRow.id));
+
+			const oldDeploymentId = isStopPayload(commandRow.payload)
+				? commandRow.payload.oldDeploymentId
+				: undefined;
+			if (oldDeploymentId) {
+				await tx
+					.update(deployment)
+					.set({ status: 'stopped', finishedAt: new Date() })
+					.where(eq(deployment.id, oldDeploymentId));
+			}
+		});
 		return;
 	}
 }
@@ -210,7 +226,8 @@ async function unitNameForDeployment(deploymentRow: Deployment): Promise<string 
 async function dispatchStopOld(
 	newDeploymentRow: Deployment,
 	hostId: string | null,
-	unitName: string
+	unitName: string,
+	oldDeploymentId: string
 ) {
 	if (!hostId) return;
 
@@ -218,7 +235,14 @@ async function dispatchStopOld(
 		hostId,
 		deploymentId: newDeploymentRow.id,
 		type: 'stop',
-		payload: { unitName }
+		// `oldDeploymentId` rides along so the `stop` completion handler above
+		// can mark the *old* deployment's own row `stopped` once this is
+		// confirmed done — the hostCommand itself stays tagged to the new
+		// deployment (unchanged), since that's still what drives its own
+		// `stopping_old` -> `running` transition. Safe to add: the agent's
+		// payload decoding only reads `unitName` for a `stop` command and
+		// silently ignores fields it doesn't recognize.
+		payload: { unitName, oldDeploymentId }
 	});
 }
 
@@ -228,6 +252,12 @@ function isDeployPayload(payload: unknown): payload is { unitName: string } {
 		payload !== null &&
 		typeof (payload as { unitName?: unknown }).unitName === 'string'
 	);
+}
+
+function isStopPayload(
+	payload: unknown
+): payload is { unitName: string; oldDeploymentId?: string } {
+	return isDeployPayload(payload);
 }
 
 async function dispatchCleanupStop(deploymentRow: Deployment, unitName: string) {
