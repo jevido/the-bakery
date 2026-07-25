@@ -126,7 +126,24 @@
 	// traffic even while a newer one is mid-flight (task 06 never flips until
 	// the new unit is healthy) — so "current" is the first `running` entry in
 	// startedAt-desc order, not necessarily data.deployments[0].
-	const currentDeploymentId = $derived(data.deployments?.find((d) => d.status === 'running')?.id);
+	// Drives the live-ticking deployment uptime below -- no server round-trip
+	// needed, since only "now" changes, not the underlying deployment data
+	// (unlike the Containers tab's invalidateAll() live-refresh further down).
+	let now = $state(Date.now());
+	$effect(() => {
+		const interval = setInterval(() => (now = Date.now()), 30_000);
+		return () => clearInterval(interval);
+	});
+
+	const currentDeployment = $derived(data.deployments?.find((d) => d.status === 'running'));
+	const currentDeploymentId = $derived(currentDeployment?.id);
+	// `finishedAt` is set the moment a deployment reaches `running`
+	// (orchestrator.ts), so a `running` row always has one in practice --
+	// falling back to `startedAt` defensively rather than asserting non-null.
+	const currentDeploymentUptime = $derived.by(() => {
+		const since = currentDeployment?.finishedAt ?? currentDeployment?.startedAt;
+		return since ? formatDuration(now - new Date(since).getTime()) : null;
+	});
 
 	let expandedDeploymentId = $state<string | null>(null);
 	function toggleDeploymentLogs(deploymentId: string) {
@@ -463,7 +480,7 @@
 			<!-- Overview -->
 			{#if activeTab === 'overview'}
 				<div class="grid grid-cols-4 gap-[13px] mb-4">
-					{#each [{ label: 'CPU', value: app.cpu + '%' }, { label: 'Memory', value: app.mem }, { label: 'Uptime', value: app.status === 'running' ? '4d 6h' : '—' }, { label: 'Restarts (24h)', value: app.status === 'failed' ? '7' : '0' }] as m (m.label)}
+					{#each [{ label: 'CPU', value: app.cpu + '%' }, { label: 'Memory', value: app.mem }, { label: 'Uptime', value: data.realApp ? (currentDeploymentUptime ?? '—') : app.status === 'running' ? '4d 6h' : '—' }, { label: 'Restarts (24h)', value: app.status === 'failed' ? '7' : '0' }] as m (m.label)}
 						<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] px-4 py-[15px]">
 							<div class="text-[12px] text-[var(--tx-2)]">{m.label}</div>
 							<div class="font-mono-jb font-semibold text-[20px] mt-[7px] text-[var(--tx)]">
@@ -732,6 +749,11 @@
 											</div>
 										</div>
 										<div class="text-[11px] text-[var(--tx-3)] text-right shrink-0">
+											{#if isCurrent && currentDeploymentUptime}
+												<div class="font-mono-jb text-[var(--grn-2)]">
+													up {currentDeploymentUptime}
+												</div>
+											{/if}
 											{d.finishedAt
 												? new Date(d.finishedAt).toLocaleString()
 												: new Date(d.startedAt).toLocaleString()}
