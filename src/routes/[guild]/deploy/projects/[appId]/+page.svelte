@@ -147,7 +147,9 @@
 	});
 
 	let expandedDeploymentId = $state<string | null>(null);
+	let expandedLogTab = $state<'runtime' | 'build'>('runtime');
 	function toggleDeploymentLogs(deploymentId: string) {
+		if (expandedDeploymentId !== deploymentId) expandedLogTab = 'runtime';
 		expandedDeploymentId = expandedDeploymentId === deploymentId ? null : deploymentId;
 	}
 
@@ -815,11 +817,31 @@
 									{#if expandedDeploymentId === d.id}
 										<div class="bg-[#080c09] border-t border-t-[var(--line)] overflow-hidden">
 											<div
-												class="px-4 py-[10px] border-b border-b-[var(--line)] bg-[var(--card)] text-[12.5px] font-semibold"
+												class="flex items-center justify-between gap-[10px] px-4 py-[10px] border-b border-b-[var(--line)] bg-[var(--card)]"
 											>
-												Live log · {d.commitSha.slice(0, 7)} · {d.status}
+												<span class="text-[12.5px] font-semibold"
+													>Live log · {d.commitSha.slice(0, 7)} · {d.status}</span
+												>
+												<div
+													class="flex gap-[3px] bg-[var(--card-2)] border border-[var(--line)] rounded-[8px] p-[3px] w-fit shrink-0"
+												>
+													{#each ['runtime', 'build'] as const as logTab (logTab)}
+														<button
+															onclick={() => (expandedLogTab = logTab)}
+															class="px-[10px] py-[4px] text-[11.5px] rounded-[6px] cursor-pointer {expandedLogTab ===
+															logTab
+																? 'bg-[var(--card)] text-[var(--tx)]'
+																: 'text-[var(--tx-2)]'}"
+															>{logTab === 'runtime' ? 'Runtime' : 'Build'}</button
+														>
+													{/each}
+												</div>
 											</div>
-											<BuildLogViewer logsUrl={`/api/v1/deployments/${d.id}/logs/stream`} />
+											{#if expandedLogTab === 'runtime'}
+												<BuildLogViewer logsUrl={`/api/v1/deployments/${d.id}/logs/stream`} />
+											{:else}
+												<BuildLogViewer logsUrl={`/api/v1/builds/${d.buildId}/logs`} />
+											{/if}
 										</div>
 									{/if}
 								</div>
