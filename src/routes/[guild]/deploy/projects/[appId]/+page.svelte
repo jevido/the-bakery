@@ -686,11 +686,7 @@
 						{/if}
 					</div>
 				{:else if data.realApp}
-					<div class="flex items-center justify-between mb-[14px]">
-						<div class="text-[12.5px] text-[var(--tx-2)]">
-							Real builds for <span class="text-[var(--tx)]">{app.name}</span>, from {data.repo
-								?.fullName ?? 'its repo'}.
-						</div>
+					<div class="flex items-center justify-end mb-[14px]">
 						<button
 							onclick={buildNow}
 							disabled={buildingNow}
