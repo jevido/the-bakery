@@ -16,6 +16,18 @@ import { resolveHostForApp } from '$lib/server/deploy/host-assignment';
 
 class BuildFailure extends Error {}
 
+// Clone/checkout are normally seconds; build/push are the ones that can
+// legitimately take a while for a large image or a slow registry -- one
+// ceiling per `runStreamed` call (not a single budget across the whole
+// pipeline) keeps this simple while still being short enough that a
+// genuinely wedged subprocess (hung network pull, broken Containerfile
+// step, podman itself wedging) can't block the worker's single-build-at-a-
+// time queue for more than a bounded time.
+const SUBPROCESS_TIMEOUT_MS = 15 * 60 * 1000;
+// Some processes ignore SIGTERM -- SIGKILL after a short grace period
+// guarantees the child (and the worker's wait on it) actually ends.
+const SIGKILL_GRACE_MS = 5000;
+
 /** Runs `command` to completion, streaming each stdout/stderr line into `buildLogLine`. */
 function runStreamed(
 	buildId: string,
@@ -26,6 +38,16 @@ function runStreamed(
 	return new Promise((resolve, reject) => {
 		const child = spawn(command, args, { cwd });
 		let settled = false;
+		let timedOut = false;
+
+		const timeout = setTimeout(() => {
+			if (settled) return;
+			timedOut = true;
+			child.kill('SIGTERM');
+			setTimeout(() => {
+				if (!settled) child.kill('SIGKILL');
+			}, SIGKILL_GRACE_MS);
+		}, SUBPROCESS_TIMEOUT_MS);
 
 		const pipe = (stream: NodeJS.ReadableStream) => {
 			createInterface({ input: stream }).on('line', (line) => {
@@ -38,13 +60,22 @@ function runStreamed(
 		child.on('error', (err) => {
 			if (settled) return;
 			settled = true;
+			clearTimeout(timeout);
 			reject(err);
 		});
 		child.on('close', (code) => {
 			if (settled) return;
 			settled = true;
-			if (code === 0) resolve();
-			else reject(new BuildFailure(`${command} exited with code ${code}`));
+			clearTimeout(timeout);
+			if (timedOut) {
+				reject(
+					new BuildFailure(`${command} timed out after ${SUBPROCESS_TIMEOUT_MS}ms and was killed`)
+				);
+			} else if (code === 0) {
+				resolve();
+			} else {
+				reject(new BuildFailure(`${command} exited with code ${code}`));
+			}
 		});
 	});
 }
