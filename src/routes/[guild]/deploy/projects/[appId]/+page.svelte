@@ -787,7 +787,7 @@
 												? new Date(d.finishedAt).toLocaleString()
 												: new Date(d.startedAt).toLocaleString()}
 										</div>
-										{#if d.status === 'running' && !isCurrent}
+										{#if d.status === 'stopped'}
 											<button
 												onclick={(e) => {
 													e.stopPropagation();
