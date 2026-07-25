@@ -389,7 +389,12 @@ export const deploymentStatus = pgEnum('deployment_status', [
 	'stopping_old',
 	'running',
 	'failed',
-	'rolled_back'
+	'rolled_back',
+	// A deployment that previously succeeded but whose container is no
+	// longer (or should no longer be) running -- either superseded by a
+	// newer deployment (Phase 16) or manually stopped (Phase 17). Distinct
+	// from `failed` (never reached `running` in the first place).
+	'stopped'
 ]);
 
 export const deployment = pgTable(
