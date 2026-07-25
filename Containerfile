@@ -14,17 +14,20 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/bakery-linux-amd64 . 
 	&& CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /out/bakery-linux-arm64 .
 
 # Build stage: installs with bun (this project's package manager) and runs
-# the SvelteKit adapter-node build. Built and run with Podman, matching the
+# the SvelteKit adapter-bun build. Built and run with Podman, matching the
 # rest of Bakery's own infra (agent Quadlet units, build-worker) — no Docker
 # anywhere on the production box.
-FROM docker.io/oven/bun:1 AS build
+FROM docker.io/oven/bun:1.3.14-alpine AS build
 WORKDIR /app
 
 # better-sqlite3 (an optional peer dep pulled in transitively by better-auth/
 # drizzle-orm's multi-dialect support, even though this app only ever uses
-# Postgres) has a native addon that needs compiling on install.
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
-	&& rm -rf /var/lib/apt/lists/*
+# Postgres) has a native addon that needs compiling on install. It ships
+# linux-musl prebuilds, so this toolchain may never actually be invoked --
+# kept anyway as a fallback for whenever a prebuild isn't available for the
+# exact version/arch (build-base and linux-headers are the two pieces most
+# commonly missing for node-gyp on alpine specifically, beyond python3/make/g++).
+RUN apk add --no-cache python3 make g++ build-base linux-headers
 
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
@@ -54,20 +57,23 @@ ENV DATABASE_URL="postgres://placeholder/placeholder" \
 	GITHUB_WEBHOOK_SECRET="placeholder"
 RUN bun run build
 
-# Runtime stage. adapter-node's output (`build/`) is not a self-contained
-# bundle — grepping build/server/chunks/*.js shows bare top-level imports
-# like `drizzle-orm/pg-core`, `svelte`, `@sveltejs/kit`, `pg` that are
-# resolved from node_modules at request time, not inlined. Nearly everything
-# this app needs at runtime (drizzle-orm, better-auth, postgres, svelte,
-# @sveltejs/kit itself) is listed under package.json's devDependencies, not
-# dependencies, so a `--production`/`--omit=dev` install here would silently
-# strip out packages the running server actually requires. Copying the full
-# node_modules the build stage already produced (identical to what `bun run
-# dev` runs against locally) is the correct, safe choice — not an oversight.
+# Runtime stage. adapter-bun's output (`build/`) is not a self-contained
+# bundle — its own build output externalizes bare Node-builtin imports
+# (`fs`, `net`, `tls`, `crypto`, etc., pulled in via the `postgres` package)
+# that are resolved from node_modules at request time, not inlined, the same
+# way adapter-node's output did. Nearly everything this app needs at runtime
+# (drizzle-orm, better-auth, postgres, svelte, @sveltejs/kit itself) is
+# listed under package.json's devDependencies, not dependencies, so a
+# `--production`/`--omit=dev` install here would silently strip out packages
+# the running server actually requires. Copying the full node_modules the
+# build stage already produced (identical to what `bun run dev` runs against
+# locally) is the correct, safe choice — not an oversight.
 #
-# Debian-based (not alpine/musl) to match oven/bun:1's glibc, since
-# node_modules may contain native addons built during `bun install` above.
-FROM docker.io/library/node:22-slim AS runtime
+# Same base as the build stage (not a separate Debian runtime image like the
+# old adapter-node setup used) — both stages sharing one libc family means
+# any native addon compiled during `bun install` above is guaranteed ABI-
+# compatible here, with no cross-libc concern to manage at all.
+FROM docker.io/oven/bun:1.3.14-alpine AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -100,4 +106,4 @@ COPY --from=build /app/drizzle ./drizzle
 COPY --from=build /app/src/lib/server/db ./src/lib/server/db
 
 EXPOSE 3000
-CMD ["node", "build"]
+CMD ["bun", "build/index.js"]
