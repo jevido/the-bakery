@@ -15,7 +15,7 @@
 	import NotFound from '$lib/components/bakery/NotFound.svelte';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
-	import { formatBytes } from '$lib/utils';
+	import { formatBytes, formatDuration } from '$lib/utils';
 	import { AreaChart } from 'layerchart';
 	import type { PageProps } from './$types';
 
@@ -813,6 +813,13 @@
 									>
 										{b.status}
 									</div>
+									{#if b.startedAt && b.finishedAt}
+										<div class="font-mono-jb text-[10.5px] text-[var(--tx-3)] mt-[2px]">
+											{formatDuration(
+												new Date(b.finishedAt).getTime() - new Date(b.startedAt).getTime()
+											)}
+										</div>
+									{/if}
 									<div class="text-[11px] text-[var(--tx-3)] mt-[2px]">
 										{b.finishedAt
 											? new Date(b.finishedAt).toLocaleString()
