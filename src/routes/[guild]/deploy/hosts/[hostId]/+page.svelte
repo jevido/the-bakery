@@ -28,10 +28,11 @@
 		goto(withParam('range', id), { keepFocus: true, noScroll: true, replaceState: true });
 	}
 
-	type Tab = 'overview' | 'containers';
+	type Tab = 'overview' | 'containers' | 'activity';
 	const tabs: Array<{ id: Tab; label: string }> = [
 		{ id: 'overview', label: 'Overview' },
-		{ id: 'containers', label: 'Containers' }
+		{ id: 'containers', label: 'Containers' },
+		{ id: 'activity', label: 'Activity' }
 	];
 	// Sourced from the URL, same convention as the App detail page's tabs —
 	// a refresh or shared link lands on the right tab instead of resetting.
@@ -51,6 +52,21 @@
 
 	function formatMem(bytes: number | null | undefined): string {
 		return bytes != null ? formatBytes(bytes) : '—';
+	}
+
+	// Shared success/failure/in-progress palette across both event kinds so
+	// the feed reads consistently regardless of whether a row is a
+	// hostCommand or a deployment.
+	function activityColor(kind: 'command' | 'deployment', status: string): string {
+		if (kind === 'command') {
+			if (status === 'succeeded') return '#52cc96';
+			if (status === 'failed') return '#f0836b';
+			return '#e0a83e'; // pending/delivered — still in flight
+		}
+		if (status === 'running') return '#52cc96';
+		if (status === 'failed' || status === 'rolled_back') return '#f0836b';
+		if (status === 'stopped') return 'var(--tx-3)';
+		return '#e0a83e'; // starting_new/health_checking/flipping_proxy/stopping_old
 	}
 
 	type Sample = (typeof data.history)[number];
@@ -239,7 +255,7 @@
 		</div>
 	</div>
 
-	<!-- Tab bar (Activity added in a later task) -->
+	<!-- Tab bar -->
 	<div class="flex gap-0.5 border-b border-b-[var(--line)] mb-[18px]">
 		{#each tabs as t (t.id)}
 			<button onclick={() => selectTab(t.id)} class={tabCls(t.id)}>{t.label}</button>
@@ -314,6 +330,36 @@
 			{#if data.containers.length === 0}
 				<div class="p-[30px] text-center text-[var(--tx-3)] text-[13px]">
 					No apps are scheduled on this host.
+				</div>
+			{/if}
+		</div>
+	{:else if activeTab === 'activity'}
+		<div class="text-[12.5px] text-[var(--tx-2)] mb-[14px]">
+			Deploy commands and rollouts on <span class="text-[var(--tx)]">{data.host.name}</span>, newest
+			first.
+		</div>
+		<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] overflow-hidden">
+			{#each data.activity as a (a.kind + a.id)}
+				{@const color = activityColor(a.kind, a.status)}
+				<a
+					href="/{guildId}/deploy/projects/{a.appId}"
+					class="grid grid-cols-[auto_1fr_auto] gap-[14px] items-center px-[18px] py-[13px] border-b border-b-[var(--line)] last:border-b-0 no-underline hover:bg-white/[0.02]"
+				>
+					<div class="size-[9px] rounded-full shrink-0" style:background={color}></div>
+					<div class="min-w-0">
+						<div class="text-[13px] text-[var(--tx)]">{a.description}</div>
+						{#if a.errorMessage}
+							<div class="text-[11.5px] mt-[2px]" style:color>{a.errorMessage}</div>
+						{/if}
+					</div>
+					<span class="text-[11px] text-[var(--tx-3)] text-right shrink-0"
+						>{a.ts ? formatRelativeTime(new Date(a.ts)) : '—'}</span
+					>
+				</a>
+			{/each}
+			{#if data.activity.length === 0}
+				<div class="p-[30px] text-center text-[var(--tx-3)] text-[13px]">
+					No activity on this host yet.
 				</div>
 			{/if}
 		</div>

@@ -9,7 +9,8 @@ import {
 	app,
 	deployment,
 	build,
-	appMetricSample
+	appMetricSample,
+	hostCommand
 } from '$lib/server/db/schema';
 import { computeHostStatus } from '$lib/server/hosts/status';
 import { classifyHostHealth } from '$lib/server/hosts/health';
@@ -113,6 +114,73 @@ export const load: PageServerLoad = async (event) => {
 		// applies org-wide -- this is the per-host slice of that view.
 		.sort((a, b) => (b.cpuPct ?? -1) - (a.cpuPct ?? -1));
 
+	// Activity feed: hostCommand dispatches (deploy/stop/restart/
+	// configureProxy) and the deployments that ran here, merged into one
+	// chronological list. `build` has no hostId of its own -- a build
+	// compiles centrally, not on a specific host -- so "builds that ran
+	// here" is represented via each deployment's own build (commit/branch),
+	// not as a separate event kind.
+	const ACTIVITY_LIMIT = 75;
+	const [hostCommandRows, deploymentRows] = await Promise.all([
+		db
+			.select({
+				id: hostCommand.id,
+				type: hostCommand.type,
+				status: hostCommand.status,
+				createdAt: hostCommand.createdAt,
+				completedAt: hostCommand.completedAt,
+				errorMessage: hostCommand.errorMessage,
+				appId: app.id,
+				appName: app.name
+			})
+			.from(hostCommand)
+			.innerJoin(deployment, eq(deployment.id, hostCommand.deploymentId))
+			.innerJoin(app, eq(app.id, deployment.appId))
+			.where(eq(hostCommand.hostId, hostRow.id))
+			.orderBy(desc(hostCommand.createdAt))
+			.limit(ACTIVITY_LIMIT),
+		db
+			.select({
+				id: deployment.id,
+				status: deployment.status,
+				startedAt: deployment.startedAt,
+				finishedAt: deployment.finishedAt,
+				triggeredBy: deployment.triggeredBy,
+				commitSha: build.commitSha,
+				appId: app.id,
+				appName: app.name
+			})
+			.from(deployment)
+			.innerJoin(build, eq(build.id, deployment.buildId))
+			.innerJoin(app, eq(app.id, deployment.appId))
+			.where(eq(deployment.hostId, hostRow.id))
+			.orderBy(desc(deployment.startedAt))
+			.limit(ACTIVITY_LIMIT)
+	]);
+
+	const activity = [
+		...hostCommandRows.map((c) => ({
+			id: c.id,
+			ts: c.completedAt ?? c.createdAt,
+			kind: 'command' as const,
+			status: c.status,
+			description: `${c.type} command ${c.status} for ${c.appName}`,
+			errorMessage: c.errorMessage,
+			appId: c.appId
+		})),
+		...deploymentRows.map((d) => ({
+			id: d.id,
+			ts: d.finishedAt ?? d.startedAt,
+			kind: 'deployment' as const,
+			status: d.status,
+			description: `Deployed ${d.commitSha.slice(0, 7)} to ${d.appName}${d.triggeredBy ? ` · triggered by ${d.triggeredBy}` : ''}`,
+			errorMessage: null as string | null,
+			appId: d.appId
+		}))
+	]
+		.sort((a, b) => b.ts.getTime() - a.ts.getTime())
+		.slice(0, ACTIVITY_LIMIT);
+
 	return {
 		host: {
 			...hostRow,
@@ -123,6 +191,7 @@ export const load: PageServerLoad = async (event) => {
 		history: downsampleToMinuteBuckets(historyRaw),
 		latestSample: latestSampleRows[0] ?? null,
 		appsCount: appsOnHost.length,
-		containers
+		containers,
+		activity
 	};
 };
