@@ -28,6 +28,31 @@ func collectPayload(ctx context.Context) checkinPayload {
 		log.Printf("disk metrics unavailable: %v", err)
 	}
 
+	swap, err := swapPercent()
+	if err != nil {
+		log.Printf("swap metrics unavailable: %v", err)
+	}
+
+	load1, err := loadAvg1()
+	if err != nil {
+		log.Printf("load average unavailable: %v", err)
+	}
+
+	diskReadBps, diskWriteBps, err := diskIOBytesPerSec(diskIOSampleInterval)
+	if err != nil {
+		log.Printf("disk I/O metrics unavailable: %v", err)
+	}
+
+	netRxBps, netTxBps, err := netIOBytesPerSec(netIOSampleInterval)
+	if err != nil {
+		log.Printf("network I/O metrics unavailable: %v", err)
+	}
+
+	uptime, err := uptimeSeconds()
+	if err != nil {
+		log.Printf("uptime unavailable: %v", err)
+	}
+
 	podmanVersion := "unknown"
 	containerCount := 0
 	if pm, err := collectPodmanMetrics(ctx); err != nil {
@@ -40,14 +65,21 @@ func collectPayload(ctx context.Context) checkinPayload {
 	containerStats := collectContainerStats(ctx)
 
 	return checkinPayload{
-		CPUPct:         cpu,
-		MemPct:         mem,
-		DiskPct:        disk,
-		PodmanVersion:  podmanVersion,
-		ContainerCount: containerCount,
-		AgentVersion:   agentVersion,
-		Volumes:        collectVolumeReports(ctx),
-		Containers:     containerStats,
-		Logs:           collectLogLines(ctx, containerStats),
+		CPUPct:               cpu,
+		MemPct:               mem,
+		DiskPct:              disk,
+		SwapPct:              swap,
+		LoadAvg1:             load1,
+		DiskReadBytesPerSec:  diskReadBps,
+		DiskWriteBytesPerSec: diskWriteBps,
+		NetRxBytesPerSec:     netRxBps,
+		NetTxBytesPerSec:     netTxBps,
+		UptimeSeconds:        uptime,
+		PodmanVersion:        podmanVersion,
+		ContainerCount:       containerCount,
+		AgentVersion:         agentVersion,
+		Volumes:              collectVolumeReports(ctx),
+		Containers:           containerStats,
+		Logs:                 collectLogLines(ctx, containerStats),
 	}
 }

@@ -42,6 +42,44 @@ func memPercent() (float64, error) {
 	return clampPct((total - available) / total * 100), nil
 }
 
+// swapPercent reports swap usage as a percentage of total swap configured.
+// Returns 0 (not an error) when the host has no swap at all -- that's a
+// legitimate, common configuration, not a failure to read the metric.
+func swapPercent() (float64, error) {
+	f, err := os.Open("/proc/meminfo")
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	var total, free float64
+	haveTotal, haveFree := false, false
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		switch {
+		case strings.HasPrefix(line, "SwapTotal:"):
+			total = parseMeminfoKB(line)
+			haveTotal = true
+		case strings.HasPrefix(line, "SwapFree:"):
+			free = parseMeminfoKB(line)
+			haveFree = true
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return 0, err
+	}
+	if !haveTotal || !haveFree {
+		return 0, fmt.Errorf("could not determine swap usage from /proc/meminfo")
+	}
+	if total == 0 {
+		return 0, nil
+	}
+
+	return clampPct((total - free) / total * 100), nil
+}
+
 func parseMeminfoKB(line string) float64 {
 	fields := strings.Fields(line)
 	if len(fields) < 2 {

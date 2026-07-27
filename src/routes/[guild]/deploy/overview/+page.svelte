@@ -17,22 +17,17 @@
 
 	type MetricSample = (typeof primaryHostHistory)[number];
 
-	// Network I/O has no real backing metric yet (no schema field, no agent
-	// collection) — keep it synthetic until a later phase adds real network
-	// sampling. CPU/mem below are real, sourced from hostMetricSample.
-	function wobble(min: number, max: number, points: number, seed: number) {
-		return Array.from({ length: points }, (_, i) => {
-			return (
-				min + ((max - min) * Math.abs(Math.sin(i * 0.7 + seed) + Math.cos(i * 0.4 + seed))) / 2
-			);
-		});
-	}
-
 	function toSeries(history: MetricSample[], field: 'cpuPct' | 'memPct') {
 		return history.map((sample, i) => ({ i, value: sample[field] ?? 0 }));
 	}
-	function toWobbleSeries(vals: number[]) {
-		return vals.map((v, i) => ({ i, value: v }));
+
+	// Combined rx+tx throughput in KB/s (Phase 20 task 01 — real agent
+	// collection replaces what used to be a synthetic wobble() generator).
+	function netKBs(sample: MetricSample): number {
+		return ((sample.netRxBytesPerSec ?? 0) + (sample.netTxBytesPerSec ?? 0)) / 1024;
+	}
+	function toNetSeries(history: MetricSample[]) {
+		return history.map((sample, i) => ({ i, value: netKBs(sample) }));
 	}
 
 	// First-vs-last sample in the loaded window — a real, if noisy, trend
@@ -43,9 +38,13 @@
 		const last = history[history.length - 1][field] ?? 0;
 		return last - first;
 	}
-	function deltaLabel(delta: number | null) {
+	function netTrend(history: MetricSample[]) {
+		if (history.length < 2) return null;
+		return netKBs(history[history.length - 1]) - netKBs(history[0]);
+	}
+	function deltaLabel(delta: number | null, unit = '%') {
 		if (delta === null) return '—';
-		return `${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(0)}%`;
+		return `${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(0)}${unit}`;
 	}
 	function deltaColor(delta: number | null) {
 		if (delta === null) return '#5c6170';
@@ -54,10 +53,11 @@
 
 	const cpuSeries = $derived(toSeries(primaryHostHistory, 'cpuPct'));
 	const memSeries = $derived(toSeries(primaryHostHistory, 'memPct'));
-	const netVals = $derived(toWobbleSeries(wobble(150, 500, 24, 7)));
+	const netSeries = $derived(toNetSeries(primaryHostHistory));
 
 	const cpuDelta = $derived(trend(primaryHostHistory, 'cpuPct'));
 	const memDelta = $derived(trend(primaryHostHistory, 'memPct'));
+	const netDelta = $derived(netTrend(primaryHostHistory));
 
 	const metricCards = $derived([
 		{
@@ -84,13 +84,13 @@
 		},
 		{
 			label: 'Network I/O',
-			big: '443',
+			big: primaryHostLatestSample ? netKBs(primaryHostLatestSample).toFixed(0) : '—',
 			unit: 'KB/s',
 			sub: '↓ in · ↑ out combined',
-			delta: '▲ 12%',
-			deltaColor: '#5ee0ab',
+			delta: deltaLabel(netDelta, ' KB/s'),
+			deltaColor: deltaColor(netDelta),
 			color: '#8b5cf6',
-			series: netVals
+			series: netSeries
 		}
 	]);
 

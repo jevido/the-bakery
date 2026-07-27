@@ -49,6 +49,16 @@ export const hostMetricSample = pgTable(
 		cpuPct: real('cpu_pct'),
 		memPct: real('mem_pct'),
 		diskPct: real('disk_pct'),
+		// Phase 20 task 01 — all nullable like the columns above: an
+		// already-deployed agent binary that hasn't upgraded yet won't send
+		// these fields, and older rows predate them entirely.
+		swapPct: real('swap_pct'),
+		loadAvg1: real('load_avg_1'),
+		diskReadBytesPerSec: real('disk_read_bytes_per_sec'),
+		diskWriteBytesPerSec: real('disk_write_bytes_per_sec'),
+		netRxBytesPerSec: real('net_rx_bytes_per_sec'),
+		netTxBytesPerSec: real('net_tx_bytes_per_sec'),
+		uptimeSeconds: real('uptime_seconds'),
 		podmanVersion: text('podman_version'),
 		containerCount: integer('container_count')
 	},

@@ -46,6 +46,16 @@ export const checkinPayloadSchema = z.object({
 	cpuPct: z.number().min(0).max(100),
 	memPct: z.number().min(0).max(100),
 	diskPct: z.number().min(0).max(100),
+	// Phase 20 task 01 — optional, unlike the three fields above: an
+	// already-deployed agent binary that hasn't upgraded yet won't send
+	// these, and this schema must keep accepting its check-ins regardless.
+	swapPct: z.number().min(0).max(100).optional(),
+	loadAvg1: z.number().min(0).optional(),
+	diskReadBytesPerSec: z.number().min(0).optional(),
+	diskWriteBytesPerSec: z.number().min(0).optional(),
+	netRxBytesPerSec: z.number().min(0).optional(),
+	netTxBytesPerSec: z.number().min(0).optional(),
+	uptimeSeconds: z.number().min(0).optional(),
 	podmanVersion: z.string().trim().min(1).max(50),
 	containerCount: z.number().int().min(0),
 	agentVersion: z.string().trim().min(1).max(50),

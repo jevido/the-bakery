@@ -30,8 +30,10 @@ function average(values: Array<number | null>): number | null {
 }
 
 // Non-numeric fields (podmanVersion, containerCount, id) come from the
-// bucket's last sample — only cpuPct/memPct/diskPct are actually charted,
-// so those are the only fields worth averaging.
+// bucket's last sample, same as `uptimeSeconds` (Phase 20 task 01) — a
+// monotonically increasing counter, so "last observed" is the meaningful
+// value, not an average. Every other numeric field is a rate/intensity
+// metric that's actually charted, so those are averaged.
 function averageBucket(bucketKey: number, bucketSamples: HostMetricSample[]): HostMetricSample {
 	const last = bucketSamples[bucketSamples.length - 1];
 	return {
@@ -39,6 +41,12 @@ function averageBucket(bucketKey: number, bucketSamples: HostMetricSample[]): Ho
 		ts: new Date(bucketKey * 60_000),
 		cpuPct: average(bucketSamples.map((s) => s.cpuPct)),
 		memPct: average(bucketSamples.map((s) => s.memPct)),
-		diskPct: average(bucketSamples.map((s) => s.diskPct))
+		diskPct: average(bucketSamples.map((s) => s.diskPct)),
+		swapPct: average(bucketSamples.map((s) => s.swapPct)),
+		loadAvg1: average(bucketSamples.map((s) => s.loadAvg1)),
+		diskReadBytesPerSec: average(bucketSamples.map((s) => s.diskReadBytesPerSec)),
+		diskWriteBytesPerSec: average(bucketSamples.map((s) => s.diskWriteBytesPerSec)),
+		netRxBytesPerSec: average(bucketSamples.map((s) => s.netRxBytesPerSec)),
+		netTxBytesPerSec: average(bucketSamples.map((s) => s.netTxBytesPerSec))
 	};
 }
