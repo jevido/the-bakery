@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
+	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import { GUILD_RESOURCES, statusMeta } from '$lib/data/bakery';
 	import { formatBytes, formatRelativeTime } from '$lib/utils';
 	import MetricChart from '$lib/components/bakery/MetricChart.svelte';
@@ -14,36 +15,43 @@
 	const resources = $derived(GUILD_RESOURCES[guildId]);
 	const apps = $derived(resources?.apps ?? []);
 
-	const primaryHost = $derived(page.data.primaryHost);
-	const primaryHostLatestSample = $derived(page.data.primaryHostLatestSample);
-	const primaryHostHistory = $derived(page.data.primaryHostHistory ?? []);
+	const hosts = $derived(page.data.hosts ?? []);
+	type HostRow = (typeof hosts)[number];
+	const selectedHostId = $derived(page.data.selectedHostId ?? 'all');
+	const selectedHost = $derived(hosts.find((h: HostRow) => h.id === selectedHostId) ?? null);
+	const displayLatest = $derived(page.data.displayLatest);
+	const displayHistory = $derived(page.data.displayHistory ?? []);
 
-	type MetricSample = (typeof primaryHostHistory)[number];
+	type DisplaySample = (typeof displayHistory)[number];
 
-	function toSeries(history: MetricSample[], field: 'cpuPct' | 'memPct') {
+	// `range`/`host` are independent query params here — each setter
+	// preserves the other, same pattern as the Host Detail page.
+	function withParam(key: string, value: string): string {
+		const params = new SvelteURLSearchParams(page.url.searchParams);
+		params.set(key, value);
+		return `?${params.toString()}`;
+	}
+	function selectRange(id: string) {
+		goto(withParam('range', id), { keepFocus: true, noScroll: true, replaceState: true });
+	}
+	function selectHost(id: string) {
+		goto(withParam('host', id), { keepFocus: true, noScroll: true, replaceState: true });
+	}
+
+	function toSeries(history: DisplaySample[], field: 'cpuPct' | 'memPct') {
 		return history.map((sample) => ({ ts: sample.ts, value: sample[field] ?? 0 }));
 	}
-
-	// Combined rx+tx throughput in KB/s (Phase 20 task 01 — real agent
-	// collection replaces what used to be a synthetic wobble() generator).
-	function netKBs(sample: MetricSample): number {
-		return ((sample.netRxBytesPerSec ?? 0) + (sample.netTxBytesPerSec ?? 0)) / 1024;
-	}
-	function toNetSeries(history: MetricSample[]) {
-		return history.map((sample) => ({ ts: sample.ts, value: netKBs(sample) }));
+	function toNetSeries(history: DisplaySample[]) {
+		return history.map((sample) => ({ ts: sample.ts, value: sample.netKBs ?? 0 }));
 	}
 
 	// First-vs-last sample in the loaded window — a real, if noisy, trend
 	// indicator rather than a decorative fixed percentage.
-	function trend(history: MetricSample[], field: 'cpuPct' | 'memPct') {
+	function trend(history: DisplaySample[], field: 'cpuPct' | 'memPct' | 'netKBs') {
 		if (history.length < 2) return null;
 		const first = history[0][field] ?? 0;
 		const last = history[history.length - 1][field] ?? 0;
 		return last - first;
-	}
-	function netTrend(history: MetricSample[]) {
-		if (history.length < 2) return null;
-		return netKBs(history[history.length - 1]) - netKBs(history[0]);
 	}
 	function deltaLabel(delta: number | null, unit = '%') {
 		if (delta === null) return '—';
@@ -54,21 +62,20 @@
 		return delta >= 0 ? '#5ee0ab' : '#5c6170';
 	}
 
-	const cpuSeries = $derived(toSeries(primaryHostHistory, 'cpuPct'));
-	const memSeries = $derived(toSeries(primaryHostHistory, 'memPct'));
-	const netSeries = $derived(toNetSeries(primaryHostHistory));
+	const cpuSeries = $derived(toSeries(displayHistory, 'cpuPct'));
+	const memSeries = $derived(toSeries(displayHistory, 'memPct'));
+	const netSeries = $derived(toNetSeries(displayHistory));
 
-	const cpuDelta = $derived(trend(primaryHostHistory, 'cpuPct'));
-	const memDelta = $derived(trend(primaryHostHistory, 'memPct'));
-	const netDelta = $derived(netTrend(primaryHostHistory));
+	const cpuDelta = $derived(trend(displayHistory, 'cpuPct'));
+	const memDelta = $derived(trend(displayHistory, 'memPct'));
+	const netDelta = $derived(trend(displayHistory, 'netKBs'));
 
 	const metricCards = $derived([
 		{
 			label: 'CPU usage',
-			big:
-				primaryHostLatestSample?.cpuPct != null ? primaryHostLatestSample.cpuPct.toFixed(1) : '—',
+			big: displayLatest?.cpuPct != null ? displayLatest.cpuPct.toFixed(1) : '—',
 			unit: '%',
-			sub: primaryHost?.name ?? 'no hosts yet',
+			sub: selectedHost ? selectedHost.name : hosts.length ? 'all hosts' : 'no hosts yet',
 			delta: deltaLabel(cpuDelta),
 			deltaColor: deltaColor(cpuDelta),
 			color: '#3fb984',
@@ -76,8 +83,7 @@
 		},
 		{
 			label: 'Memory',
-			big:
-				primaryHostLatestSample?.memPct != null ? primaryHostLatestSample.memPct.toFixed(1) : '—',
+			big: displayLatest?.memPct != null ? displayLatest.memPct.toFixed(1) : '—',
 			unit: '%',
 			sub: 'committed',
 			delta: deltaLabel(memDelta),
@@ -87,7 +93,7 @@
 		},
 		{
 			label: 'Network I/O',
-			big: primaryHostLatestSample ? netKBs(primaryHostLatestSample).toFixed(0) : '—',
+			big: displayLatest?.netKBs != null ? displayLatest.netKBs.toFixed(0) : '—',
 			unit: 'KB/s',
 			sub: '↓ in · ↑ out combined',
 			delta: deltaLabel(netDelta, ' KB/s'),
@@ -113,7 +119,7 @@
 		{
 			label: 'Running',
 			value: page.data.runningDeploymentsCount ?? 0,
-			sub: 'deployments',
+			sub: 'containers',
 			icon: 'M4 4h16v6H4zM4 14h16v6H4z'
 		},
 		{
@@ -141,8 +147,10 @@
 		goto(`/${guildId}/deploy/projects/${id}`);
 	}
 
-	function selectRange(id: string) {
-		goto(`?range=${id}`, { keepFocus: true, noScroll: true, replaceState: true });
+	function hostPillCls(id: string) {
+		return id === selectedHostId
+			? 'px-[11px] py-[5px] text-[12.5px] text-[var(--tx)] rounded-[6px] cursor-pointer bg-[var(--card-2)]'
+			: 'px-[11px] py-[5px] text-[12.5px] text-[var(--tx-2)] rounded-[6px] cursor-pointer';
 	}
 </script>
 
@@ -165,8 +173,25 @@
 		>
 	</div>
 
-	<!-- Range picker -->
-	<div class="flex items-center justify-end mb-[10px]">
+	<!-- Host switcher + range picker -->
+	<div class="flex items-center justify-between mb-[10px] gap-[10px]">
+		<div class="flex items-center gap-[10px] min-w-0">
+			<div
+				class="flex gap-0.5 bg-[var(--card)] border border-[var(--line)] rounded-[9px] p-[3px] overflow-x-auto"
+			>
+				<button onclick={() => selectHost('all')} class={hostPillCls('all')}>All hosts</button>
+				{#each hosts as h (h.id)}
+					<button onclick={() => selectHost(h.id)} class={hostPillCls(h.id)}>{h.name}</button>
+				{/each}
+			</div>
+			{#if selectedHost}
+				<a
+					href="/{guildId}/deploy/hosts/{selectedHost.id}"
+					class="text-[12px] text-[var(--grn-2)] no-underline font-semibold whitespace-nowrap"
+					>View full details →</a
+				>
+			{/if}
+		</div>
 		<MetricRangePicker value={page.data.range} onchange={selectRange} />
 	</div>
 

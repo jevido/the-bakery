@@ -4,7 +4,11 @@ import { requireGuild } from '$lib/server/guild-context';
 import { db } from '$lib/server/db';
 import { host, hostMetricSample, app, volume, deployment, build } from '$lib/server/db/schema';
 import { computeHostStatus } from '$lib/server/hosts/status';
-import { downsampleToMinuteBuckets } from '$lib/server/hosts/metrics';
+import {
+	downsampleToMinuteBuckets,
+	aggregateAcrossHosts,
+	average
+} from '$lib/server/hosts/metrics';
 import { recentActivity } from '$lib/server/overview/activity';
 import { DEFAULT_METRIC_RANGE, isMetricRangeId, rangeStartDate } from '$lib/hosts/metric-ranges';
 
@@ -16,9 +20,9 @@ export const load: PageServerLoad = async (event) => {
 	const rangeStart = rangeStartDate(range);
 
 	// Explicit column list, not `select()` — `tokenHash` must never reach the
-	// client (Phase 07 task 05's encryption-at-rest review): `hosts`/
-	// `primaryHost` below are returned straight through to the page, so an
-	// unqualified `select()` would ship it in every load.
+	// client (Phase 07 task 05's encryption-at-rest review): `hosts` below is
+	// returned straight through to the page, so an unqualified `select()`
+	// would ship it in every load.
 	const hostRows = await db
 		.select({
 			id: host.id,
@@ -37,20 +41,13 @@ export const load: PageServerLoad = async (event) => {
 		.where(and(eq(host.organizationId, organization.id), isNull(host.revokedAt)));
 
 	const hosts = hostRows.map((h) => ({ ...h, computedStatus: computeHostStatus(h) }));
-	const primaryHost = hosts[0] ?? null;
-
-	const primaryHostHistoryRaw = primaryHost
-		? await db
-				.select()
-				.from(hostMetricSample)
-				.where(
-					and(eq(hostMetricSample.hostId, primaryHost.id), gte(hostMetricSample.ts, rangeStart))
-				)
-				.orderBy(asc(hostMetricSample.ts))
-		: [];
-	const primaryHostHistory = downsampleToMinuteBuckets(primaryHostHistoryRaw);
-
 	const hostIds = hosts.map((h) => h.id);
+
+	// `host=all` (default) or a specific host id from this org (task 10's
+	// switcher) — replaces the old hardcoded `primaryHost = hosts[0]`.
+	const hostParam = event.url.searchParams.get('host');
+	const selectedHostId = hostParam && hosts.some((h) => h.id === hostParam) ? hostParam : 'all';
+
 	const latestSamples = hostIds.length
 		? await db
 				.select()
@@ -61,6 +58,68 @@ export const load: PageServerLoad = async (event) => {
 	const latestSampleByHost = new Map<string, (typeof latestSamples)[number]>();
 	for (const sample of latestSamples) {
 		if (!latestSampleByHost.has(sample.hostId)) latestSampleByHost.set(sample.hostId, sample);
+	}
+
+	interface DisplaySample {
+		ts: Date;
+		cpuPct: number | null;
+		memPct: number | null;
+		netKBs: number | null;
+	}
+	let displayHistory: DisplaySample[];
+	let displayLatest: DisplaySample | null;
+
+	if (selectedHostId === 'all') {
+		const allHistoryRaw = hostIds.length
+			? await db
+					.select()
+					.from(hostMetricSample)
+					.where(
+						and(inArray(hostMetricSample.hostId, hostIds), gte(hostMetricSample.ts, rangeStart))
+					)
+					.orderBy(asc(hostMetricSample.ts))
+			: [];
+		displayHistory = aggregateAcrossHosts(allHistoryRaw);
+
+		const latestPerHost = hostIds
+			.map((id) => latestSampleByHost.get(id))
+			.filter((s): s is NonNullable<typeof s> => s != null);
+		displayLatest = latestPerHost.length
+			? {
+					ts: new Date(),
+					cpuPct: average(latestPerHost.map((s) => s.cpuPct)),
+					memPct: average(latestPerHost.map((s) => s.memPct)),
+					netKBs: latestPerHost.reduce(
+						(sum, s) => sum + ((s.netRxBytesPerSec ?? 0) + (s.netTxBytesPerSec ?? 0)) / 1024,
+						0
+					)
+				}
+			: null;
+	} else {
+		const hostHistoryRaw = await db
+			.select()
+			.from(hostMetricSample)
+			.where(and(eq(hostMetricSample.hostId, selectedHostId), gte(hostMetricSample.ts, rangeStart)))
+			.orderBy(asc(hostMetricSample.ts));
+		displayHistory = downsampleToMinuteBuckets(hostHistoryRaw).map((s) => ({
+			ts: s.ts,
+			cpuPct: s.cpuPct,
+			memPct: s.memPct,
+			netKBs:
+				s.netRxBytesPerSec != null || s.netTxBytesPerSec != null
+					? ((s.netRxBytesPerSec ?? 0) + (s.netTxBytesPerSec ?? 0)) / 1024
+					: null
+		}));
+
+		const latest = latestSampleByHost.get(selectedHostId) ?? null;
+		displayLatest = latest
+			? {
+					ts: latest.ts,
+					cpuPct: latest.cpuPct,
+					memPct: latest.memPct,
+					netKBs: ((latest.netRxBytesPerSec ?? 0) + (latest.netTxBytesPerSec ?? 0)) / 1024
+				}
+			: null;
 	}
 
 	// Real summary-tile aggregates (task 06) — deployment/volume/build aren't
@@ -92,9 +151,9 @@ export const load: PageServerLoad = async (event) => {
 
 	return {
 		hosts,
-		primaryHost,
-		primaryHostLatestSample: primaryHost ? (latestSampleByHost.get(primaryHost.id) ?? null) : null,
-		primaryHostHistory,
+		selectedHostId,
+		displayHistory,
+		displayLatest,
 		range,
 		appsCount: appRows.length,
 		hostsOnlineCount: hosts.filter((h) => h.computedStatus === 'online').length,

@@ -23,10 +23,64 @@ export function downsampleToMinuteBuckets(samples: HostMetricSample[]): HostMetr
 		.map(([bucketKey, bucketSamples]) => averageBucket(bucketKey, bucketSamples));
 }
 
-function average(values: Array<number | null>): number | null {
+export function average(values: Array<number | null>): number | null {
 	const nums = values.filter((v): v is number => v != null);
 	if (nums.length === 0) return null;
 	return nums.reduce((a, b) => a + b, 0) / nums.length;
+}
+
+export interface AggregatedMetricSample {
+	ts: Date;
+	cpuPct: number | null;
+	memPct: number | null;
+	netKBs: number | null;
+}
+
+/**
+ * Combines samples across every host in an org into one fleet-wide series
+ * (Phase 20 task 10's "All hosts" dashboard view). Buckets by minute, then
+ * by host *within* each bucket first, so a host that happens to report more
+ * samples in a given minute than another doesn't skew the fleet average
+ * just by being chattier.
+ *
+ * Percentages (cpu/mem) are averaged across hosts — "how loaded is the
+ * fleet on average" is the useful read; summing would blow past 100% with
+ * more than one host. Network throughput is summed — it's additive across
+ * machines (total fleet bandwidth), not something that makes sense to
+ * average.
+ */
+export function aggregateAcrossHosts(samples: HostMetricSample[]): AggregatedMetricSample[] {
+	const byBucket = new Map<number, Map<string, HostMetricSample[]>>();
+	for (const sample of samples) {
+		const bucketKey = Math.floor(sample.ts.getTime() / 60_000);
+		let byHost = byBucket.get(bucketKey);
+		if (!byHost) {
+			byHost = new Map();
+			byBucket.set(bucketKey, byHost);
+		}
+		const bucket = byHost.get(sample.hostId);
+		if (bucket) bucket.push(sample);
+		else byHost.set(sample.hostId, [sample]);
+	}
+
+	return [...byBucket.entries()]
+		.sort(([a], [b]) => a - b)
+		.map(([bucketKey, byHost]) => {
+			const perHost = [...byHost.values()].map((hostSamples) => ({
+				cpuPct: average(hostSamples.map((s) => s.cpuPct)),
+				memPct: average(hostSamples.map((s) => s.memPct)),
+				netKBs: average(
+					hostSamples.map((s) => ((s.netRxBytesPerSec ?? 0) + (s.netTxBytesPerSec ?? 0)) / 1024)
+				)
+			}));
+
+			return {
+				ts: new Date(bucketKey * 60_000),
+				cpuPct: average(perHost.map((h) => h.cpuPct)),
+				memPct: average(perHost.map((h) => h.memPct)),
+				netKBs: perHost.reduce((sum, h) => sum + (h.netKBs ?? 0), 0)
+			};
+		});
 }
 
 // Non-numeric fields (podmanVersion, containerCount, id) come from the
