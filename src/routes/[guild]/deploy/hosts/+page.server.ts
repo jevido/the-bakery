@@ -2,13 +2,18 @@ import { fail } from '@sveltejs/kit';
 import { superValidate } from 'sveltekit-superforms';
 import { zod } from '$lib/forms/zod4-adapter';
 import { z } from 'zod';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray } from 'drizzle-orm';
 import type { Actions, PageServerLoad } from './$types';
 import { requireGuild } from '$lib/server/guild-context';
 import { db } from '$lib/server/db';
 import { host, hostMetricSample } from '$lib/server/db/schema';
 import { issueHostToken } from '$lib/server/hosts/tokens';
 import { computeHostStatus } from '$lib/server/hosts/status';
+import { classifyHostHealth } from '$lib/server/hosts/health';
+
+// Enough points for a small at-a-glance trend, not the full task 04 range
+// picker -- a list page with N host cards needs this to stay cheap.
+const SPARKLINE_WINDOW_MS = 60 * 60 * 1000;
 
 const addHostSchema = z.object({
 	name: z.string().trim().min(1, 'Host name is required').max(100),
@@ -59,13 +64,34 @@ export const load: PageServerLoad = async (event) => {
 		if (!latestSampleByHost.has(sample.hostId)) latestSampleByHost.set(sample.hostId, sample);
 	}
 
+	const recentSamples = hostIds.length
+		? await db
+				.select()
+				.from(hostMetricSample)
+				.where(
+					and(
+						inArray(hostMetricSample.hostId, hostIds),
+						gte(hostMetricSample.ts, new Date(Date.now() - SPARKLINE_WINDOW_MS))
+					)
+				)
+				.orderBy(asc(hostMetricSample.ts))
+		: [];
+	const historyByHost = new Map<string, typeof recentSamples>();
+	for (const sample of recentSamples) {
+		const bucket = historyByHost.get(sample.hostId);
+		if (bucket) bucket.push(sample);
+		else historyByHost.set(sample.hostId, [sample]);
+	}
+
 	const hosts = hostRows.map((h) => {
 		const computedStatus = computeHostStatus(h);
 		return {
 			...h,
 			computedStatus,
 			online: computedStatus === 'online',
-			latestSample: latestSampleByHost.get(h.id) ?? null
+			health: classifyHostHealth(h),
+			latestSample: latestSampleByHost.get(h.id) ?? null,
+			history: historyByHost.get(h.id) ?? []
 		};
 	});
 

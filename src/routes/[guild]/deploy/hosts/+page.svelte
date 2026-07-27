@@ -1,14 +1,19 @@
 <script lang="ts">
 	import { getContext, onMount, onDestroy } from 'svelte';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
 	import { enhance as formEnhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
 	import { superForm } from 'sveltekit-superforms';
 	import { zodClient } from '$lib/forms/zod4-adapter';
 	import { Field, Control, Label, FieldErrors } from 'formsnap';
 	import { z } from 'zod';
+	import MetricChart from '$lib/components/bakery/MetricChart.svelte';
+	import { thresholdColor, WARNING_THRESHOLD } from '$lib/data/health-thresholds';
 
 	let { data } = $props();
+
+	const guildId = $derived(page.params.guild ?? '');
 
 	const hosts = $derived(data.hosts ?? []);
 	const onlineCount = $derived(hosts.filter((h) => h.online).length);
@@ -39,8 +44,24 @@
 			: 'px-[11px] py-[5px] text-[12.5px] text-[var(--tx-2)] rounded-[6px] cursor-pointer';
 	}
 
-	function barColor(pct: number) {
-		return pct > 70 ? '#e0a83e' : 'var(--grn)';
+	type HostRow = (typeof hosts)[number];
+	type SparkField = 'cpuPct' | 'memPct' | 'diskPct';
+
+	function sparkSeries(h: HostRow, field: SparkField) {
+		return h.history.map((s) => ({ ts: s.ts, value: s[field] ?? 0 }));
+	}
+
+	// Card accent: the worst (highest) of cpu/mem/disk, only once it's past
+	// the warning threshold — a healthy host keeps the default card border,
+	// same shared threshold logic as Host Detail (task 06) and the alerts
+	// panel (task 11) so a host reads consistently everywhere it appears.
+	function worstMetricColor(h: HostRow): string | undefined {
+		const vals = [h.latestSample?.cpuPct, h.latestSample?.memPct, h.latestSample?.diskPct].filter(
+			(v): v is number => v != null
+		);
+		if (vals.length === 0) return undefined;
+		const worst = Math.max(...vals);
+		return worst >= WARNING_THRESHOLD ? thresholdColor(worst) : undefined;
 	}
 
 	function statusDotColor(status: string) {
@@ -178,8 +199,13 @@
 		{:else}
 			{#each filtered as host (host.id)}
 				<div
-					class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] p-6 group cursor-default"
+					onclick={() => goto(`/${guildId}/deploy/hosts/${host.id}`)}
+					onkeydown={(e) => e.key === 'Enter' && goto(`/${guildId}/deploy/hosts/${host.id}`)}
+					role="button"
+					tabindex="0"
+					class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] p-6 group cursor-pointer hover:bg-white/[0.02] transition-colors"
 					class:opacity-60={host.computedStatus === 'revoked'}
+					style:border-color={worstMetricColor(host)}
 				>
 					<div class="flex items-start justify-between mb-3">
 						<div class="flex items-center gap-[10px] min-w-0">
@@ -203,7 +229,10 @@
 							</div>
 							{#if host.computedStatus !== 'revoked'}
 								<button
-									onclick={() => openRevokeConfirm({ id: host.id, name: host.name })}
+									onclick={(e) => {
+										e.stopPropagation();
+										openRevokeConfirm({ id: host.id, name: host.name });
+									}}
 									aria-label="Revoke host"
 									class="text-[var(--tx-3)] hover:text-[#f0836b] cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
 								>
@@ -223,21 +252,26 @@
 					<div class="text-[11.5px] text-[var(--tx-3)] mb-[16px]">{host.spec ?? '—'}</div>
 
 					<div class="flex flex-col gap-[9px] mb-[16px]">
-						{#each [['CPU', host.latestSample?.cpuPct], ['MEM', host.latestSample?.memPct], ['DISK', host.latestSample?.diskPct]] as [label, value] (label)}
-							<div class="flex items-center gap-[10px]">
-								<span class="text-[10.5px] font-bold tracking-[.05em] text-[var(--tx-3)] w-[30px]"
-									>{label}</span
-								>
-								<div class="flex-1 h-[5px] rounded-[3px] bg-white/[0.07] overflow-hidden">
-									<div
-										class="h-full rounded-[3px]"
-										style:width="{pct(value as number | null)}%"
-										style:background={barColor(pct(value as number | null))}
-									></div>
+						{#each [['CPU', 'cpuPct', host.latestSample?.cpuPct], ['MEM', 'memPct', host.latestSample?.memPct], ['DISK', 'diskPct', host.latestSample?.diskPct]] as [label, field, value] (label)}
+							<div>
+								<div class="flex items-center justify-between mb-1">
+									<span class="text-[10.5px] font-bold tracking-[.05em] text-[var(--tx-3)]"
+										>{label}</span
+									>
+									<span
+										class="font-mono-jb text-[11.5px]"
+										style:color={thresholdColor(pct(value as number | null))}
+										>{pctLabel(value as number | null)}</span
+									>
 								</div>
-								<span class="font-mono-jb text-[11.5px] text-[var(--tx-3)] w-[28px] text-right"
-									>{pctLabel(value as number | null)}</span
-								>
+								<div class="h-[24px]">
+									<MetricChart
+										series={sparkSeries(host, field as SparkField)}
+										color={thresholdColor(pct(value as number | null))}
+										label={label as string}
+										unit="%"
+									/>
+								</div>
 							</div>
 						{/each}
 					</div>
