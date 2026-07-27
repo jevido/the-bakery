@@ -1,13 +1,21 @@
 import { error } from '@sveltejs/kit';
-import { and, asc, desc, eq, gte } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 import { requireGuild } from '$lib/server/guild-context';
 import { db } from '$lib/server/db';
-import { host, hostMetricSample, app } from '$lib/server/db/schema';
+import {
+	host,
+	hostMetricSample,
+	app,
+	deployment,
+	build,
+	appMetricSample
+} from '$lib/server/db/schema';
 import { computeHostStatus } from '$lib/server/hosts/status';
 import { classifyHostHealth } from '$lib/server/hosts/health';
 import { downsampleToMinuteBuckets } from '$lib/server/hosts/metrics';
 import { DEFAULT_METRIC_RANGE, isMetricRangeId, rangeStartDate } from '$lib/hosts/metric-ranges';
+import { versionedUnitName, guildNetworkName } from '$lib/server/deploy/quadlet';
 
 export const load: PageServerLoad = async (event) => {
 	const { organization } = await requireGuild(event, { permission: 'view_hosts' });
@@ -56,8 +64,54 @@ export const load: PageServerLoad = async (event) => {
 			.where(eq(hostMetricSample.hostId, hostRow.id))
 			.orderBy(desc(hostMetricSample.ts))
 			.limit(1),
-		db.select({ id: app.id }).from(app).where(eq(app.hostId, hostRow.id))
+		db.select({ id: app.id, name: app.name }).from(app).where(eq(app.hostId, hostRow.id))
 	]);
+
+	const appIds = appsOnHost.map((a) => a.id);
+
+	// A "container" here mirrors the App detail page's own Containers tab
+	// model (Phase 11): exactly one container per app, which exists only
+	// while that app has a `running` deployment — not literal agent-reported
+	// container data at load time.
+	const runningDeployments = appIds.length
+		? await db
+				.select({ appId: deployment.appId, commitSha: build.commitSha, imageRef: build.imageRef })
+				.from(deployment)
+				.innerJoin(build, eq(build.id, deployment.buildId))
+				.where(and(inArray(deployment.appId, appIds), eq(deployment.status, 'running')))
+		: [];
+	const runningByAppId = new Map(runningDeployments.map((d) => [d.appId, d]));
+
+	const latestMetricRows = appIds.length
+		? await db
+				.select()
+				.from(appMetricSample)
+				.where(inArray(appMetricSample.appId, appIds))
+				.orderBy(desc(appMetricSample.ts))
+		: [];
+	const latestMetricByAppId = new Map<string, (typeof latestMetricRows)[number]>();
+	for (const s of latestMetricRows) {
+		if (!latestMetricByAppId.has(s.appId)) latestMetricByAppId.set(s.appId, s);
+	}
+
+	const containers = appsOnHost
+		.map((a) => {
+			const running = runningByAppId.get(a.id);
+			const metric = latestMetricByAppId.get(a.id) ?? null;
+			return {
+				appId: a.id,
+				name: a.name,
+				status: (running ? 'running' : 'stopped') as 'running' | 'stopped',
+				image: running?.imageRef ?? '—',
+				unit: running ? versionedUnitName(a.name, running.commitSha) : null,
+				nets: running ? guildNetworkName(organization.id) : '—',
+				cpuPct: metric?.cpuPct ?? null,
+				memBytes: metric?.memBytes ?? null
+			};
+		})
+		// Heaviest first, matching the same "top containers" intent task 13
+		// applies org-wide -- this is the per-host slice of that view.
+		.sort((a, b) => (b.cpuPct ?? -1) - (a.cpuPct ?? -1));
 
 	return {
 		host: {
@@ -68,6 +122,7 @@ export const load: PageServerLoad = async (event) => {
 		range,
 		history: downsampleToMinuteBuckets(historyRaw),
 		latestSample: latestSampleRows[0] ?? null,
-		appsCount: appsOnHost.length
+		appsCount: appsOnHost.length,
+		containers
 	};
 };

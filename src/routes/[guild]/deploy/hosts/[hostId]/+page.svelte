@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { formatDuration, formatRelativeTime } from '$lib/utils';
+	import { SvelteURLSearchParams } from 'svelte/reactivity';
+	import { formatDuration, formatRelativeTime, formatBytes } from '$lib/utils';
 	import { thresholdColor, hostHealthColor } from '$lib/data/health-thresholds';
 	import MetricChart from '$lib/components/bakery/MetricChart.svelte';
 	import MetricRangePicker from '$lib/components/bakery/MetricRangePicker.svelte';
+	import StatusDot from '$lib/components/bakery/StatusDot.svelte';
 	import { provideMetricChartCrosshair } from '$lib/components/bakery/metric-chart-crosshair.svelte';
 	import type { PageProps } from './$types';
 
@@ -14,8 +16,41 @@
 
 	const guildId = $derived(page.params.guild ?? '');
 
+	// `range` and `tab` are independent query params on this page (unlike the
+	// App detail page, which only ever has `tab`) — each setter preserves the
+	// other so switching one doesn't reset the other back to its default.
+	function withParam(key: string, value: string): string {
+		const params = new SvelteURLSearchParams(page.url.searchParams);
+		params.set(key, value);
+		return `?${params.toString()}`;
+	}
 	function selectRange(id: string) {
-		goto(`?range=${id}`, { keepFocus: true, noScroll: true, replaceState: true });
+		goto(withParam('range', id), { keepFocus: true, noScroll: true, replaceState: true });
+	}
+
+	type Tab = 'overview' | 'containers';
+	const tabs: Array<{ id: Tab; label: string }> = [
+		{ id: 'overview', label: 'Overview' },
+		{ id: 'containers', label: 'Containers' }
+	];
+	// Sourced from the URL, same convention as the App detail page's tabs —
+	// a refresh or shared link lands on the right tab instead of resetting.
+	const activeTab = $derived(
+		(tabs.some((t) => t.id === page.url.searchParams.get('tab'))
+			? page.url.searchParams.get('tab')
+			: 'overview') as Tab
+	);
+	function selectTab(tabId: Tab) {
+		goto(withParam('tab', tabId), { replaceState: true, noScroll: true, keepFocus: true });
+	}
+	function tabCls(t: Tab) {
+		return t === activeTab
+			? 'px-[14px] py-[10px] text-[13.5px] font-semibold text-[var(--grn)] cursor-pointer border-b-2 border-b-[var(--grn)] -mb-px'
+			: 'px-[14px] py-[10px] text-[13.5px] font-semibold text-[var(--tx-2)] cursor-pointer border-b-2 border-b-transparent -mb-px';
+	}
+
+	function formatMem(bytes: number | null | undefined): string {
+		return bytes != null ? formatBytes(bytes) : '—';
 	}
 
 	type Sample = (typeof data.history)[number];
@@ -204,41 +239,83 @@
 		</div>
 	</div>
 
-	<!-- Tab bar (Containers/Activity added in later tasks) -->
+	<!-- Tab bar (Activity added in a later task) -->
 	<div class="flex gap-0.5 border-b border-b-[var(--line)] mb-[18px]">
-		<span
-			class="px-[14px] py-[10px] text-[13.5px] font-semibold text-[var(--grn)] border-b-2 border-b-[var(--grn)] -mb-px"
-			>Overview</span
-		>
-	</div>
-
-	<!-- Range picker -->
-	<div class="flex items-center justify-end mb-[10px]">
-		<MetricRangePicker value={data.range} onchange={selectRange} />
-	</div>
-
-	<!-- Metrics grid -->
-	<div class="grid grid-cols-4 gap-[14px]">
-		{#each metricCards as m (m.key)}
-			<div
-				class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] pt-4 px-[18px] overflow-hidden"
-				style:color={m.color}
-			>
-				<div class="flex items-center justify-between">
-					<span class="text-[13px] font-semibold text-[var(--tx-2)] whitespace-nowrap"
-						>{m.label}</span
-					>
-				</div>
-				<div class="flex items-baseline gap-[7px] mt-[10px]">
-					<span class="font-heading font-bold text-[26px] leading-none text-[var(--tx)]"
-						>{m.big}</span
-					>
-					<span class="text-[12.5px] text-[var(--tx-3)]">{m.unit}</span>
-				</div>
-				<div class="h-[62px] mt-[10px] -mx-[18px] w-[calc(100%+36px)]">
-					<MetricChart series={m.series} color={m.color} label={m.label} unit={m.unit} />
-				</div>
-			</div>
+		{#each tabs as t (t.id)}
+			<button onclick={() => selectTab(t.id)} class={tabCls(t.id)}>{t.label}</button>
 		{/each}
 	</div>
+
+	{#if activeTab === 'overview'}
+		<!-- Range picker -->
+		<div class="flex items-center justify-end mb-[10px]">
+			<MetricRangePicker value={data.range} onchange={selectRange} />
+		</div>
+
+		<!-- Metrics grid -->
+		<div class="grid grid-cols-4 gap-[14px]">
+			{#each metricCards as m (m.key)}
+				<div
+					class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] pt-4 px-[18px] overflow-hidden"
+					style:color={m.color}
+				>
+					<div class="flex items-center justify-between">
+						<span class="text-[13px] font-semibold text-[var(--tx-2)] whitespace-nowrap"
+							>{m.label}</span
+						>
+					</div>
+					<div class="flex items-baseline gap-[7px] mt-[10px]">
+						<span class="font-heading font-bold text-[26px] leading-none text-[var(--tx)]"
+							>{m.big}</span
+						>
+						<span class="text-[12.5px] text-[var(--tx-3)]">{m.unit}</span>
+					</div>
+					<div class="h-[62px] mt-[10px] -mx-[18px] w-[calc(100%+36px)]">
+						<MetricChart series={m.series} color={m.color} label={m.label} unit={m.unit} />
+					</div>
+				</div>
+			{/each}
+		</div>
+	{:else if activeTab === 'containers'}
+		<div class="text-[12.5px] text-[var(--tx-2)] mb-[14px]">
+			Every app scheduled on <span class="text-[var(--tx)]">{data.host.name}</span>, heaviest first.
+		</div>
+		<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] overflow-hidden">
+			<div
+				class="grid grid-cols-[1.4fr_1.4fr_1fr_90px_90px] gap-[14px] px-[18px] py-[10px] border-b border-b-[var(--line)] text-[11px] font-bold tracking-[.05em] text-[var(--tx-3)]"
+			>
+				<div>APP</div>
+				<div>IMAGE</div>
+				<div>NETWORKS</div>
+				<div>CPU</div>
+				<div>MEM</div>
+			</div>
+			{#each data.containers as c (c.appId)}
+				<a
+					href="/{guildId}/deploy/projects/{c.appId}"
+					class="grid grid-cols-[1.4fr_1.4fr_1fr_90px_90px] gap-[14px] items-center px-[18px] py-3 border-b border-b-[var(--line)] last:border-b-0 no-underline hover:bg-white/[0.02]"
+				>
+					<div class="flex items-center gap-[9px] min-w-0">
+						<StatusDot status={c.status} size={8} />
+						<span
+							class="font-mono-jb text-[13px] text-[var(--tx)] whitespace-nowrap overflow-hidden text-ellipsis"
+							>{c.name}</span
+						>
+					</div>
+					<span
+						class="font-mono-jb text-[11.5px] text-[var(--tx-2)] whitespace-nowrap overflow-hidden text-ellipsis"
+						>{c.image}</span
+					>
+					<span class="text-[11.5px] text-[var(--tx-2)]">{c.nets}</span>
+					<span class="font-mono-jb text-[12px] text-[var(--tx)]">{fmtPct(c.cpuPct)}</span>
+					<span class="font-mono-jb text-[12px] text-[var(--tx)]">{formatMem(c.memBytes)}</span>
+				</a>
+			{/each}
+			{#if data.containers.length === 0}
+				<div class="p-[30px] text-center text-[var(--tx-3)] text-[13px]">
+					No apps are scheduled on this host.
+				</div>
+			{/if}
+		</div>
+	{/if}
 </div>
