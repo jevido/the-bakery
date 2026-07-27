@@ -2,9 +2,9 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { GUILD_RESOURCES, statusMeta } from '$lib/data/bakery';
-	import { HOST_METRIC_RANGES } from '$lib/hosts/metric-ranges';
 	import { formatBytes, formatRelativeTime } from '$lib/utils';
 	import MetricChart from '$lib/components/bakery/MetricChart.svelte';
+	import MetricRangePicker from '$lib/components/bakery/MetricRangePicker.svelte';
 	import { provideMetricChartCrosshair } from '$lib/components/bakery/metric-chart-crosshair.svelte';
 
 	provideMetricChartCrosshair();
@@ -144,12 +144,6 @@
 	function selectRange(id: string) {
 		goto(`?range=${id}`, { keepFocus: true, noScroll: true, replaceState: true });
 	}
-
-	function rangePillCls(id: string) {
-		return id === page.data.range
-			? 'px-[11px] py-[5px] text-[12.5px] text-[var(--tx)] rounded-[6px] cursor-pointer bg-[var(--card-2)]'
-			: 'px-[11px] py-[5px] text-[12.5px] text-[var(--tx-2)] rounded-[6px] cursor-pointer';
-	}
 </script>
 
 <div class="px-7 py-6">
@@ -173,11 +167,7 @@
 
 	<!-- Range picker -->
 	<div class="flex items-center justify-end mb-[10px]">
-		<div class="flex gap-0.5 bg-[var(--card)] border border-[var(--line)] rounded-[9px] p-[3px]">
-			{#each HOST_METRIC_RANGES as r (r.id)}
-				<button onclick={() => selectRange(r.id)} class={rangePillCls(r.id)}>{r.label}</button>
-			{/each}
-		</div>
+		<MetricRangePicker value={page.data.range} onchange={selectRange} />
 	</div>
 
 	<!-- Metric cards -->

@@ -6,18 +6,14 @@ import { host, hostMetricSample, app, volume, deployment, build } from '$lib/ser
 import { computeHostStatus } from '$lib/server/hosts/status';
 import { downsampleToMinuteBuckets } from '$lib/server/hosts/metrics';
 import { recentActivity } from '$lib/server/overview/activity';
-import {
-	HOST_METRIC_RANGES,
-	DEFAULT_HOST_METRIC_RANGE,
-	isHostMetricRangeId
-} from '$lib/hosts/metric-ranges';
+import { DEFAULT_METRIC_RANGE, isMetricRangeId, rangeStartDate } from '$lib/hosts/metric-ranges';
 
 export const load: PageServerLoad = async (event) => {
 	const { organization } = await requireGuild(event, { permission: 'view_hosts' });
 
 	const rangeParam = event.url.searchParams.get('range');
-	const range = isHostMetricRangeId(rangeParam) ? rangeParam : DEFAULT_HOST_METRIC_RANGE;
-	const windowMs = HOST_METRIC_RANGES.find((r) => r.id === range)!.windowMs;
+	const range = isMetricRangeId(rangeParam) ? rangeParam : DEFAULT_METRIC_RANGE;
+	const rangeStart = rangeStartDate(range);
 
 	// Explicit column list, not `select()` — `tokenHash` must never reach the
 	// client (Phase 07 task 05's encryption-at-rest review): `hosts`/
@@ -48,10 +44,7 @@ export const load: PageServerLoad = async (event) => {
 				.select()
 				.from(hostMetricSample)
 				.where(
-					and(
-						eq(hostMetricSample.hostId, primaryHost.id),
-						gte(hostMetricSample.ts, new Date(Date.now() - windowMs))
-					)
+					and(eq(hostMetricSample.hostId, primaryHost.id), gte(hostMetricSample.ts, rangeStart))
 				)
 				.orderBy(asc(hostMetricSample.ts))
 		: [];
