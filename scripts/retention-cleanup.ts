@@ -8,7 +8,7 @@
  *   0 3 * * * cd /path/to/bakery && bun scripts/retention-cleanup.ts
  *
  * Config knobs (env, both optional):
- *   RETENTION_DAYS_METRICS — hostMetricSample/appMetricSample cutoff, default 2
+ *   RETENTION_DAYS_METRICS — hostMetricSample/appMetricSample cutoff, default 30
  *   RETENTION_DAYS_LOGS    — buildLogLine (and appLogLine, once task 05 adds
  *                            it) cutoff, default 30
  *
@@ -18,7 +18,7 @@ import { lt, inArray, type AnyColumn, type Table } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { hostMetricSample, appMetricSample, buildLogLine } from '$lib/server/db/schema';
 
-const RETENTION_DAYS_METRICS = Number(process.env.RETENTION_DAYS_METRICS ?? 2);
+const RETENTION_DAYS_METRICS = Number(process.env.RETENTION_DAYS_METRICS ?? 30);
 const RETENTION_DAYS_LOGS = Number(process.env.RETENTION_DAYS_LOGS ?? 30);
 
 // Caps how many rows a single DELETE touches — Postgres has no native
