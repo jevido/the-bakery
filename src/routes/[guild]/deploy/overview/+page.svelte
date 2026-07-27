@@ -2,9 +2,12 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { GUILD_RESOURCES, statusMeta } from '$lib/data/bakery';
-	import { AreaChart } from 'layerchart';
 	import { HOST_METRIC_RANGES } from '$lib/hosts/metric-ranges';
 	import { formatBytes, formatRelativeTime } from '$lib/utils';
+	import MetricChart from '$lib/components/bakery/MetricChart.svelte';
+	import { provideMetricChartCrosshair } from '$lib/components/bakery/metric-chart-crosshair.svelte';
+
+	provideMetricChartCrosshair();
 
 	const guildId = $derived(page.params.guild ?? '');
 	const guildName = $derived(page.data.organization?.name ?? guildId);
@@ -18,7 +21,7 @@
 	type MetricSample = (typeof primaryHostHistory)[number];
 
 	function toSeries(history: MetricSample[], field: 'cpuPct' | 'memPct') {
-		return history.map((sample, i) => ({ i, value: sample[field] ?? 0 }));
+		return history.map((sample) => ({ ts: sample.ts, value: sample[field] ?? 0 }));
 	}
 
 	// Combined rx+tx throughput in KB/s (Phase 20 task 01 — real agent
@@ -27,7 +30,7 @@
 		return ((sample.netRxBytesPerSec ?? 0) + (sample.netTxBytesPerSec ?? 0)) / 1024;
 	}
 	function toNetSeries(history: MetricSample[]) {
-		return history.map((sample, i) => ({ i, value: netKBs(sample) }));
+		return history.map((sample) => ({ ts: sample.ts, value: netKBs(sample) }));
 	}
 
 	// First-vs-last sample in the loaded window — a real, if noisy, trend
@@ -198,32 +201,7 @@
 				</div>
 				<div class="text-[11.5px] text-[var(--tx-3)] mt-[6px]">{m.sub}</div>
 				<div class="h-[72px] mt-[10px] -mx-[18px] w-[calc(100%+36px)]">
-					{#if m.series.length > 1}
-						<AreaChart
-							data={m.series}
-							x="i"
-							y="value"
-							yDomain={[0, null]}
-							axis={false}
-							grid={false}
-							legend={false}
-							rule={false}
-							tooltipContext={false}
-							highlight={false}
-							padding={{ top: 4, bottom: 4 }}
-							props={{
-								area: {
-									fillOpacity: 0.13,
-									fill: 'currentColor',
-									line: { stroke: 'currentColor', 'stroke-width': 2 }
-								}
-							}}
-						/>
-					{:else}
-						<div class="h-full flex items-center text-[11px] text-[var(--tx-3)]">
-							Not enough history yet
-						</div>
-					{/if}
+					<MetricChart series={m.series} color={m.color} label={m.label} unit={m.unit} />
 				</div>
 			</div>
 		{/each}

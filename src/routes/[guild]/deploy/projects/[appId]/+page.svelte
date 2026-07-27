@@ -16,11 +16,14 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import { formatBytes, formatDuration } from '$lib/utils';
-	import { AreaChart } from 'layerchart';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
+	import MetricChart from '$lib/components/bakery/MetricChart.svelte';
+	import { provideMetricChartCrosshair } from '$lib/components/bakery/metric-chart-crosshair.svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
+
+	provideMetricChartCrosshair();
 
 	const guildId = $derived(page.params.guild ?? '');
 	const guildName = $derived(page.data.organization?.name ?? guildId);
@@ -345,7 +348,7 @@
 	type AppMetricSample = (typeof data.appMetricHistory)[number];
 
 	function toAppMetricSeries(history: AppMetricSample[], value: (s: AppMetricSample) => number) {
-		return history.map((s, i) => ({ i, value: value(s) }));
+		return history.map((s) => ({ ts: s.ts, value: value(s) }));
 	}
 
 	const appCpuSeries = $derived(toAppMetricSeries(data.appMetricHistory, (s) => s.cpuPct ?? 0));
@@ -361,6 +364,7 @@
 					? `${data.latestAppMetricSample.cpuPct.toFixed(1)}%`
 					: '—',
 			color: '#3fb984',
+			unit: '%',
 			series: appCpuSeries
 		},
 		{
@@ -370,6 +374,7 @@
 					? formatBytes(data.latestAppMetricSample.memBytes)
 					: '—',
 			color: '#8b5cf6',
+			unit: ' MB',
 			series: appMemSeries
 		}
 	]);
@@ -535,34 +540,7 @@
 									>
 								</div>
 								<div class="h-[92px] mt-3 -mx-[18px] w-[calc(100%+36px)]">
-									{#if m.series.length > 1}
-										<AreaChart
-											data={m.series}
-											x="i"
-											y="value"
-											yDomain={[0, null]}
-											axis={false}
-											grid={false}
-											legend={false}
-											rule={false}
-											tooltipContext={false}
-											highlight={false}
-											padding={{ top: 4, bottom: 4 }}
-											props={{
-												area: {
-													fillOpacity: 0.13,
-													fill: 'currentColor',
-													line: { stroke: 'currentColor', 'stroke-width': 2 }
-												}
-											}}
-										/>
-									{:else}
-										<div
-											class="h-full flex items-center justify-center text-[11px] text-[var(--tx-3)]"
-										>
-											Not enough history yet
-										</div>
-									{/if}
+									<MetricChart series={m.series} color={m.color} label={m.label} unit={m.unit} />
 								</div>
 								<div
 									class="flex justify-between font-mono-jb text-[10.5px] text-[var(--tx-3)] mt-1"
