@@ -2,7 +2,15 @@ import { and, asc, desc, eq, gte, inArray, isNull } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 import { requireGuild } from '$lib/server/guild-context';
 import { db } from '$lib/server/db';
-import { host, hostMetricSample, app, volume, deployment, build } from '$lib/server/db/schema';
+import {
+	host,
+	hostMetricSample,
+	app,
+	volume,
+	deployment,
+	build,
+	appMetricSample
+} from '$lib/server/db/schema';
 import { computeHostStatus } from '$lib/server/hosts/status';
 import { classifyHostHealth } from '$lib/server/hosts/health';
 import {
@@ -147,26 +155,79 @@ export const load: PageServerLoad = async (event) => {
 	const appRows = await db.select().from(app).where(eq(app.organizationId, organization.id));
 	const appIds = appRows.map((a) => a.id);
 
-	const [volumeRows, runningDeployments, activeBuilds, activityEvents, clusterEvents] =
-		await Promise.all([
-			appIds.length
-				? db.select().from(volume).where(inArray(volume.appId, appIds))
-				: Promise.resolve([]),
-			appIds.length
-				? db
-						.select({ id: deployment.id })
-						.from(deployment)
-						.where(and(inArray(deployment.appId, appIds), eq(deployment.status, 'running')))
-				: Promise.resolve([]),
-			appIds.length
-				? db
-						.select({ id: build.id })
-						.from(build)
-						.where(and(inArray(build.appId, appIds), inArray(build.status, ['queued', 'building'])))
-				: Promise.resolve([]),
-			recentActivity(organization.id),
-			recentClusterEvents(organization.id, event.params.guild ?? '')
-		]);
+	const [
+		volumeRows,
+		runningDeployments,
+		activeBuilds,
+		activityEvents,
+		clusterEvents,
+		appMetricRows
+	] = await Promise.all([
+		appIds.length
+			? db.select().from(volume).where(inArray(volume.appId, appIds))
+			: Promise.resolve([]),
+		appIds.length
+			? db
+					.select({ id: deployment.id })
+					.from(deployment)
+					.where(and(inArray(deployment.appId, appIds), eq(deployment.status, 'running')))
+			: Promise.resolve([]),
+		appIds.length
+			? db
+					.select({ id: build.id })
+					.from(build)
+					.where(and(inArray(build.appId, appIds), inArray(build.status, ['queued', 'building'])))
+			: Promise.resolve([]),
+		recentActivity(organization.id),
+		recentClusterEvents(organization.id, event.params.guild ?? ''),
+		appIds.length
+			? db
+					.select()
+					.from(appMetricSample)
+					.where(inArray(appMetricSample.appId, appIds))
+					.orderBy(desc(appMetricSample.ts))
+			: Promise.resolve([])
+	]);
+
+	// Capacity views (task 13) — "where is my capacity going," grouped into
+	// three compact panels rather than three separate metric systems.
+	const latestMetricByApp = new Map<string, (typeof appMetricRows)[number]>();
+	for (const m of appMetricRows) {
+		if (!latestMetricByApp.has(m.appId)) latestMetricByApp.set(m.appId, m);
+	}
+
+	const TOP_CONTAINERS_LIMIT = 8;
+	const topContainers = appRows
+		.map((a) => {
+			const metric = latestMetricByApp.get(a.id);
+			return {
+				appId: a.id,
+				appName: a.name,
+				cpuPct: metric?.cpuPct ?? null,
+				memBytes: metric?.memBytes ?? null
+			};
+		})
+		.filter((c) => c.cpuPct != null || c.memBytes != null)
+		.sort((a, b) => (b.cpuPct ?? 0) - (a.cpuPct ?? 0))
+		.slice(0, TOP_CONTAINERS_LIMIT);
+
+	const appCountByHost = new Map<string, number>();
+	for (const a of appRows) {
+		if (!a.hostId) continue;
+		appCountByHost.set(a.hostId, (appCountByHost.get(a.hostId) ?? 0) + 1);
+	}
+	const hostCapacity = hosts
+		.map((h) => ({ hostId: h.id, hostName: h.name, appCount: appCountByHost.get(h.id) ?? 0 }))
+		.sort((a, b) => b.appCount - a.appCount);
+
+	const storageBytesByHost = new Map<string, number>();
+	for (const v of volumeRows) {
+		storageBytesByHost.set(v.hostId, (storageBytesByHost.get(v.hostId) ?? 0) + v.sizeBytes);
+	}
+	const storageByHost = hosts
+		.map((h) => ({ hostId: h.id, hostName: h.name, totalBytes: storageBytesByHost.get(h.id) ?? 0 }))
+		.filter((s) => s.totalBytes > 0)
+		.sort((a, b) => b.totalBytes - a.totalBytes);
 
 	// Alerts panel (task 11) — org-wide surfacing of anything that needs
 	// attention: hosts over a resource threshold, hosts that have gone
@@ -302,6 +363,9 @@ export const load: PageServerLoad = async (event) => {
 		volumesTotalBytes: volumeRows.reduce((sum, v) => sum + v.sizeBytes, 0),
 		activityEvents,
 		clusterEvents,
-		alerts: alerts.slice(0, ALERTS_LIMIT)
+		alerts: alerts.slice(0, ALERTS_LIMIT),
+		topContainers,
+		hostCapacity,
+		storageByHost
 	};
 };

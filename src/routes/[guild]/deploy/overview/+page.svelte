@@ -18,6 +18,13 @@
 	const hosts = $derived(page.data.hosts ?? []);
 	const alerts = $derived(page.data.alerts ?? []);
 	const clusterEvents = $derived(page.data.clusterEvents ?? []);
+	const topContainers = $derived(page.data.topContainers ?? []);
+	const hostCapacity = $derived(page.data.hostCapacity ?? []);
+	type HostCapacityRow = (typeof hostCapacity)[number];
+	const storageByHost = $derived(page.data.storageByHost ?? []);
+	const maxHostAppCount = $derived(
+		Math.max(1, ...hostCapacity.map((h: HostCapacityRow) => h.appCount))
+	);
 	type HostRow = (typeof hosts)[number];
 	const selectedHostId = $derived(page.data.selectedHostId ?? 'all');
 	const selectedHost = $derived(hosts.find((h: HostRow) => h.id === selectedHostId) ?? null);
@@ -295,6 +302,73 @@
 				</a>
 			{/each}
 		{/if}
+	</div>
+
+	<!-- Capacity: top containers, per-host app count, per-host storage -->
+	<div class="grid grid-cols-3 gap-[14px] mt-[14px]">
+		<div class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] overflow-hidden">
+			<div class="px-[16px] pt-[13px] pb-2 text-[13px] font-bold">Heaviest containers</div>
+			{#each topContainers as c (c.appId)}
+				<a
+					href="/{guildId}/deploy/projects/{c.appId}"
+					class="flex items-center justify-between gap-[10px] px-[16px] py-[7px] border-t border-t-[var(--line)] no-underline hover:bg-white/[0.02]"
+				>
+					<span class="text-[12px] text-[var(--tx)] truncate min-w-0">{c.appName}</span>
+					<span class="font-mono-jb text-[11px] text-[var(--tx-2)] shrink-0"
+						>{c.cpuPct != null ? `${c.cpuPct.toFixed(0)}%` : '—'}</span
+					>
+				</a>
+			{/each}
+			{#if topContainers.length === 0}
+				<div class="px-[16px] py-5 text-center text-[11.5px] text-[var(--tx-3)]">
+					No container metrics yet.
+				</div>
+			{/if}
+		</div>
+
+		<div class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] overflow-hidden">
+			<div class="px-[16px] pt-[13px] pb-2 text-[13px] font-bold">Apps per host</div>
+			{#each hostCapacity as h (h.hostId)}
+				<a
+					href="/{guildId}/deploy/hosts/{h.hostId}"
+					class="flex items-center gap-[10px] px-[16px] py-[7px] border-t border-t-[var(--line)] no-underline hover:bg-white/[0.02]"
+				>
+					<span class="text-[12px] text-[var(--tx)] truncate w-[38%] shrink-0">{h.hostName}</span>
+					<div class="flex-1 h-[5px] rounded-[3px] bg-white/[0.07] overflow-hidden">
+						<div
+							class="h-full bg-[var(--grn)] rounded-[3px]"
+							style:width="{(h.appCount / maxHostAppCount) * 100}%"
+						></div>
+					</div>
+					<span class="font-mono-jb text-[11px] text-[var(--tx-2)] shrink-0 w-[16px] text-right"
+						>{h.appCount}</span
+					>
+				</a>
+			{/each}
+			{#if hostCapacity.length === 0}
+				<div class="px-[16px] py-5 text-center text-[11.5px] text-[var(--tx-3)]">No hosts yet.</div>
+			{/if}
+		</div>
+
+		<div class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] overflow-hidden">
+			<div class="px-[16px] pt-[13px] pb-2 text-[13px] font-bold">Storage per host</div>
+			{#each storageByHost as s (s.hostId)}
+				<a
+					href="/{guildId}/deploy/hosts/{s.hostId}"
+					class="flex items-center justify-between gap-[10px] px-[16px] py-[7px] border-t border-t-[var(--line)] no-underline hover:bg-white/[0.02]"
+				>
+					<span class="text-[12px] text-[var(--tx)] truncate min-w-0">{s.hostName}</span>
+					<span class="font-mono-jb text-[11px] text-[var(--tx-2)] shrink-0"
+						>{formatBytes(s.totalBytes)}</span
+					>
+				</a>
+			{/each}
+			{#if storageByHost.length === 0}
+				<div class="px-[16px] py-5 text-center text-[11.5px] text-[var(--tx-3)]">
+					No volumes attached yet.
+				</div>
+			{/if}
+		</div>
 	</div>
 
 	<!-- Bottom 2-col: workloads + activity -->
