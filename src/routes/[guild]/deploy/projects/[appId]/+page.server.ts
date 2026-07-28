@@ -62,6 +62,7 @@ export const load: PageServerLoad = async (event) => {
 			repo: null,
 			connectableRepos: [],
 			builds: [],
+			deploymentAttempts: [],
 			domains: [],
 			volumes: [],
 			appMetricHistory: [],
@@ -129,6 +130,34 @@ export const load: PageServerLoad = async (event) => {
 		.where(eq(deployment.appId, appRow.id))
 		.orderBy(desc(deployment.startedAt));
 
+	// One row per build attempt, newest first (same order as `builds`
+	// itself), each carrying its deployment's fields alongside its own when
+	// one exists yet -- a build that's still queued/building, or one that
+	// failed before ever reaching a deploy attempt, has no `deployment` row
+	// at all (`startDeployment()` only runs after a build already succeeded,
+	// run-build.ts), so those fields come back `null` rather than the row
+	// being left out. Lets the Deployments tab render one unified list
+	// instead of two separately-queried, separately-rendered ones.
+	const deploymentsByBuildId = new Map(deployments.map((d) => [d.buildId, d]));
+	const deploymentAttempts = builds.map((b) => {
+		const d = deploymentsByBuildId.get(b.id);
+		return {
+			buildId: b.id,
+			commitSha: b.commitSha,
+			branch: b.branch,
+			imageRef: b.imageRef,
+			buildStatus: b.status,
+			buildStartedAt: b.startedAt,
+			buildFinishedAt: b.finishedAt,
+			buildTriggeredBy: b.triggeredBy,
+			deploymentId: d?.id ?? null,
+			deploymentStatus: d?.status ?? null,
+			deploymentStartedAt: d?.startedAt ?? null,
+			deploymentFinishedAt: d?.finishedAt ?? null,
+			deploymentTriggeredBy: d?.triggeredBy ?? null
+		};
+	});
+
 	// Bakery's real deploy model is exactly one container per app (no sidecar
 	// concept anywhere in the schema or `quadletContent()`), so the Containers
 	// tab (Phase 11) is inherently a 0-or-1-row list: the one deployment
@@ -175,6 +204,7 @@ export const load: PageServerLoad = async (event) => {
 		builds,
 		realQuadletContent,
 		deployments,
+		deploymentAttempts,
 		domains,
 		volumes,
 		appMetricHistory,
