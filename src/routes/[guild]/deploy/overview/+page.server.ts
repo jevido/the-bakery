@@ -11,6 +11,7 @@ import {
 	average
 } from '$lib/server/hosts/metrics';
 import { recentActivity } from '$lib/server/overview/activity';
+import { recentClusterEvents } from '$lib/server/overview/events';
 import { DEFAULT_METRIC_RANGE, isMetricRangeId, rangeStartDate } from '$lib/hosts/metric-ranges';
 import { WARNING_THRESHOLD, CRITICAL_THRESHOLD } from '$lib/data/health-thresholds';
 
@@ -146,24 +147,26 @@ export const load: PageServerLoad = async (event) => {
 	const appRows = await db.select().from(app).where(eq(app.organizationId, organization.id));
 	const appIds = appRows.map((a) => a.id);
 
-	const [volumeRows, runningDeployments, activeBuilds, activityEvents] = await Promise.all([
-		appIds.length
-			? db.select().from(volume).where(inArray(volume.appId, appIds))
-			: Promise.resolve([]),
-		appIds.length
-			? db
-					.select({ id: deployment.id })
-					.from(deployment)
-					.where(and(inArray(deployment.appId, appIds), eq(deployment.status, 'running')))
-			: Promise.resolve([]),
-		appIds.length
-			? db
-					.select({ id: build.id })
-					.from(build)
-					.where(and(inArray(build.appId, appIds), inArray(build.status, ['queued', 'building'])))
-			: Promise.resolve([]),
-		recentActivity(organization.id)
-	]);
+	const [volumeRows, runningDeployments, activeBuilds, activityEvents, clusterEvents] =
+		await Promise.all([
+			appIds.length
+				? db.select().from(volume).where(inArray(volume.appId, appIds))
+				: Promise.resolve([]),
+			appIds.length
+				? db
+						.select({ id: deployment.id })
+						.from(deployment)
+						.where(and(inArray(deployment.appId, appIds), eq(deployment.status, 'running')))
+				: Promise.resolve([]),
+			appIds.length
+				? db
+						.select({ id: build.id })
+						.from(build)
+						.where(and(inArray(build.appId, appIds), inArray(build.status, ['queued', 'building'])))
+				: Promise.resolve([]),
+			recentActivity(organization.id),
+			recentClusterEvents(organization.id, event.params.guild ?? '')
+		]);
 
 	// Alerts panel (task 11) — org-wide surfacing of anything that needs
 	// attention: hosts over a resource threshold, hosts that have gone
@@ -298,6 +301,7 @@ export const load: PageServerLoad = async (event) => {
 		volumesCount: volumeRows.length,
 		volumesTotalBytes: volumeRows.reduce((sum, v) => sum + v.sizeBytes, 0),
 		activityEvents,
+		clusterEvents,
 		alerts: alerts.slice(0, ALERTS_LIMIT)
 	};
 };

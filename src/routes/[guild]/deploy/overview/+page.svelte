@@ -17,6 +17,7 @@
 
 	const hosts = $derived(page.data.hosts ?? []);
 	const alerts = $derived(page.data.alerts ?? []);
+	const clusterEvents = $derived(page.data.clusterEvents ?? []);
 	type HostRow = (typeof hosts)[number];
 	const selectedHostId = $derived(page.data.selectedHostId ?? 'all');
 	const selectedHost = $derived(hosts.find((h: HostRow) => h.id === selectedHostId) ?? null);
@@ -366,5 +367,34 @@
 				</div>
 			{/if}
 		</div>
+	</div>
+
+	<!-- Cluster events -->
+	<div
+		class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] overflow-hidden mt-[14px]"
+	>
+		<div class="px-[18px] pt-[15px] pb-2">
+			<span class="text-[14px] font-bold">Events</span>
+			<span class="text-[11.5px] text-[var(--tx-3)] ml-[6px]"
+				>deployments, builds &amp; host commands across the guild</span
+			>
+		</div>
+		{#each clusterEvents as e (e.id)}
+			<a
+				href={e.href}
+				class="flex items-center gap-[11px] px-[18px] py-[9px] border-t border-t-[var(--line)] no-underline hover:bg-white/[0.02]"
+			>
+				<div class="size-2 rounded-full shrink-0" style:background={e.color}></div>
+				<span class="flex-1 min-w-0 text-[12.5px] text-[var(--tx)] truncate">{e.description}</span>
+				<span class="text-[11px] text-[var(--tx-3)] shrink-0"
+					>{formatRelativeTime(new Date(e.ts))}</span
+				>
+			</a>
+		{/each}
+		{#if clusterEvents.length === 0}
+			<div class="px-[18px] py-6 text-center text-[12.5px] text-[var(--tx-3)]">
+				No events yet — deployments, builds, and host commands will show up here.
+			</div>
+		{/if}
 	</div>
 </div>
