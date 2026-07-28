@@ -4,6 +4,7 @@ import { requireGuild } from '$lib/server/guild-context';
 import { db } from '$lib/server/db';
 import { host, hostMetricSample, app, volume, deployment, build } from '$lib/server/db/schema';
 import { computeHostStatus } from '$lib/server/hosts/status';
+import { classifyHostHealth } from '$lib/server/hosts/health';
 import {
 	downsampleToMinuteBuckets,
 	aggregateAcrossHosts,
@@ -11,6 +12,21 @@ import {
 } from '$lib/server/hosts/metrics';
 import { recentActivity } from '$lib/server/overview/activity';
 import { DEFAULT_METRIC_RANGE, isMetricRangeId, rangeStartDate } from '$lib/hosts/metric-ranges';
+import { WARNING_THRESHOLD, CRITICAL_THRESHOLD } from '$lib/data/health-thresholds';
+
+// How far back a failed deployment/build still counts as an active issue —
+// bounds the alerts panel's query so it doesn't grow unbounded over the
+// org's entire history.
+const ALERT_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+const ALERTS_LIMIT = 20;
+
+export interface DashboardAlert {
+	id: string;
+	severity: 'critical' | 'warning';
+	description: string;
+	href: string;
+	ts: Date;
+}
 
 export const load: PageServerLoad = async (event) => {
 	const { organization } = await requireGuild(event, { permission: 'view_hosts' });
@@ -149,6 +165,125 @@ export const load: PageServerLoad = async (event) => {
 		recentActivity(organization.id)
 	]);
 
+	// Alerts panel (task 11) — org-wide surfacing of anything that needs
+	// attention: hosts over a resource threshold, hosts that have gone
+	// stale/offline, and recent failed deployments/builds. No alerting
+	// existed anywhere in this codebase before this.
+	const alertCutoff = new Date(Date.now() - ALERT_LOOKBACK_MS);
+	const alerts: DashboardAlert[] = [];
+
+	for (const h of hosts) {
+		const sample = latestSampleByHost.get(h.id);
+		const metricChecks: Array<[string, number | null | undefined]> = [
+			['CPU', sample?.cpuPct],
+			['memory', sample?.memPct],
+			['disk', sample?.diskPct],
+			['swap', sample?.swapPct]
+		];
+		for (const [label, value] of metricChecks) {
+			if (value == null) continue;
+			if (value >= WARNING_THRESHOLD) {
+				alerts.push({
+					id: `host-${h.id}-${label}`,
+					severity: value >= CRITICAL_THRESHOLD ? 'critical' : 'warning',
+					description: `${h.name}: ${label} at ${value.toFixed(0)}%`,
+					href: `/${event.params.guild}/deploy/hosts/${h.id}`,
+					ts: sample?.ts ?? h.createdAt
+				});
+			}
+		}
+
+		const health = classifyHostHealth(h);
+		if (health === 'offline') {
+			alerts.push({
+				id: `host-${h.id}-offline`,
+				severity: 'critical',
+				description: `${h.name} is offline`,
+				href: `/${event.params.guild}/deploy/hosts/${h.id}`,
+				ts: h.lastSeenAt ?? h.createdAt
+			});
+		} else if (health === 'stale') {
+			alerts.push({
+				id: `host-${h.id}-stale`,
+				severity: 'warning',
+				description: `${h.name} hasn't checked in recently`,
+				href: `/${event.params.guild}/deploy/hosts/${h.id}`,
+				ts: h.lastSeenAt ?? h.createdAt
+			});
+		}
+	}
+
+	const [failedDeploymentRows, failedBuildRows] = await Promise.all([
+		appIds.length
+			? db
+					.select({
+						id: deployment.id,
+						appId: app.id,
+						appName: app.name,
+						commitSha: build.commitSha,
+						startedAt: deployment.startedAt,
+						finishedAt: deployment.finishedAt
+					})
+					.from(deployment)
+					.innerJoin(build, eq(build.id, deployment.buildId))
+					.innerJoin(app, eq(app.id, deployment.appId))
+					.where(
+						and(
+							inArray(deployment.appId, appIds),
+							eq(deployment.status, 'failed'),
+							gte(deployment.startedAt, alertCutoff)
+						)
+					)
+					.orderBy(desc(deployment.startedAt))
+					.limit(ALERTS_LIMIT)
+			: Promise.resolve([]),
+		appIds.length
+			? db
+					.select({
+						id: build.id,
+						appId: app.id,
+						appName: app.name,
+						commitSha: build.commitSha,
+						finishedAt: build.finishedAt
+					})
+					.from(build)
+					.innerJoin(app, eq(app.id, build.appId))
+					.where(
+						and(
+							inArray(build.appId, appIds),
+							eq(build.status, 'failed'),
+							gte(build.finishedAt, alertCutoff)
+						)
+					)
+					.orderBy(desc(build.finishedAt))
+					.limit(ALERTS_LIMIT)
+			: Promise.resolve([])
+	]);
+
+	for (const d of failedDeploymentRows) {
+		alerts.push({
+			id: `deployment-${d.id}`,
+			severity: 'critical',
+			description: `Deployment of ${d.commitSha.slice(0, 7)} to ${d.appName} failed`,
+			href: `/${event.params.guild}/deploy/projects/${d.appId}?tab=deployments`,
+			ts: d.finishedAt ?? d.startedAt
+		});
+	}
+	for (const b of failedBuildRows) {
+		alerts.push({
+			id: `build-${b.id}`,
+			severity: 'critical',
+			description: `Build of ${b.commitSha.slice(0, 7)} for ${b.appName} failed`,
+			href: `/${event.params.guild}/deploy/projects/${b.appId}?tab=deployments`,
+			ts: b.finishedAt ?? alertCutoff
+		});
+	}
+
+	alerts.sort((a, b) => {
+		if (a.severity !== b.severity) return a.severity === 'critical' ? -1 : 1;
+		return b.ts.getTime() - a.ts.getTime();
+	});
+
 	return {
 		hosts,
 		selectedHostId,
@@ -162,6 +297,7 @@ export const load: PageServerLoad = async (event) => {
 		activeBuildsCount: activeBuilds.length,
 		volumesCount: volumeRows.length,
 		volumesTotalBytes: volumeRows.reduce((sum, v) => sum + v.sizeBytes, 0),
-		activityEvents
+		activityEvents,
+		alerts: alerts.slice(0, ALERTS_LIMIT)
 	};
 };

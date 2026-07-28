@@ -16,6 +16,7 @@
 	const apps = $derived(resources?.apps ?? []);
 
 	const hosts = $derived(page.data.hosts ?? []);
+	const alerts = $derived(page.data.alerts ?? []);
 	type HostRow = (typeof hosts)[number];
 	const selectedHostId = $derived(page.data.selectedHostId ?? 'all');
 	const selectedHost = $derived(hosts.find((h: HostRow) => h.id === selectedHostId) ?? null);
@@ -245,6 +246,54 @@
 				</div>
 			</div>
 		{/each}
+	</div>
+
+	<!-- Alerts -->
+	<div
+		class="bg-[var(--card)] border border-[var(--line)] rounded-[14px] overflow-hidden mt-[14px]"
+	>
+		<div class="flex items-center justify-between px-[18px] pt-[15px] pb-2">
+			<span class="text-[14px] font-bold">Alerts</span>
+			{#if alerts.length > 0}
+				<span class="text-[11px] text-[var(--tx-3)]"
+					>{alerts.length} issue{alerts.length !== 1 ? 's' : ''}</span
+				>
+			{/if}
+		</div>
+		{#if alerts.length === 0}
+			<div class="flex items-center gap-[10px] px-[18px] pb-[16px] pt-1">
+				<svg
+					width="16"
+					height="16"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="var(--grn)"
+					stroke-width="2.3"><path d="M20 6L9 17l-5-5" /></svg
+				>
+				<span class="text-[13px] text-[var(--tx-2)]">No issues — everything's healthy.</span>
+			</div>
+		{:else}
+			{#each alerts as a (a.id)}
+				<a
+					href={a.href}
+					class="flex items-center gap-[11px] px-[18px] py-[10px] border-t border-t-[var(--line)] no-underline hover:bg-white/[0.02]"
+				>
+					<div
+						class="size-2 rounded-full shrink-0"
+						style:background={a.severity === 'critical' ? '#f0836b' : '#e0a83e'}
+					></div>
+					<span class="flex-1 min-w-0 text-[12.5px] text-[var(--tx)] truncate">{a.description}</span
+					>
+					<span
+						class="text-[10.5px] font-semibold px-[7px] py-[2px] rounded-[6px] shrink-0"
+						style:background={a.severity === 'critical'
+							? 'rgba(229,101,75,.15)'
+							: 'rgba(224,168,62,.15)'}
+						style:color={a.severity === 'critical' ? '#f0836b' : '#efc060'}>{a.severity}</span
+					>
+				</a>
+			{/each}
+		{/if}
 	</div>
 
 	<!-- Bottom 2-col: workloads + activity -->
