@@ -36,17 +36,10 @@ function runStreamed(
 	cwd?: string
 ): Promise<void> {
 	return new Promise((resolve, reject) => {
-		// stdin explicitly ignored (never 'pipe', Node's default) -- observed
-		// live, dogfooding this exact pipeline (Phase 08): a `podman build`
-		// this function spawned hung indefinitely at a RUN step with its
-		// underlying process already gone (no matching process anywhere on
-		// the host, confirmed via `ps`), while running that identical
-		// command by hand from an interactive shell completed normally. An
-		// open, never-written-to, never-closed stdin pipe -- Node's default
-		// for a spawned child -- is a plausible explanation (something in the
-		// build blocking on a read that never gets EOF) and a reasonable
-		// thing to rule out regardless, since nothing in this pipeline ever
-		// needs to write to a build subprocess's stdin.
+		// stdin explicitly ignored (never 'pipe', Node's default) -- ruled out
+		// as the cause of the hang below (see the 'exit'/'close' comment), but
+		// left ignored anyway since nothing here ever needs to write to a
+		// build subprocess's stdin, and an unused open pipe is never useful.
 		const child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
 		let settled = false;
 		let timedOut = false;
@@ -68,13 +61,7 @@ function runStreamed(
 		pipe(child.stdout);
 		pipe(child.stderr);
 
-		child.on('error', (err) => {
-			if (settled) return;
-			settled = true;
-			clearTimeout(timeout);
-			reject(err);
-		});
-		child.on('close', (code) => {
+		const settle = (code: number | null) => {
 			if (settled) return;
 			settled = true;
 			clearTimeout(timeout);
@@ -87,7 +74,33 @@ function runStreamed(
 			} else {
 				reject(new BuildFailure(`${command} exited with code ${code}`));
 			}
+		};
+
+		child.on('error', (err) => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timeout);
+			reject(err);
 		});
+		// This is the actual root cause of the hang, confirmed live dogfooding
+		// this exact pipeline (Phase 08) and reproduced in isolation: a
+		// `podman build` this function spawned hung indefinitely with its own
+		// process already gone (nothing matching anywhere in `ps` on the
+		// host), because 'close' -- unlike 'exit' -- waits for *every* stdio
+		// stream to fully close, including any inherited by a process other
+		// than the one that spawned it. Rootless podman/crun unshares PID
+		// namespaces per build step; a grandchild that inherits the
+		// stdout/stderr fds without closing them (confirmed reproducible: a
+		// child that backgrounds a process and exits still hasn't fired
+		// 'close' 3s later, only once that background process itself exits)
+		// leaves the pipes open from Node's point of view forever, even
+		// though the command Node actually cares about finished long ago.
+		// 'exit' only needs *this* process to have terminated, so it can't be
+		// blocked by that; 'close' is still preferred when it does fire
+		// first, since it guarantees every already-flushed log line has
+		// actually been read.
+		child.on('exit', settle);
+		child.on('close', settle);
 	});
 }
 
