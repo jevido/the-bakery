@@ -15,7 +15,7 @@
 	import NotFound from '$lib/components/bakery/NotFound.svelte';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
-	import { formatBytes, formatDuration } from '$lib/utils';
+	import { formatBytes, formatDuration, deploymentStatusColor } from '$lib/utils';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import MetricChart from '$lib/components/bakery/MetricChart.svelte';
 	import { provideMetricChartCrosshair } from '$lib/components/bakery/metric-chart-crosshair.svelte';
@@ -740,19 +740,7 @@
 						>
 							{#each data.deployments as d (d.id)}
 								{@const isCurrent = d.id === currentDeploymentId}
-								{@const inProgress =
-									d.status !== 'running' &&
-									d.status !== 'failed' &&
-									d.status !== 'rolled_back' &&
-									d.status !== 'stopped'}
-								{@const color =
-									d.status === 'running'
-										? '#52cc96'
-										: d.status === 'failed'
-											? '#f0836b'
-											: d.status === 'stopped'
-												? 'var(--tx-3)'
-												: '#e0a83e'}
+								{@const { color, pulse: inProgress } = deploymentStatusColor(d.status)}
 								<div class="border-b border-b-[var(--line)] last:border-b-0">
 									<div
 										onclick={() => toggleDeploymentLogs(d.id)}

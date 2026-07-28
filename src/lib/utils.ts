@@ -52,6 +52,42 @@ export function formatRelativeTime(date: Date): string {
 	return `${days}d ago`;
 }
 
+// Mirrors the `deployment_status` Postgres enum (bakery.schema.ts) -- kept as
+// a local literal union rather than importing the schema's own type, since
+// this file is loaded client-side and `src/lib/server/*` is server-only.
+export type DeploymentStatus =
+	| 'starting_new'
+	| 'health_checking'
+	| 'flipping_proxy'
+	| 'stopping_old'
+	| 'running'
+	| 'failed'
+	| 'rolled_back'
+	| 'stopped';
+
+/**
+ * Reduces every deployment status to exactly one of three colors: green only
+ * for `running`, red only for `failed`, grey for everything else -- an
+ * operator only needs to know "is it live," "did it crash," or neither, not
+ * which of the four in-progress rollout steps it's currently on.
+ * `pulse: true` for the four non-terminal statuses keeps an in-progress
+ * deploy visually distinct from a merely `stopped` one despite both being
+ * grey.
+ */
+export function deploymentStatusColor(status: DeploymentStatus): {
+	color: string;
+	pulse: boolean;
+} {
+	if (status === 'running') return { color: '#52cc96', pulse: false };
+	if (status === 'failed') return { color: '#f0836b', pulse: false };
+	const pulse =
+		status === 'starting_new' ||
+		status === 'health_checking' ||
+		status === 'flipping_proxy' ||
+		status === 'stopping_old';
+	return { color: 'var(--tx-3)', pulse };
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type WithoutChild<T> = T extends { child?: any } ? Omit<T, 'child'> : T;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
