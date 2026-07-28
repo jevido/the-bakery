@@ -149,11 +149,15 @@
 		return since ? formatDuration(now - new Date(since).getTime()) : null;
 	});
 
+	// Keyed by `buildId` (stable across every row, unlike `deploymentId`,
+	// which a still-building row doesn't have yet) so every row in the
+	// unified Deployments list is expandable the same way, including one
+	// with no deployment at all.
 	let expandedDeploymentId = $state<string | null>(null);
 	let expandedLogTab = $state<'runtime' | 'build'>('runtime');
-	function toggleDeploymentLogs(deploymentId: string) {
-		if (expandedDeploymentId !== deploymentId) expandedLogTab = 'runtime';
-		expandedDeploymentId = expandedDeploymentId === deploymentId ? null : deploymentId;
+	function toggleDeploymentLogs(buildId: string) {
+		if (expandedDeploymentId !== buildId) expandedLogTab = 'runtime';
+		expandedDeploymentId = expandedDeploymentId === buildId ? null : buildId;
 	}
 
 	let rollingBackId = $state<string | null>(null);
@@ -733,21 +737,29 @@
 						>
 					</div>
 
-					{#if data.deployments.length > 0}
-						<div class="text-[13px] font-bold mb-[10px]">Rollouts</div>
+					{#if data.deploymentAttempts.length > 0}
+						<div class="text-[13px] font-bold mb-[10px]">Deployments</div>
 						<div
-							class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] overflow-hidden mb-[18px]"
+							class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] overflow-hidden"
 						>
-							{#each data.deployments as d (d.id)}
-								{@const isCurrent = d.id === currentDeploymentId}
-								{@const { color, pulse: inProgress } = deploymentStatusColor(d.status)}
+							{#each data.deploymentAttempts as row (row.buildId)}
+								{@const isCurrent = row.deploymentId === currentDeploymentId}
+								{@const statusLabel = row.deploymentStatus ?? row.buildStatus}
+								{@const { color, pulse } = row.deploymentStatus
+									? deploymentStatusColor(row.deploymentStatus)
+									: row.buildStatus === 'failed'
+										? { color: '#f0836b', pulse: false }
+										: {
+												color: 'var(--tx-3)',
+												pulse: row.buildStatus === 'queued' || row.buildStatus === 'building'
+											}}
 								<div class="border-b border-b-[var(--line)] last:border-b-0">
 									<div
-										onclick={() => toggleDeploymentLogs(d.id)}
+										onclick={() => toggleDeploymentLogs(row.buildId)}
 										onkeydown={(e) => {
 											if (e.key === 'Enter' || e.key === ' ') {
 												e.preventDefault();
-												toggleDeploymentLogs(d.id);
+												toggleDeploymentLogs(row.buildId);
 											}
 										}}
 										role="button"
@@ -757,12 +769,12 @@
 										<div
 											class="size-[10px] rounded-full shrink-0"
 											style:background={color}
-											class:animate-pulse={inProgress}
+											class:animate-pulse={pulse}
 										></div>
 										<div class="flex-1 min-w-0">
 											<div class="flex items-center gap-[8px]">
 												<span class="font-mono-jb text-[12.5px] text-[var(--tx)] font-semibold"
-													>{d.commitSha.slice(0, 7)} · {d.branch ?? 'external image'}</span
+													>{row.commitSha.slice(0, 7)} · {row.branch ?? 'external image'}</span
 												>
 												{#if isCurrent}
 													<span
@@ -772,7 +784,9 @@
 												{/if}
 											</div>
 											<div class="text-[11px] mt-[2px]" style:color>
-												{d.status} · triggered by {d.triggeredBy ?? 'unknown'}
+												{statusLabel} · triggered by {row.deploymentTriggeredBy ??
+													row.buildTriggeredBy ??
+													'unknown'}
 											</div>
 										</div>
 										<div class="text-[11px] text-[var(--tx-3)] text-right shrink-0">
@@ -781,19 +795,27 @@
 													up {currentDeploymentUptime}
 												</div>
 											{/if}
-											{d.finishedAt
-												? new Date(d.finishedAt).toLocaleString()
-												: new Date(d.startedAt).toLocaleString()}
+											{#if row.deploymentFinishedAt}
+												{new Date(row.deploymentFinishedAt).toLocaleString()}
+											{:else if row.deploymentStartedAt}
+												{new Date(row.deploymentStartedAt).toLocaleString()}
+											{:else if row.buildFinishedAt}
+												{new Date(row.buildFinishedAt).toLocaleString()}
+											{:else if row.buildStartedAt}
+												{new Date(row.buildStartedAt).toLocaleString()}
+											{:else}
+												queued
+											{/if}
 										</div>
-										{#if d.status === 'stopped'}
+										{#if row.deploymentStatus === 'stopped'}
 											<button
 												onclick={(e) => {
 													e.stopPropagation();
-													rollback(d.id);
+													if (row.deploymentId) rollback(row.deploymentId);
 												}}
-												disabled={rollingBackId === d.id}
+												disabled={rollingBackId === row.deploymentId}
 												class="shrink-0 bg-[var(--card-2)] border border-[var(--line)] text-[var(--tx)] rounded-[8px] px-3 py-[7px] text-[11.5px] font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-												>{rollingBackId === d.id
+												>{rollingBackId === row.deploymentId
 													? 'Rolling back…'
 													: 'Rollback to this deploy'}</button
 											>
@@ -802,120 +824,58 @@
 											<button
 												onclick={(e) => {
 													e.stopPropagation();
-													requestStopDeployment(d.id);
+													if (row.deploymentId) requestStopDeployment(row.deploymentId);
 												}}
-												disabled={stoppingId === d.id}
+												disabled={stoppingId === row.deploymentId}
 												class="shrink-0 bg-[var(--card-2)] border border-[var(--line)] text-[#f0836b] rounded-[8px] px-3 py-[7px] text-[11.5px] font-semibold cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-												>{stoppingId === d.id ? 'Stopping…' : 'Stop'}</button
+												>{stoppingId === row.deploymentId ? 'Stopping…' : 'Stop'}</button
 											>
 										{/if}
 									</div>
-									{#if expandedDeploymentId === d.id}
+									{#if expandedDeploymentId === row.buildId}
 										<div class="bg-[#080c09] border-t border-t-[var(--line)] overflow-hidden">
 											<div
 												class="flex items-center justify-between gap-[10px] px-4 py-[10px] border-b border-b-[var(--line)] bg-[var(--card)]"
 											>
 												<span class="text-[12.5px] font-semibold"
-													>Live log · {d.commitSha.slice(0, 7)} · {d.status}</span
+													>Live log · {row.commitSha.slice(0, 7)} · {statusLabel}</span
 												>
-												<div
-													class="flex gap-[3px] bg-[var(--card-2)] border border-[var(--line)] rounded-[8px] p-[3px] w-fit shrink-0"
-												>
-													{#each ['runtime', 'build'] as const as logTab (logTab)}
-														<button
-															onclick={() => (expandedLogTab = logTab)}
-															class="px-[10px] py-[4px] text-[11.5px] rounded-[6px] cursor-pointer {expandedLogTab ===
-															logTab
-																? 'bg-[var(--card)] text-[var(--tx)]'
-																: 'text-[var(--tx-2)]'}"
-															>{logTab === 'runtime' ? 'Runtime' : 'Build'}</button
-														>
-													{/each}
-												</div>
+												{#if row.deploymentId}
+													<div
+														class="flex gap-[3px] bg-[var(--card-2)] border border-[var(--line)] rounded-[8px] p-[3px] w-fit shrink-0"
+													>
+														{#each ['runtime', 'build'] as const as logTab (logTab)}
+															<button
+																onclick={() => (expandedLogTab = logTab)}
+																class="px-[10px] py-[4px] text-[11.5px] rounded-[6px] cursor-pointer {expandedLogTab ===
+																logTab
+																	? 'bg-[var(--card)] text-[var(--tx)]'
+																	: 'text-[var(--tx-2)]'}"
+																>{logTab === 'runtime' ? 'Runtime' : 'Build'}</button
+															>
+														{/each}
+													</div>
+												{/if}
 											</div>
-											{#if expandedLogTab === 'runtime'}
-												<BuildLogViewer logsUrl={`/api/v1/deployments/${d.id}/logs/stream`} />
+											{#if !row.deploymentId}
+												<BuildLogViewer logsUrl={`/api/v1/builds/${row.buildId}/logs`} />
+											{:else if expandedLogTab === 'runtime'}
+												<BuildLogViewer
+													logsUrl={`/api/v1/deployments/${row.deploymentId}/logs/stream`}
+												/>
 											{:else}
-												<BuildLogViewer logsUrl={`/api/v1/builds/${d.buildId}/logs`} />
+												<BuildLogViewer logsUrl={`/api/v1/builds/${row.buildId}/logs`} />
 											{/if}
 										</div>
 									{/if}
 								</div>
 							{/each}
 						</div>
+					{:else}
+						<div class="p-[30px] text-center text-[var(--tx-3)] text-[13px]">
+							No builds yet — click "Build now" to trigger the first one.
+						</div>
 					{/if}
-
-					{#if data.builds.length > 0}
-						{@const top = data.builds[0]}
-						{#if top.status === 'queued' || top.status === 'building'}
-							<div
-								class="mb-[14px] bg-[#080c09] border border-[var(--line)] rounded-[12px] overflow-hidden"
-							>
-								<div
-									class="px-4 py-[10px] border-b border-b-[var(--line)] bg-[var(--card)] text-[12.5px] font-semibold"
-								>
-									Live log · {top.commitSha.slice(0, 7)} · {top.status}
-								</div>
-								<BuildLogViewer logsUrl={`/api/v1/builds/${top.id}/logs`} />
-							</div>
-						{/if}
-					{/if}
-
-					<div class="bg-[var(--card)] border border-[var(--line)] rounded-[12px] overflow-hidden">
-						{#each data.builds as b (b.id)}
-							<div
-								class="grid grid-cols-[auto_1fr_auto] gap-[14px] items-center px-[18px] py-[14px] border-b border-b-[var(--line)] last:border-b-0"
-							>
-								<div
-									class="size-[10px] rounded-full shrink-0"
-									style:background={b.status === 'succeeded'
-										? 'var(--grn)'
-										: b.status === 'failed'
-											? '#e5654b'
-											: '#e0a83e'}
-								></div>
-								<div>
-									<div class="font-mono-jb text-[13.5px] text-[var(--tx)] font-semibold">
-										{b.commitSha.slice(0, 7)} · {b.branch ?? 'external image'}
-									</div>
-									<div class="text-[11.5px] text-[var(--tx-3)] mt-[2px]">
-										triggered by {b.triggeredBy ?? 'unknown'}
-									</div>
-								</div>
-								<div class="text-right">
-									<div
-										class="text-[12px] font-semibold"
-										style:color={b.status === 'succeeded'
-											? '#52cc96'
-											: b.status === 'failed'
-												? '#f0836b'
-												: '#e0a83e'}
-									>
-										{b.status}
-									</div>
-									{#if b.startedAt && b.finishedAt}
-										<div class="font-mono-jb text-[10.5px] text-[var(--tx-3)] mt-[2px]">
-											{formatDuration(
-												new Date(b.finishedAt).getTime() - new Date(b.startedAt).getTime()
-											)}
-										</div>
-									{/if}
-									<div class="text-[11px] text-[var(--tx-3)] mt-[2px]">
-										{b.finishedAt
-											? new Date(b.finishedAt).toLocaleString()
-											: b.startedAt
-												? new Date(b.startedAt).toLocaleString()
-												: 'queued'}
-									</div>
-								</div>
-							</div>
-						{/each}
-						{#if data.builds.length === 0}
-							<div class="p-[30px] text-center text-[var(--tx-3)] text-[13px]">
-								No builds yet — click "Build now" to trigger the first one.
-							</div>
-						{/if}
-					</div>
 				{:else}
 					<div class="p-[30px] text-center text-[var(--tx-3)] text-[13px]">
 						Build history isn't available for this demo app.
