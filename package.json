@@ -74,5 +74,8 @@
 	},
 	"simple-git-hooks": {
 		"pre-push": "bun run check && bun run lint"
+	},
+	"patchedDependencies": {
+		"esm-env@1.2.2": "patches/esm-env@1.2.2.patch"
 	}
 }

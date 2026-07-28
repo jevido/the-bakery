@@ -1,0 +1,14 @@
+diff --git a/package.json b/package.json
+index f92f39786f08c6d18e98ee7c138012f6dc2f2379..04fe081a22a2acda6faafb6d3459e7f058b9c4e3 100644
+--- a/package.json
++++ b/package.json
+@@ -15,9 +15,6 @@
+       "default": "./index.js"
+     },
+     "./browser": {
+-      "browser": "./true.js",
+-      "development": "./false.js",
+-      "production": "./false.js",
+       "default": "./browser-fallback.js"
+     },
+     "./development": {
