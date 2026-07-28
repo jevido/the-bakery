@@ -154,11 +154,34 @@
 	// unified Deployments list is expandable the same way, including one
 	// with no deployment at all.
 	let expandedDeploymentId = $state<string | null>(null);
-	let expandedLogTab = $state<'runtime' | 'build'>('runtime');
+	let expandedLogTab = $state<'runtime' | 'build'>('build');
+	// Sticks once the user picks a tab by hand, so live-refresh (task 01)
+	// re-landing on this row's data below doesn't yank them off a tab
+	// they're actively reading -- reset on every fresh expand/collapse so
+	// switching rows (or re-expanding the same one) goes back to the
+	// row's own computed default rather than remembering a stale choice.
+	let expandedLogTabIsManual = false;
 	function toggleDeploymentLogs(buildId: string) {
-		if (expandedDeploymentId !== buildId) expandedLogTab = 'runtime';
+		if (expandedDeploymentId !== buildId) expandedLogTabIsManual = false;
 		expandedDeploymentId = expandedDeploymentId === buildId ? null : buildId;
 	}
+	function selectLogTab(tab: 'runtime' | 'build') {
+		expandedLogTab = tab;
+		expandedLogTabIsManual = true;
+	}
+
+	// Build first, Runtime once that row's build has actually finished (and
+	// produced a deployment to tail) -- re-evaluated on every data refresh so
+	// a row left open while its build completes (task 01's live-refresh)
+	// advances on its own instead of staying stuck showing a build log that
+	// will never get another line.
+	$effect(() => {
+		if (!expandedDeploymentId || expandedLogTabIsManual) return;
+		const row = data.deploymentAttempts?.find((r) => r.buildId === expandedDeploymentId);
+		if (!row) return;
+		const buildFinished = row.buildStatus === 'succeeded' || row.buildStatus === 'failed';
+		expandedLogTab = buildFinished && row.deploymentId ? 'runtime' : 'build';
+	});
 
 	let rollingBackId = $state<string | null>(null);
 	async function rollback(deploymentId: string) {
@@ -846,7 +869,7 @@
 													>
 														{#each ['runtime', 'build'] as const as logTab (logTab)}
 															<button
-																onclick={() => (expandedLogTab = logTab)}
+																onclick={() => selectLogTab(logTab)}
 																class="px-[10px] py-[4px] text-[11.5px] rounded-[6px] cursor-pointer {expandedLogTab ===
 																logTab
 																	? 'bg-[var(--card)] text-[var(--tx)]'
