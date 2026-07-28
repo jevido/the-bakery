@@ -30,6 +30,7 @@ WORKDIR /app
 RUN apk add --no-cache python3 make g++ build-base linux-headers
 
 COPY package.json bun.lock ./
+COPY patches ./patches
 RUN bun install --frozen-lockfile
 
 COPY . .

@@ -36,7 +36,18 @@ function runStreamed(
 	cwd?: string
 ): Promise<void> {
 	return new Promise((resolve, reject) => {
-		const child = spawn(command, args, { cwd });
+		// stdin explicitly ignored (never 'pipe', Node's default) -- observed
+		// live, dogfooding this exact pipeline (Phase 08): a `podman build`
+		// this function spawned hung indefinitely at a RUN step with its
+		// underlying process already gone (no matching process anywhere on
+		// the host, confirmed via `ps`), while running that identical
+		// command by hand from an interactive shell completed normally. An
+		// open, never-written-to, never-closed stdin pipe -- Node's default
+		// for a spawned child -- is a plausible explanation (something in the
+		// build blocking on a read that never gets EOF) and a reasonable
+		// thing to rule out regardless, since nothing in this pipeline ever
+		// needs to write to a build subprocess's stdin.
+		const child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
 		let settled = false;
 		let timedOut = false;
 
