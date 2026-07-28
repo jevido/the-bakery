@@ -419,6 +419,36 @@
 		return () => clearInterval(interval);
 	});
 
+	// A build still queued/building, or a deployment mid-rollout, means
+	// something is actively changing server-side that this page's one-shot
+	// `load()` won't ever pick up on its own -- without this, a
+	// webhook-triggered auto-deploy's own progress (including its
+	// completion) is invisible until the user manually reloads, which reads
+	// as the deploy being permanently "stuck" on whatever build-log line
+	// happened to be last (e.g. "Auto-deploying to <host>...") even once
+	// it's actually finished.
+	const hasInFlightActivity = $derived(
+		Boolean(
+			data.builds?.some((b) => b.status === 'queued' || b.status === 'building') ||
+			data.deployments?.some(
+				(d) =>
+					d.status === 'starting_new' ||
+					d.status === 'health_checking' ||
+					d.status === 'flipping_proxy' ||
+					d.status === 'stopping_old'
+			)
+		)
+	);
+
+	// Same setInterval(invalidateAll)/clearInterval shape as the Containers
+	// tab above, gated on there being something worth polling for so an app
+	// with no active build/deploy doesn't poll forever for nothing.
+	$effect(() => {
+		if (activeTab !== 'deployments' || !data.realApp || !hasInFlightActivity) return;
+		const interval = setInterval(() => invalidateAll(), 5000);
+		return () => clearInterval(interval);
+	});
+
 	const port = $derived(app?.port === '—' ? '3000' : (app?.port ?? '3000'));
 </script>
 
