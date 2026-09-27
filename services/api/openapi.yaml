@@ -63,6 +63,11 @@ tags:
       Comments on a task, oldest first. Every member of the guild reads and
       writes them; only a comment's author edits or deletes it (403 for
       anyone else). An archived guild's comments can be read, not written.
+  - name: Activity
+    description: >-
+      What happened to a task, newest first. The API writes it from what
+      members (and Claude) do; nobody writes it directly. A subtask's
+      entries appear on its parent.
 
 paths:
   /api/health:
@@ -1092,6 +1097,46 @@ paths:
         "409": { $ref: "#/components/responses/ArchivedBoard" }
         "422": { $ref: "#/components/responses/Invalid" }
 
+  /api/tasks/{task}/activity:
+    get:
+      tags: [Activity]
+      summary: List a task's activity
+      description: >-
+        Newest first, a page at a time: pass the last entry's `id` as
+        `before` for the next page. Readable in an archived guild too.
+      parameters:
+        - $ref: "#/components/parameters/Task"
+        - name: before
+          in: query
+          schema: { type: integer }
+          description: Only entries older than this entry id.
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+      responses:
+        "200":
+          description: The entries.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [activity]
+                properties:
+                  activity:
+                    type: array
+                    items: { $ref: "#/components/schemas/Activity" }
+              example:
+                activity:
+                  - id: 12
+                    kind: moved
+                    actor_id: 2
+                    actor_name: Bram
+                    at: "2026-09-27T14:03:00Z"
+                    data: { from: todo, to: doing }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   /api/comments/{comment}:
     patch:
       tags: [Comments]
@@ -1365,6 +1410,24 @@ components:
         body: { type: string, description: "Markdown, 1 to 10 000 characters." }
         created_at: { type: string, format: date-time }
         edited_at: { type: [string, "null"], format: date-time }
+    Activity:
+      type: object
+      required: [id, kind, actor_id, actor_name, at, data]
+      properties:
+        id: { type: integer }
+        kind:
+          type: string
+          enum: [created, edited, moved, commented, subtask_added, subtask_done]
+        actor_id: { type: integer, description: "The member who did it." }
+        actor_name: { type: string }
+        at: { type: string, format: date-time }
+        data:
+          type: object
+          description: >-
+            Depends on `kind`. created: `column`. edited: `title` and
+            `description`, each true when it changed. moved: `from`, `to`
+            (columns). commented: `comment_id`. subtask_added and
+            subtask_done: `subtask_id`, `title`.
     CommentResponse:
       type: object
       required: [comment]

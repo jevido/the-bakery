@@ -54,7 +54,7 @@ func (s *Service) CommentOnTask(ctx context.Context, taskID, memberID uint64, bo
 	if c, err = s.comments.Add(ctx, c); err != nil {
 		return AuthoredComment{}, err
 	}
-	s.events.TaskCommented(ctx, domain.TaskCommented{TaskID: t.ID, BoardID: t.BoardID, CommentID: c.ID, AuthorID: memberID})
+	s.events.Publish(ctx, domain.TaskCommented{TaskID: t.ID, BoardID: t.BoardID, ActorID: memberID, CommentID: c.ID})
 	out, err := s.authored(ctx, c)
 	if err != nil {
 		return AuthoredComment{}, err

@@ -233,26 +233,9 @@ func findTasks(q contractsorm.Query) ([]domain.Task, error) {
 	return tasks, nil
 }
 
-// LogEvents writes boards' domain events to the log; nothing subscribes to
-// them yet.
+// LogEvents writes boards' domain events to the log.
 type LogEvents struct{}
 
-func (LogEvents) TaskCreated(ctx context.Context, ev domain.TaskCreated) {
-	facades.Log().WithContext(ctx).Infof("TaskCreated task=%d board=%d column=%s position=%s", ev.TaskID, ev.BoardID, ev.Column, ev.Position)
-}
-
-func (LogEvents) TaskMoved(ctx context.Context, ev domain.TaskMoved) {
-	facades.Log().WithContext(ctx).Infof("TaskMoved task=%d board=%d from=%s to=%s position=%s", ev.TaskID, ev.BoardID, ev.From, ev.To, ev.Position)
-}
-
-func (LogEvents) SubtaskAdded(ctx context.Context, ev domain.SubtaskAdded) {
-	facades.Log().WithContext(ctx).Infof("SubtaskAdded subtask=%d parent=%d board=%d", ev.SubtaskID, ev.ParentID, ev.BoardID)
-}
-
-func (LogEvents) TaskCommented(ctx context.Context, ev domain.TaskCommented) {
-	facades.Log().WithContext(ctx).Infof("TaskCommented task=%d board=%d comment=%d author=%d", ev.TaskID, ev.BoardID, ev.CommentID, ev.AuthorID)
-}
-
-func (LogEvents) SubtaskCompleted(ctx context.Context, ev domain.SubtaskCompleted) {
-	facades.Log().WithContext(ctx).Infof("SubtaskCompleted subtask=%d parent=%d board=%d", ev.SubtaskID, ev.ParentID, ev.BoardID)
+func (LogEvents) Handle(ctx context.Context, event any) {
+	facades.Log().WithContext(ctx).Infof("%T %+v", event, event)
 }

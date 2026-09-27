@@ -100,3 +100,22 @@ func TestSubtaskHasNoColumn(t *testing.T) {
 		t.Errorf("Reposition() on a task error = %v, want ErrNotSubtask", err)
 	}
 }
+
+func TestEditAnnouncesOnlyChanges(t *testing.T) {
+	str := func(s string) *string { return &s }
+	task := Task{ID: 1, BoardID: 2, Title: "Dig", Description: "Deep"}
+	if ev, err := task.Edit(str("Dig"), str("Deep")); err != nil || ev != nil {
+		t.Errorf("unchanged Edit() = %+v, %v; want no event", ev, err)
+	}
+	ev, err := task.Edit(str("Dig deeper"), nil)
+	if err != nil || ev == nil || !ev.Title || ev.Description {
+		t.Errorf("title Edit() = %+v, %v", ev, err)
+	}
+	ev, err = task.Edit(nil, str("Very deep"))
+	if err != nil || ev == nil || ev.Title || !ev.Description {
+		t.Errorf("description Edit() = %+v, %v", ev, err)
+	}
+	if _, err := task.Edit(str(" "), nil); !errors.Is(err, ErrInvalidTitle) {
+		t.Errorf("empty title Edit() error = %v", err)
+	}
+}

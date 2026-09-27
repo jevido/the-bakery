@@ -29,8 +29,8 @@ type Comment struct {
 type TaskCommented struct {
 	TaskID    uint64
 	BoardID   uint64
+	ActorID   uint64
 	CommentID uint64
-	AuthorID  uint64
 }
 
 // WriteComment makes a comment by authorID on the task, written at now.

@@ -277,3 +277,56 @@ func (s *BoardsTestSuite) TestComments() {
 	s.get(bram, comments).AssertOk()
 	s.post(bram, comments, `{"body":"Too late"}`).AssertConflict()
 }
+
+func (s *BoardsTestSuite) TestActivity() {
+	_, ada := s.register()
+	guildID := s.foundGuild(ada, "Activity Colony")
+	boardID := s.createBoard(ada, guildID, "Getting settled")
+	taskID := s.createTask(ada, boardID, "Build a freezer")
+	activity := func(query string) []map[string]any {
+		res := s.get(ada, fmt.Sprintf("/api/tasks/%d/activity%s", taskID, query))
+		res.AssertOk()
+		var out []map[string]any
+		for _, e := range s.jsonOf(res)["activity"].([]any) {
+			out = append(out, e.(map[string]any))
+		}
+		return out
+	}
+	kinds := func(entries []map[string]any) []string {
+		var out []string
+		for _, e := range entries {
+			out = append(out, e["kind"].(string))
+		}
+		return out
+	}
+
+	s.send("PATCH", ada, fmt.Sprintf("/api/tasks/%d", taskID), `{"description":"Twelve tiles"}`).AssertOk()
+	// Saving without a change leaves no entry.
+	s.send("PATCH", ada, fmt.Sprintf("/api/tasks/%d", taskID), `{"description":"Twelve tiles"}`).AssertOk()
+	s.move(ada, taskID, `{"column":"doing"}`).AssertOk()
+	s.post(ada, fmt.Sprintf("/api/tasks/%d/comments", taskID), `{"body":"Started."}`).AssertCreated()
+	res := s.post(ada, fmt.Sprintf("/api/tasks/%d/expand", taskID), `{"titles":["Dig","Wall"]}`)
+	res.AssertCreated()
+	dig := s.jsonOf(res)["subtasks"].([]any)[0].(map[string]any)["id"].(float64)
+	s.send("PATCH", ada, fmt.Sprintf("/api/tasks/%d", int(dig)), `{"done":true}`).AssertOk()
+
+	all := activity("")
+	s.Equal([]string{"subtask_done", "subtask_added", "subtask_added", "commented", "moved", "edited", "created"}, kinds(all))
+	moved := all[4]
+	s.Equal(map[string]any{"from": "backlog", "to": "doing"}, moved["data"])
+	s.NotEmpty(moved["actor_name"])
+	s.Equal("Dig", all[0]["data"].(map[string]any)["title"])
+
+	// Pages.
+	page := activity("?limit=2")
+	s.Equal([]string{"subtask_done", "subtask_added"}, kinds(page))
+	next := activity(fmt.Sprintf("?limit=2&before=%d", int(page[1]["id"].(float64))))
+	s.Equal([]string{"subtask_added", "commented"}, kinds(next))
+
+	// A refused move writes nothing.
+	_, stranger := s.register()
+	s.move(stranger, taskID, `{"column":"done"}`).AssertForbidden()
+	s.get(stranger, fmt.Sprintf("/api/tasks/%d/activity", taskID)).AssertForbidden()
+	s.move(ada, taskID, `{"column":"sideways"}`).AssertUnprocessableEntity()
+	s.Len(activity(""), len(all))
+}

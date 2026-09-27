@@ -35,18 +35,32 @@ type Task struct {
 
 func (t Task) IsSubtask() bool { return t.ParentID != nil }
 
+// Every event carries ActorID, the member whose command caused it. The
+// aggregate does not know who that is; the use case fills it in.
+
 // TaskCreated is announced when a task is added to a board.
 type TaskCreated struct {
 	TaskID   uint64
 	BoardID  uint64
+	ActorID  uint64
 	Column   Column
 	Position string
+}
+
+// TaskEdited is announced when a task's title and/or description changes.
+type TaskEdited struct {
+	TaskID      uint64
+	BoardID     uint64
+	ActorID     uint64
+	Title       bool
+	Description bool
 }
 
 // TaskMoved is announced when a task changes column or position.
 type TaskMoved struct {
 	TaskID   uint64
 	BoardID  uint64
+	ActorID  uint64
 	From     Column
 	To       Column
 	Position string
@@ -57,6 +71,8 @@ type SubtaskAdded struct {
 	SubtaskID uint64
 	ParentID  uint64
 	BoardID   uint64
+	ActorID   uint64
+	Title     string
 }
 
 // SubtaskCompleted is announced when a subtask is ticked off.
@@ -64,6 +80,8 @@ type SubtaskCompleted struct {
 	SubtaskID uint64
 	ParentID  uint64
 	BoardID   uint64
+	ActorID   uint64
+	Title     string
 }
 
 // NewTask creates a task at the bottom of the backlog. last is the position
@@ -110,7 +128,28 @@ func Expand(parent Task, titles []string, last string) ([]Task, error) {
 
 // Added is the event for a subtask that has just been stored.
 func (t Task) Added() SubtaskAdded {
-	return SubtaskAdded{SubtaskID: t.ID, ParentID: *t.ParentID, BoardID: t.BoardID}
+	return SubtaskAdded{SubtaskID: t.ID, ParentID: *t.ParentID, BoardID: t.BoardID, Title: t.Title}
+}
+
+// Edit changes the title and/or description (nil leaves one as it is). The
+// event is announced only when something actually changed.
+func (t *Task) Edit(title, description *string) (*TaskEdited, error) {
+	ev := TaskEdited{TaskID: t.ID, BoardID: t.BoardID}
+	if title != nil {
+		before := t.Title
+		if err := t.Rename(*title); err != nil {
+			return nil, err
+		}
+		ev.Title = t.Title != before
+	}
+	if description != nil {
+		ev.Description = t.Description != *description
+		t.Describe(*description)
+	}
+	if !ev.Title && !ev.Description {
+		return nil, nil
+	}
+	return &ev, nil
 }
 
 func (t *Task) Rename(title string) error {
@@ -136,7 +175,7 @@ func (t *Task) Complete() (*SubtaskCompleted, error) {
 		return nil, nil
 	}
 	t.Done = true
-	return &SubtaskCompleted{SubtaskID: t.ID, ParentID: *t.ParentID, BoardID: t.BoardID}, nil
+	return &SubtaskCompleted{SubtaskID: t.ID, ParentID: *t.ParentID, BoardID: t.BoardID, Title: t.Title}, nil
 }
 
 // Reopen unticks a subtask.

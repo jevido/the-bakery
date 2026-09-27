@@ -58,7 +58,9 @@ that does not exist is reported as not found.
 - `SubtaskAdded` — subtask id, parent task id, board id.
 - `SubtaskCompleted` — subtask id, parent task id, board id.
 
-Each event carries the acting member's id.
+Each event carries the acting member's id. Use cases publish events once the
+change is stored, to an in-process dispatcher; its handlers today log them and
+project them into task activity.
 
 ## Integration
 

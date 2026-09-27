@@ -62,12 +62,9 @@ type SubtaskCount struct {
 	Done  int
 }
 
+// Events takes the domain events of a change once it is stored.
 type Events interface {
-	TaskCreated(ctx context.Context, ev domain.TaskCreated)
-	TaskMoved(ctx context.Context, ev domain.TaskMoved)
-	SubtaskAdded(ctx context.Context, ev domain.SubtaskAdded)
-	SubtaskCompleted(ctx context.Context, ev domain.SubtaskCompleted)
-	TaskCommented(ctx context.Context, ev domain.TaskCommented)
+	Publish(ctx context.Context, events ...any)
 }
 
 type Service struct {
@@ -75,15 +72,16 @@ type Service struct {
 	boards      Boards
 	tasks       Tasks
 	comments    Comments
+	activity    ActivityLog
 	names       MemberNames
 	events      Events
 	now         func() time.Time
 }
 
-func NewService(memberships Memberships, boards Boards, tasks Tasks, comments Comments, names MemberNames, events Events) *Service {
+func NewService(memberships Memberships, boards Boards, tasks Tasks, comments Comments, activity ActivityLog, names MemberNames, events Events) *Service {
 	return &Service{
 		memberships: memberships, boards: boards, tasks: tasks, comments: comments,
-		names: names, events: events, now: time.Now,
+		activity: activity, names: names, events: events, now: time.Now,
 	}
 }
 
@@ -253,7 +251,9 @@ func (s *Service) ExpandTask(ctx context.Context, taskID, memberID uint64, title
 			return nil, err
 		}
 		for _, t := range added {
-			s.events.SubtaskAdded(ctx, t.Added())
+			ev := t.Added()
+			ev.ActorID = memberID
+			s.events.Publish(ctx, ev)
 		}
 		return added, nil
 	}
@@ -285,8 +285,8 @@ func (s *Service) CreateTask(ctx context.Context, boardID, memberID uint64, titl
 		if err != nil {
 			return domain.Task{}, err
 		}
-		ev.TaskID = t.ID
-		s.events.TaskCreated(ctx, ev)
+		ev.TaskID, ev.ActorID = t.ID, memberID
+		s.events.Publish(ctx, ev)
 		return t, nil
 	}
 	return domain.Task{}, ErrPositionTaken
@@ -299,17 +299,12 @@ func (s *Service) UpdateTask(ctx context.Context, taskID, memberID uint64, title
 	if err != nil {
 		return domain.Task{}, err
 	}
-	if title != nil {
-		if err := t.Rename(*title); err != nil {
-			return domain.Task{}, err
-		}
-	}
-	if description != nil {
-		t.Describe(*description)
+	edited, err := t.Edit(title, description)
+	if err != nil {
+		return domain.Task{}, err
 	}
 	var completed *domain.SubtaskCompleted
 	if done != nil {
-		var err error
 		if *done {
 			completed, err = t.Complete()
 		} else {
@@ -322,8 +317,13 @@ func (s *Service) UpdateTask(ctx context.Context, taskID, memberID uint64, title
 	if err := s.tasks.Save(ctx, t); err != nil {
 		return domain.Task{}, err
 	}
+	if edited != nil {
+		edited.ActorID = memberID
+		s.events.Publish(ctx, *edited)
+	}
 	if completed != nil {
-		s.events.SubtaskCompleted(ctx, *completed)
+		completed.ActorID = memberID
+		s.events.Publish(ctx, *completed)
 	}
 	return t, nil
 }
@@ -369,7 +369,8 @@ func (s *Service) MoveTask(ctx context.Context, taskID, memberID uint64, column 
 		if err != nil {
 			return domain.Task{}, err
 		}
-		s.events.TaskMoved(ctx, ev)
+		ev.ActorID = memberID
+		s.events.Publish(ctx, ev)
 		return moved, nil
 	}
 	return domain.Task{}, ErrPositionTaken

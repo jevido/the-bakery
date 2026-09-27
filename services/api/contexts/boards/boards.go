@@ -25,7 +25,10 @@ func (memberNames) DisplayNames(ctx context.Context, ids []uint64) (map[uint64]s
 	return identity.DisplayNames(ctx, ids)
 }
 
-var service = app.NewService(guilds.NewMemberships(), infra.Boards{}, infra.Tasks{}, infra.Comments{}, memberNames{}, infra.LogEvents{})
+var service = app.NewService(
+	guilds.NewMemberships(), infra.Boards{}, infra.Tasks{}, infra.Comments{}, infra.ActivityLog{}, memberNames{},
+	app.NewDispatcher(infra.LogEvents{}.Handle, infra.ActivityProjector{}.Handle),
+)
 
 // Routes registers the board and task routes, all behind
 // identity.RequireMember.
@@ -46,6 +49,7 @@ func Routes(r route.Router) {
 		r.Post("/api/tasks/{task}/comments", c.CommentOnTask)
 		r.Patch("/api/comments/{comment}", c.EditComment)
 		r.Delete("/api/comments/{comment}", c.DeleteComment)
+		r.Get("/api/tasks/{task}/activity", c.ListActivity)
 	})
 }
 
