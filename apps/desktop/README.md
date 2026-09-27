@@ -48,6 +48,12 @@ directory and logs a warning.
   a board config reaches the API. `components/BoardSettings.svelte` is its
   panel, opened from the gear in the board's header; the header says
   **Not linked** until a valid repository is saved.
+- `internal/workshop/` — the workshop: board configs (`boardconfig.go`), a
+  task's worktree on branch `bakery/<task-id>-<slug>` (`worktree.go`; a task
+  keeps its first branch after a rename), and the run's skills placed in the
+  worktree as `.claude/skills/bakery-<agent>-<name>` and `bakery-board-<name>`
+  (`skills.go`), kept out of git by one line in the repo's common
+  `info/exclude`.
 - `liveservice.go` — `LiveService`: keeps the open board's event stream
   (`internal/api/events.go`) open from Go and passes each event to the
   frontend as the Wails event `board:event`, with `board:status` for the
