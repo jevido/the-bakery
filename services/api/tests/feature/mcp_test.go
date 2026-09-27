@@ -157,20 +157,31 @@ func (s *MCPTestSuite) TestWriteTools() {
 	_, ok = s.call(cs, "create_board", map[string]any{"guild_id": guildID, "name": ""})
 	s.False(ok)
 
+	// The board's columns, by name, from get_board.
+	out, ok = s.call(cs, "get_board", map[string]any{"board_id": boardID})
+	s.Require().True(ok, out)
+	columns := map[string]float64{}
+	for _, c := range out["columns"].([]any) {
+		columns[c.(map[string]any)["name"].(string)] = c.(map[string]any)["id"].(float64)
+	}
+	s.Len(columns, 4)
+
 	task := func(out map[string]any) map[string]any { return out["task"].(map[string]any) }
 	out, ok = s.call(cs, "create_task", map[string]any{"board_id": boardID, "title": "Gather wood"})
 	s.Require().True(ok, out)
-	s.Equal("backlog", task(out)["column"])
+	s.Equal(columns["Backlog"], task(out)["column_id"])
 	first := task(out)["id"].(float64)
 
-	out, ok = s.call(cs, "create_task", map[string]any{"board_id": boardID, "title": "Build a bed", "column": "todo"})
+	out, ok = s.call(cs, "create_task", map[string]any{"board_id": boardID, "title": "Build a bed", "column": "to do"})
 	s.Require().True(ok, out)
-	s.Equal("todo", task(out)["column"])
+	s.Equal(columns["To do"], task(out)["column_id"], "a column name, ignoring case")
 	second := task(out)["id"].(float64)
 
 	out, ok = s.call(cs, "create_task", map[string]any{"board_id": boardID, "title": "Nope", "column": "later"})
 	s.False(ok)
-	s.Equal("Column must be one of backlog, todo, doing, done", out["error"])
+	s.Equal("This board has no such column", out["error"])
+	out, _ = s.call(cs, "get_board", map[string]any{"board_id": boardID})
+	s.Empty(out["columns"].([]any)[0].(map[string]any)["tasks"].([]any)[1:], "a refused create adds nothing")
 
 	out, ok = s.call(cs, "update_task", map[string]any{"task_id": first, "description": "Twenty logs"})
 	s.Require().True(ok, out)
@@ -178,7 +189,7 @@ func (s *MCPTestSuite) TestWriteTools() {
 	s.Equal("Twenty logs", task(out)["description"])
 
 	// Above the other task in To do.
-	out, ok = s.call(cs, "move_task", map[string]any{"task_id": first, "column": "todo", "before_task_id": second})
+	out, ok = s.call(cs, "move_task", map[string]any{"task_id": first, "column_id": columns["To do"], "before_task_id": second})
 	s.Require().True(ok, out)
 	out, _ = s.call(cs, "get_board", map[string]any{"board_id": boardID})
 	todo := out["columns"].([]any)[1].(map[string]any)["tasks"].([]any)
@@ -187,7 +198,16 @@ func (s *MCPTestSuite) TestWriteTools() {
 
 	out, ok = s.call(cs, "move_task", map[string]any{"task_id": first, "column": "sideways"})
 	s.False(ok)
-	s.Equal("Column must be one of backlog, todo, doing, done", out["error"])
+	s.Equal("This board has no such column", out["error"])
+
+	// A column members added, by name.
+	s.post(session, fmt.Sprintf("/api/boards/%d/columns", int(boardID)), `{"name":"Review"}`).AssertCreated()
+	out, ok = s.call(cs, "move_task", map[string]any{"task_id": second, "column": "Review"})
+	s.Require().True(ok, out)
+	out, _ = s.call(cs, "get_board", map[string]any{"board_id": boardID})
+	last := out["columns"].([]any)[4].(map[string]any)
+	s.Equal("Review", last["name"])
+	s.Equal(second, last["tasks"].([]any)[0].(map[string]any)["id"])
 
 	// Someone else's guild is out of reach.
 	_, stranger := s.register()

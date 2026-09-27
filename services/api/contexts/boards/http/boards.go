@@ -42,9 +42,9 @@ type taskJSON struct {
 	ID            uint64  `json:"id"`
 	BoardID       uint64  `json:"board_id"`
 	ParentID      *uint64 `json:"parent_id"`
+	ColumnID      *uint64 `json:"column_id"`
 	Title         string  `json:"title"`
 	Description   string  `json:"description"`
-	Column        string  `json:"column,omitempty"`
 	Position      string  `json:"position"`
 	Done          bool    `json:"done"`
 	SubtasksTotal *int    `json:"subtasks_total,omitempty"`
@@ -54,7 +54,7 @@ type taskJSON struct {
 func taskToJSON(t domain.Task) taskJSON {
 	out := taskJSON{ID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID, Title: t.Title, Description: t.Description, Position: t.Position, Done: t.Done}
 	if !t.IsSubtask() {
-		out.Column = string(t.Column)
+		out.ColumnID = &t.ColumnID
 	}
 	return out
 }
@@ -64,9 +64,29 @@ func withCounts(out taskJSON, c app.SubtaskCount) taskJSON {
 	return out
 }
 
+// columnJSON is a board column. Key is the old fixed-column key
+// (backlog, todo, doing, done) for a column that still has its default
+// name, else the name: desktop releases up to 0.1.3 read and send it.
 type columnJSON struct {
-	Column string     `json:"column"`
-	Tasks  []taskJSON `json:"tasks"`
+	ID   uint64 `json:"id"`
+	Name string `json:"name"`
+	Key  string `json:"column"`
+}
+
+// boardColumnJSON is a column in a board answer, with its tasks in order.
+type boardColumnJSON struct {
+	columnJSON
+	Tasks []taskJSON `json:"tasks"`
+}
+
+var legacyKeys = map[string]string{"Backlog": "backlog", "To do": "todo", "Doing": "doing", "Done": "done"}
+
+func columnToJSON(c domain.Column) columnJSON {
+	key, ok := legacyKeys[c.Name]
+	if !ok {
+		key = c.Name
+	}
+	return columnJSON{ID: c.ID, Name: c.Name, Key: key}
 }
 
 func (c *Controller) ListBoards(ctx contractshttp.Context) contractshttp.Response {
@@ -116,13 +136,13 @@ func (c *Controller) GetBoard(ctx contractshttp.Context) contractshttp.Response 
 	if err != nil {
 		return failure(ctx, err)
 	}
-	byColumn := map[domain.Column][]taskJSON{}
+	byColumn := map[uint64][]taskJSON{}
 	for _, t := range tasks {
-		byColumn[t.Column] = append(byColumn[t.Column], withCounts(taskToJSON(t), counts[t.ID]))
+		byColumn[t.ColumnID] = append(byColumn[t.ColumnID], withCounts(taskToJSON(t), counts[t.ID]))
 	}
-	columns := make([]columnJSON, len(domain.Columns))
-	for i, col := range domain.Columns {
-		columns[i] = columnJSON{Column: string(col), Tasks: byColumn[col]}
+	columns := make([]boardColumnJSON, len(b.Columns))
+	for i, col := range b.Columns {
+		columns[i] = boardColumnJSON{columnJSON: columnToJSON(col), Tasks: byColumn[col.ID]}
 		if columns[i].Tasks == nil {
 			columns[i].Tasks = []taskJSON{}
 		}
@@ -173,9 +193,12 @@ func (c *Controller) UpdateTask(ctx contractshttp.Context) contractshttp.Respons
 	return ctx.Response().Success().Json(contractshttp.Json{"task": taskToJSON(t)})
 }
 
-// moveTaskRequest: the task lands right after after_id and/or right before
-// before_id; with neither it goes to the bottom of column.
+// moveTaskRequest: the task lands in column_id right after after_id and/or
+// right before before_id; with neither it goes to the bottom. column (a
+// column name, or an old fixed key) is accepted instead of column_id for
+// desktop releases up to 0.1.3.
 type moveTaskRequest struct {
+	ColumnID uint64  `json:"column_id"`
 	Column   string  `json:"column"`
 	AfterID  *uint64 `json:"after_id"`
 	BeforeID *uint64 `json:"before_id"`
@@ -190,7 +213,7 @@ func (c *Controller) MoveTask(ctx contractshttp.Context) contractshttp.Response 
 	if err := ctx.Request().Bind(&req); err != nil {
 		return badRequest(ctx)
 	}
-	t, err := c.service.MoveTask(ctx.Context(), taskID, c.me(ctx), req.Column, req.AfterID, req.BeforeID)
+	t, err := c.service.MoveTask(ctx.Context(), taskID, c.me(ctx), app.ColumnRef{ID: req.ColumnID, Name: req.Column}, req.AfterID, req.BeforeID)
 	if err != nil {
 		return failure(ctx, err)
 	}
@@ -304,8 +327,14 @@ func failure(ctx contractshttp.Context, err error) contractshttp.Response {
 		status, field = contractshttp.StatusUnprocessableEntity, "name"
 	case errors.Is(err, domain.ErrInvalidTitle):
 		status, field = contractshttp.StatusUnprocessableEntity, "title"
-	case errors.Is(err, domain.ErrInvalidColumn):
-		status, field = contractshttp.StatusUnprocessableEntity, "column"
+	case errors.Is(err, domain.ErrColumnNotFound):
+		status, field = contractshttp.StatusUnprocessableEntity, "column_id"
+	case errors.Is(err, domain.ErrInvalidColumnName), errors.Is(err, domain.ErrDuplicateColumn):
+		status, field = contractshttp.StatusUnprocessableEntity, "name"
+	case errors.Is(err, domain.ErrColumnNotEmpty), errors.Is(err, domain.ErrLastColumn):
+		status = contractshttp.StatusUnprocessableEntity
+	case errors.Is(err, domain.ErrInvalidColumnOrder):
+		status, field = contractshttp.StatusUnprocessableEntity, "after_id"
 	case errors.Is(err, app.ErrInvalidNeighbour), errors.Is(err, app.ErrInvalidSibling):
 		status, field = contractshttp.StatusUnprocessableEntity, "after_id"
 	case errors.Is(err, domain.ErrTooManySubtasks):

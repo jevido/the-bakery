@@ -32,10 +32,17 @@ type Memberships interface {
 	IsArchived(ctx context.Context, guildID uint64) (bool, error)
 }
 
+// Boards stores boards with their columns. ByID returns the board with its
+// columns in order; OfGuild returns boards without them.
 type Boards interface {
 	Add(ctx context.Context, b domain.Board) (domain.Board, error)
 	ByID(ctx context.Context, id uint64) (domain.Board, bool, error)
 	OfGuild(ctx context.Context, guildID uint64) ([]domain.Board, error)
+	// ColumnByID finds a column, to reach its board.
+	ColumnByID(ctx context.Context, id uint64) (domain.Column, bool, error)
+	AddColumn(ctx context.Context, c domain.Column) (domain.Column, error)
+	SaveColumn(ctx context.Context, c domain.Column) error
+	DeleteColumn(ctx context.Context, id uint64) error
 }
 
 type Tasks interface {
@@ -46,7 +53,7 @@ type Tasks interface {
 	// OfBoard returns the board's tasks ordered by column, then position.
 	OfBoard(ctx context.Context, boardID uint64) ([]domain.Task, error)
 	// InColumn returns one column's tasks ordered by position.
-	InColumn(ctx context.Context, boardID uint64, column domain.Column) ([]domain.Task, error)
+	InColumn(ctx context.Context, columnID uint64) ([]domain.Task, error)
 	// AddAll stores several tasks in one transaction: all or none.
 	AddAll(ctx context.Context, ts []domain.Task) ([]domain.Task, error)
 	// SubtasksOf returns a task's subtasks ordered by position.
@@ -272,16 +279,17 @@ func (s *Service) CreateTask(ctx context.Context, boardID, memberID uint64, titl
 	if err != nil {
 		return domain.Task{}, err
 	}
+	first := b.First()
 	for range positionAttempts {
-		backlog, err := s.tasks.InColumn(ctx, b.ID, domain.Backlog)
+		inColumn, err := s.tasks.InColumn(ctx, first.ID)
 		if err != nil {
 			return domain.Task{}, err
 		}
 		last := ""
-		if len(backlog) > 0 {
-			last = backlog[len(backlog)-1].Position
+		if len(inColumn) > 0 {
+			last = inColumn[len(inColumn)-1].Position
 		}
-		t, ev, err := domain.NewTask(b.ID, title, description, last)
+		t, ev, err := domain.NewTask(b.ID, first.ID, title, description, last)
 		if err != nil {
 			return domain.Task{}, err
 		}
@@ -344,7 +352,7 @@ func (s *Service) UpdateTask(ctx context.Context, taskID, memberID uint64, title
 // before the task beforeID. With neither, it goes to the bottom of the
 // column. A subtask has no column: it moves among its siblings the same way,
 // and column is ignored.
-func (s *Service) MoveTask(ctx context.Context, taskID, memberID uint64, column string, afterID, beforeID *uint64) (domain.Task, error) {
+func (s *Service) MoveTask(ctx context.Context, taskID, memberID uint64, column ColumnRef, afterID, beforeID *uint64) (domain.Task, error) {
 	t, err := s.task(ctx, taskID, memberID)
 	if err != nil {
 		return domain.Task{}, err
@@ -352,12 +360,20 @@ func (s *Service) MoveTask(ctx context.Context, taskID, memberID uint64, column 
 	if t.IsSubtask() {
 		return s.moveSubtask(ctx, t, memberID, afterID, beforeID)
 	}
-	col, err := domain.ParseColumn(column)
+	b, found, err := s.boards.ByID(ctx, t.BoardID)
 	if err != nil {
 		return domain.Task{}, err
 	}
+	if !found {
+		return domain.Task{}, ErrBoardNotFound
+	}
+	target, err := column.on(b)
+	if err != nil {
+		return domain.Task{}, err
+	}
+	col := target.ID
 	for range positionAttempts {
-		inColumn, err := s.tasks.InColumn(ctx, t.BoardID, col)
+		inColumn, err := s.tasks.InColumn(ctx, col)
 		if err != nil {
 			return domain.Task{}, err
 		}
@@ -421,6 +437,34 @@ func (s *Service) moveSubtask(ctx context.Context, t domain.Task, memberID uint6
 		return moved, nil
 	}
 	return domain.Task{}, ErrPositionTaken
+}
+
+// ColumnRef names a column of a board by id or, when ID is 0, by name.
+type ColumnRef struct {
+	ID   uint64
+	Name string
+}
+
+// legacyColumns are the keys of the four fixed columns boards had before
+// they owned their columns. Desktop releases up to 0.1.3 still send them.
+var legacyColumns = map[string]string{"backlog": "Backlog", "todo": "To do", "doing": "Doing", "done": "Done"}
+
+func (r ColumnRef) on(b domain.Board) (domain.Column, error) {
+	if r.ID != 0 {
+		if c, ok := b.Column(r.ID); ok {
+			return c, nil
+		}
+		return domain.Column{}, domain.ErrColumnNotFound
+	}
+	if c, ok := b.ColumnNamed(r.Name); ok {
+		return c, nil
+	}
+	if name, ok := legacyColumns[r.Name]; ok {
+		if c, ok := b.ColumnNamed(name); ok {
+			return c, nil
+		}
+	}
+	return domain.Column{}, domain.ErrColumnNotFound
 }
 
 // neighbours finds the positions just above and below where the moved task

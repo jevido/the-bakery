@@ -33,13 +33,13 @@ func (ActivityProjector) Handle(ctx context.Context, event any) {
 	switch ev := event.(type) {
 	case domain.TaskCreated:
 		rec = activityRecord{TaskID: ev.TaskID, BoardID: ev.BoardID, ActorID: ev.ActorID, Kind: string(app.ActivityCreated)}
-		data = map[string]any{"column": ev.Column}
+		data = map[string]any{"column": columnName(ctx, ev.ColumnID)}
 	case domain.TaskEdited:
 		rec = activityRecord{TaskID: ev.TaskID, BoardID: ev.BoardID, ActorID: ev.ActorID, Kind: string(app.ActivityEdited)}
 		data = map[string]any{"title": ev.Title, "description": ev.Description}
 	case domain.TaskMoved:
 		rec = activityRecord{TaskID: ev.TaskID, BoardID: ev.BoardID, ActorID: ev.ActorID, Kind: string(app.ActivityMoved)}
-		data = map[string]any{"from": ev.From, "to": ev.To}
+		data = map[string]any{"from": columnName(ctx, ev.From), "to": columnName(ctx, ev.To)}
 	case domain.TaskCommented:
 		rec = activityRecord{TaskID: ev.TaskID, BoardID: ev.BoardID, ActorID: ev.ActorID, Kind: string(app.ActivityCommented)}
 		data = map[string]any{"comment_id": ev.CommentID}
@@ -61,6 +61,16 @@ func (ActivityProjector) Handle(ctx context.Context, event any) {
 		// The change itself is stored; only its history entry is lost.
 		facades.Log().WithContext(ctx).Errorf("activity for %T: %v", event, err)
 	}
+}
+
+// columnName is a column's name now, which activity keeps so the history
+// still reads after the column is renamed or deleted.
+func columnName(ctx context.Context, id uint64) string {
+	var names []string
+	if err := query(ctx).Table("board_columns").Where("id", id).Pluck("name", &names); err != nil || len(names) == 0 {
+		return ""
+	}
+	return names[0]
 }
 
 type ActivityLog struct{}

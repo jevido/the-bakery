@@ -787,8 +787,8 @@ paths:
       tags: [Boards]
       summary: Get a board
       description: >-
-        The board with all four columns in board order, each with its
-        top-level tasks in order. Subtasks are not listed; each task carries
+        The board with its columns left to right, each with its top-level
+        tasks in order. Subtasks are not listed; each task carries
         `subtasks_total` and `subtasks_done` instead.
       parameters:
         - name: board
@@ -807,17 +807,122 @@ paths:
                   board: { $ref: "#/components/schemas/Board" }
                   columns:
                     type: array
+                    description: The board's columns, left to right.
                     items:
-                      type: object
-                      required: [column, tasks]
-                      properties:
-                        column: { $ref: "#/components/schemas/Column" }
-                        tasks:
-                          type: array
-                          items: { $ref: "#/components/schemas/Task" }
+                      allOf:
+                        - $ref: "#/components/schemas/Column"
+                        - type: object
+                          required: [tasks]
+                          properties:
+                            tasks:
+                              type: array
+                              items: { $ref: "#/components/schemas/Task" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/NotMember" }
         "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/boards/{board}/columns:
+    post:
+      tags: [Boards]
+      summary: Add a column
+      description: Puts a new column at the end of the board.
+      parameters:
+        - name: board
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ColumnName" }
+            example: { name: Review }
+      responses:
+        "201":
+          description: Added.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ColumnResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/ArchivedBoard" }
+        "422": { $ref: "#/components/responses/Invalid" }
+
+  /api/columns/{column}:
+    patch:
+      tags: [Boards]
+      summary: Rename a column
+      parameters:
+        - $ref: "#/components/parameters/Column"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ColumnName" }
+            example: { name: In review }
+      responses:
+        "200":
+          description: Renamed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ColumnResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/ArchivedBoard" }
+        "422": { $ref: "#/components/responses/Invalid" }
+    delete:
+      tags: [Boards]
+      summary: Delete a column
+      description: >-
+        Only an empty column can be deleted (422 while tasks stand in it), and
+        a board keeps at least one column (422).
+      parameters:
+        - $ref: "#/components/parameters/Column"
+      responses:
+        "204":
+          description: Deleted.
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/ArchivedBoard" }
+        "422": { $ref: "#/components/responses/Invalid" }
+
+  /api/columns/{column}/move:
+    post:
+      tags: [Boards]
+      summary: Move a column
+      description: >-
+        Puts the column right after `after_id` and/or right before
+        `before_id` (other columns of the board). With neither, it goes to the
+        end.
+      parameters:
+        - $ref: "#/components/parameters/Column"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                after_id: { type: [integer, "null"] }
+                before_id: { type: [integer, "null"] }
+            example: { before_id: 4 }
+      responses:
+        "200":
+          description: Moved.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ColumnResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/ArchivedBoard" }
+        "422": { $ref: "#/components/responses/Invalid" }
 
   /api/boards/{board}/events:
     get:
@@ -834,11 +939,14 @@ paths:
         board, since missed events are not replayed.
 
 
-        Types: `task.created` (`task_id`, `column`, `position`),
+        Types: `task.created` (`task_id`, `column_id`, `position`),
         `task.updated` (`task_id`; `title`/`description` flags for an edit,
         `subtask_id` or `comment_id` when a subtask or comment of the task
-        changed), `task.moved` (`task_id`, `from`, `to`, `position`),
-        `task.deleted` (`task_id`).
+        changed), `task.moved` (`task_id`, `from` and `to` column ids,
+        `position`), `task.deleted` (`task_id`), `column.created`
+        (`column_id`, `name`, `position`), `column.updated` (`column_id`,
+        `name`), `column.moved` (`column_id`, `position`), `column.deleted`
+        (`column_id`).
       parameters:
         - name: board
           in: path
@@ -854,7 +962,7 @@ paths:
                 retry: 3000
 
                 event: task.moved
-                data: {"type":"task.moved","board_id":1,"at":"2026-09-27T20:31:10Z","actor_id":2,"data":{"task_id":6,"from":"todo","to":"doing","position":"a1"}}
+                data: {"type":"task.moved","board_id":1,"at":"2026-09-27T20:31:10Z","actor_id":2,"data":{"task_id":6,"from":2,"to":3,"position":"a1"}}
 
                 : ping
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -865,7 +973,7 @@ paths:
     post:
       tags: [Tasks]
       summary: Add a task
-      description: The task lands at the bottom of Backlog.
+      description: The task lands at the bottom of the board's first column.
       parameters:
         - name: board
           in: path
@@ -1049,7 +1157,7 @@ paths:
         Puts the task in `column`, right after `after_id` and/or right before
         `before_id`. With neither, it goes to the bottom of the column. Only
         the moved task changes. A subtask moves among the other subtasks of
-        its parent the same way; `column` is then ignored and may be left
+        its parent the same way; `column_id` is then ignored and may be left
         out.
       parameters:
         - $ref: "#/components/parameters/Task"
@@ -1060,16 +1168,25 @@ paths:
             schema:
               type: object
               properties:
+                column_id:
+                  type: integer
+                  description: >-
+                    One of the board's columns. Required for a task on the
+                    board (or `column`); ignored for a subtask.
                 column:
-                  $ref: "#/components/schemas/Column"
-                  description: Required for a task on the board; ignored for a subtask.
+                  type: string
+                  description: >-
+                    Instead of `column_id`: a column's name, ignoring case,
+                    or one of the keys `backlog`, `todo`, `doing`, `done` for
+                    the default columns. Kept for desktop releases up to
+                    0.1.3.
                 after_id:
                   type: [integer, "null"]
                   description: A task in that column, other than the moved one.
                 before_id:
                   type: [integer, "null"]
                   description: A task in that column, other than the moved one.
-            example: { column: todo, before_id: 1 }
+            example: { column_id: 2, before_id: 1 }
       responses:
         "200":
           description: Moved.
@@ -1260,6 +1377,11 @@ components:
       in: path
       required: true
       schema: { type: integer }
+    Column:
+      name: column
+      in: path
+      required: true
+      schema: { type: integer }
     Comment:
       name: comment
       in: path
@@ -1416,11 +1538,32 @@ components:
         guild_id: { type: integer }
         name: { type: string }
     Column:
-      type: string
-      enum: [backlog, todo, doing, done]
+      type: object
+      required: [id, name, column]
+      description: >-
+        A named lane of one board. New boards start with Backlog, To do,
+        Doing and Done.
+      properties:
+        id: { type: integer }
+        name: { type: string, minLength: 1, maxLength: 40, description: "Unique on the board, ignoring case." }
+        column:
+          type: string
+          description: >-
+            For desktop releases up to 0.1.3: `backlog`, `todo`, `doing` or
+            `done` for a column with a default name, else the name.
+    ColumnResponse:
+      type: object
+      required: [column]
+      properties:
+        column: { $ref: "#/components/schemas/Column" }
+    ColumnName:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 40 }
     Task:
       type: object
-      required: [id, board_id, parent_id, title, description, position, done]
+      required: [id, board_id, parent_id, column_id, title, description, position, done]
       properties:
         id: { type: integer }
         board_id: { type: integer }
@@ -1429,9 +1572,9 @@ components:
           description: The parent task for a subtask; null for a task on the board.
         title: { type: string }
         description: { type: string }
-        column:
-          $ref: "#/components/schemas/Column"
-          description: Where a task stands. Left out for a subtask.
+        column_id:
+          type: [integer, "null"]
+          description: The column the task stands in; null for a subtask.
         position: { type: string, description: "A sortable key; clients only need the order." }
         done: { type: boolean, description: "Whether a subtask is ticked off; always false for a task on the board." }
         subtasks_total: { type: integer, description: "On a board's tasks and in GET /api/tasks/{task}: how many subtasks it has." }

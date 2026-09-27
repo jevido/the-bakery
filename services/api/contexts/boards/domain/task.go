@@ -20,15 +20,16 @@ var (
 )
 
 // Task is its own aggregate: moving one task never touches the board or
-// the other tasks. A task with a ParentID is a subtask: it is ordered under
-// its parent instead of standing in a column, and can be ticked off.
+// the other tasks. A task on the board stands in one of the board's columns
+// (ColumnID). A task with a ParentID is a subtask: it has no column
+// (ColumnID 0), is ordered under its parent, and can be ticked off.
 type Task struct {
 	ID          uint64
 	BoardID     uint64
 	ParentID    *uint64
+	ColumnID    uint64
 	Title       string
 	Description string
-	Column      Column
 	Position    string
 	Done        bool
 }
@@ -43,7 +44,7 @@ type TaskCreated struct {
 	TaskID   uint64
 	BoardID  uint64
 	ActorID  uint64
-	Column   Column
+	ColumnID uint64
 	Position string
 }
 
@@ -72,8 +73,8 @@ type TaskMoved struct {
 	TaskID   uint64
 	BoardID  uint64
 	ActorID  uint64
-	From     Column
-	To       Column
+	From     uint64
+	To       uint64
 	Position string
 }
 
@@ -111,9 +112,10 @@ type SubtaskCompleted struct {
 	Title     string
 }
 
-// NewTask creates a task at the bottom of the backlog. last is the position
-// of the backlog's current last task ("" when it is empty).
-func NewTask(boardID uint64, title, description, last string) (Task, TaskCreated, error) {
+// NewTask creates a task at the bottom of a column (the board's first, when
+// created from the board). last is the position of the column's current
+// last task ("" when it is empty).
+func NewTask(boardID, columnID uint64, title, description, last string) (Task, TaskCreated, error) {
 	title, err := cleanTitle(title)
 	if err != nil {
 		return Task{}, TaskCreated{}, err
@@ -122,8 +124,8 @@ func NewTask(boardID uint64, title, description, last string) (Task, TaskCreated
 	if err != nil {
 		return Task{}, TaskCreated{}, err
 	}
-	t := Task{BoardID: boardID, Title: title, Description: description, Column: Backlog, Position: pos}
-	return t, TaskCreated{BoardID: boardID, Column: Backlog, Position: pos}, nil
+	t := Task{BoardID: boardID, ColumnID: columnID, Title: title, Description: description, Position: pos}
+	return t, TaskCreated{BoardID: boardID, ColumnID: columnID, Position: pos}, nil
 }
 
 // Expand makes subtasks of parent from titles, in order, below the parent's
@@ -147,7 +149,7 @@ func Expand(parent Task, titles []string, last string) ([]Task, error) {
 			return nil, err
 		}
 		parentID := parent.ID
-		subtasks[i] = Task{BoardID: parent.BoardID, ParentID: &parentID, Title: title, Column: parent.Column, Position: pos}
+		subtasks[i] = Task{BoardID: parent.BoardID, ParentID: &parentID, Title: title, Position: pos}
 		last = pos
 	}
 	return subtasks, nil
@@ -222,21 +224,19 @@ func (t Task) Deleted() TaskDeleted {
 	return TaskDeleted{TaskID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID}
 }
 
-// Move puts the task in column between the tasks at positions above and
-// below ("" for the column's top or bottom end).
-func (t *Task) Move(column Column, above, below string) (TaskMoved, error) {
+// Move puts the task in the column between the tasks at positions above
+// and below ("" for the column's top or bottom end). The use case makes
+// sure the column is one of the task's board.
+func (t *Task) Move(columnID uint64, above, below string) (TaskMoved, error) {
 	if t.IsSubtask() {
 		return TaskMoved{}, ErrSubtaskNoColumn
-	}
-	if _, err := ParseColumn(string(column)); err != nil {
-		return TaskMoved{}, err
 	}
 	pos, err := KeyBetween(above, below)
 	if err != nil {
 		return TaskMoved{}, err
 	}
-	ev := TaskMoved{TaskID: t.ID, BoardID: t.BoardID, From: t.Column, To: column, Position: pos}
-	t.Column, t.Position = column, pos
+	ev := TaskMoved{TaskID: t.ID, BoardID: t.BoardID, From: t.ColumnID, To: columnID, Position: pos}
+	t.ColumnID, t.Position = columnID, pos
 	return ev, nil
 }
 

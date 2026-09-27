@@ -38,8 +38,22 @@ func (s *BoardsTestSuite) createTask(token string, boardID uint64, title string)
 	res := s.post(token, fmt.Sprintf("/api/boards/%d/tasks", boardID), fmt.Sprintf(`{"title":%q}`, title))
 	res.AssertCreated()
 	task := s.jsonOf(res)["task"].(map[string]any)
-	s.Equal("backlog", task["column"])
+	s.Equal(s.columnID(token, boardID, "Backlog"), task["column_id"], "a new task lands in the first column")
 	return uint64(task["id"].(float64))
+}
+
+// columnID is the id (as JSON decodes it) of the board's column with this
+// name.
+func (s *BoardsTestSuite) columnID(token string, boardID uint64, name string) float64 {
+	res := s.get(token, fmt.Sprintf("/api/boards/%d", boardID))
+	res.AssertOk()
+	for _, c := range s.jsonOf(res)["columns"].([]any) {
+		if c.(map[string]any)["name"] == name {
+			return c.(map[string]any)["id"].(float64)
+		}
+	}
+	s.FailNow("no column " + name)
+	return 0
 }
 
 // columnTitles returns each column's task titles in order.
@@ -316,7 +330,7 @@ func (s *BoardsTestSuite) TestActivity() {
 	all := activity("")
 	s.Equal([]string{"subtask_done", "subtask_added", "subtask_added", "commented", "moved", "edited", "created"}, kinds(all))
 	moved := all[4]
-	s.Equal(map[string]any{"from": "backlog", "to": "doing"}, moved["data"])
+	s.Equal(map[string]any{"from": "Backlog", "to": "Doing"}, moved["data"])
 	s.NotEmpty(moved["actor_name"])
 	s.Equal("Dig", all[0]["data"].(map[string]any)["title"])
 
@@ -366,7 +380,10 @@ func (s *BoardsTestSuite) TestBoardEvents() {
 	s.move(ada, taskID, `{"column":"doing"}`).AssertOk()
 	moved := next()
 	s.Equal("task.moved", moved["type"])
-	s.Equal(map[string]any{"task_id": float64(taskID), "from": "backlog", "to": "doing", "position": moved["data"].(map[string]any)["position"]}, moved["data"])
+	s.Equal(map[string]any{
+		"task_id": float64(taskID), "from": s.columnID(ada, boardID, "Backlog"), "to": s.columnID(ada, boardID, "Doing"),
+		"position": moved["data"].(map[string]any)["position"],
+	}, moved["data"])
 
 	s.post(ada, fmt.Sprintf("/api/tasks/%d/subtasks", taskID), `{"title":"Dig"}`).AssertCreated()
 	sub := next()
@@ -379,4 +396,84 @@ func (s *BoardsTestSuite) TestBoardEvents() {
 	// Outsiders cannot watch.
 	_, _, err = boards.WatchBoard(s.T().Context(), boardID, adaID+100000)
 	s.Error(err)
+}
+
+func (s *BoardsTestSuite) TestColumns() {
+	email, token := s.register()
+	guildID := s.foundGuild(token, "Column Colony")
+	boardID := s.createBoard(token, guildID, "Getting settled")
+	var memberID uint64
+	s.Require().NoError(facades.Orm().Query().Table("members").Where("email", email).Pluck("id", &memberID))
+	events, stop, err := boards.WatchBoard(s.T().Context(), boardID, memberID)
+	s.Require().NoError(err)
+	defer stop()
+	nextType := func() string {
+		select {
+		case b := <-events:
+			var ev map[string]any
+			s.Require().NoError(json.Unmarshal(b, &ev))
+			return ev["type"].(string)
+		case <-time.After(5 * time.Second):
+			s.FailNow("no board event within 5 s")
+			return ""
+		}
+	}
+	names := func() []string {
+		res := s.get(token, fmt.Sprintf("/api/boards/%d", boardID))
+		res.AssertOk()
+		var out []string
+		for _, c := range s.jsonOf(res)["columns"].([]any) {
+			out = append(out, c.(map[string]any)["name"].(string))
+		}
+		return out
+	}
+	s.Equal([]string{"Backlog", "To do", "Doing", "Done"}, names())
+
+	res := s.post(token, fmt.Sprintf("/api/boards/%d/columns", boardID), `{"name":"Review"}`)
+	res.AssertCreated()
+	review := uint64(s.jsonOf(res)["column"].(map[string]any)["id"].(float64))
+	s.Equal("column.created", nextType())
+	s.Equal([]string{"Backlog", "To do", "Doing", "Done", "Review"}, names())
+	s.post(token, fmt.Sprintf("/api/boards/%d/columns", boardID), `{"name":"review"}`).AssertUnprocessableEntity()
+	s.post(token, fmt.Sprintf("/api/boards/%d/columns", boardID), `{"name":" "}`).AssertUnprocessableEntity()
+
+	// Rename, and put it before Done.
+	s.send("PATCH", token, fmt.Sprintf("/api/columns/%d", review), `{"name":"In review"}`).AssertOk()
+	s.Equal("column.updated", nextType())
+	done := uint64(s.columnID(token, boardID, "Done"))
+	s.post(token, fmt.Sprintf("/api/columns/%d/move", review), fmt.Sprintf(`{"before_id":%d}`, done)).AssertOk()
+	s.Equal("column.moved", nextType())
+	s.Equal([]string{"Backlog", "To do", "Doing", "In review", "Done"}, names())
+
+	// A task moves in by id, and an old client's name still works.
+	taskID := s.createTask(token, boardID, "Build a freezer")
+	s.Equal("task.created", nextType())
+	s.move(token, taskID, fmt.Sprintf(`{"column_id":%d}`, review)).AssertOk()
+	s.Equal("task.moved", nextType())
+	s.Equal([]string{"Build a freezer"}, s.columnTitles(token, boardID)["In review"])
+	s.move(token, taskID, `{"column":"doing"}`).AssertOk()
+	s.Equal("task.moved", nextType())
+	s.move(token, taskID, fmt.Sprintf(`{"column_id":%d}`, review)).AssertOk()
+	s.Equal("task.moved", nextType())
+	s.move(token, taskID, `{"column_id":999999999}`).AssertUnprocessableEntity()
+
+	// Only an empty column can go, and a board keeps one.
+	s.send("DELETE", token, fmt.Sprintf("/api/columns/%d", review), "").AssertUnprocessableEntity()
+	s.move(token, taskID, fmt.Sprintf(`{"column_id":%d}`, done)).AssertOk()
+	s.Equal("task.moved", nextType())
+	s.send("DELETE", token, fmt.Sprintf("/api/columns/%d", review), "").AssertNoContent()
+	s.Equal("column.deleted", nextType())
+	s.send("DELETE", token, fmt.Sprintf("/api/columns/%d", review), "").AssertNotFound()
+	for _, name := range []string{"Backlog", "To do", "Doing"} {
+		s.send("DELETE", token, fmt.Sprintf("/api/columns/%d", uint64(s.columnID(token, boardID, name))), "").AssertNoContent()
+		s.Equal("column.deleted", nextType())
+	}
+	s.send("DELETE", token, fmt.Sprintf("/api/columns/%d", done), "").AssertUnprocessableEntity()
+
+	// Outsiders cannot change columns; an archived guild's columns are read-only.
+	_, stranger := s.register()
+	s.post(stranger, fmt.Sprintf("/api/boards/%d/columns", boardID), `{"name":"Mine"}`).AssertForbidden()
+	s.send("PATCH", stranger, fmt.Sprintf("/api/columns/%d", done), `{"name":"Mine"}`).AssertForbidden()
+	s.post(token, fmt.Sprintf("/api/guilds/%d/archive", guildID), "").AssertSuccessful()
+	s.post(token, fmt.Sprintf("/api/boards/%d/columns", boardID), `{"name":"Later"}`).AssertConflict()
 }

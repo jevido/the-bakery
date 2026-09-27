@@ -30,19 +30,20 @@ type taskOut struct {
 	ParentID      *uint64 `json:"parent_id,omitempty" jsonschema:"set on a subtask: the task it belongs to"`
 	Title         string  `json:"title"`
 	Description   string  `json:"description"`
-	Column        string  `json:"column,omitempty" jsonschema:"backlog, todo, doing or done; a subtask has none"`
+	ColumnID      uint64  `json:"column_id,omitempty" jsonschema:"the column it stands in (see get_board); a subtask has none"`
 	Done          *bool   `json:"done,omitempty" jsonschema:"set on a subtask: whether it is ticked off"`
 	SubtasksTotal *int    `json:"subtasks_total,omitempty" jsonschema:"how many subtasks this task has"`
 	SubtasksDone  *int    `json:"subtasks_done,omitempty" jsonschema:"how many of them are done"`
 }
 
 type columnOut struct {
-	Column string    `json:"column"`
-	Tasks  []taskOut `json:"tasks" jsonschema:"top to bottom"`
+	ID    uint64    `json:"id" jsonschema:"the column id, for move_task and create_task"`
+	Name  string    `json:"name"`
+	Tasks []taskOut `json:"tasks" jsonschema:"top to bottom"`
 }
 
 func taskOutOf(t boards.Task) taskOut {
-	out := taskOut{ID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID, Title: t.Title, Description: t.Description, Column: t.Column}
+	out := taskOut{ID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID, Title: t.Title, Description: t.Description, ColumnID: t.ColumnID}
 	if t.ParentID != nil {
 		out.Done = &t.Done
 	} else {
@@ -107,7 +108,7 @@ type getBoardIn struct {
 
 type getBoardOut struct {
 	Board   boardOut    `json:"board"`
-	Columns []columnOut `json:"columns" jsonschema:"backlog, todo, doing, done, in that order"`
+	Columns []columnOut `json:"columns" jsonschema:"the board's columns, left to right"`
 }
 
 var readOnly = &sdk.ToolAnnotations{ReadOnlyHint: true}
@@ -160,7 +161,8 @@ func addReadTools(s *sdk.Server) {
 	sdk.AddTool(s, &sdk.Tool{
 		Name:  "get_board",
 		Title: "Get a board",
-		Description: "Returns one board with its four columns in order (backlog, todo, doing, done), each with its tasks " +
+		Description: "Returns one board with its columns left to right (id and name; boards start with Backlog, To do, " +
+			"Doing and Done, and members add their own), each with its tasks " +
 			"from top to bottom: id, title, description, and how many subtasks each has and how many are done. Subtasks " +
 			"are not listed here; get_task shows them. Use the task ids with get_task, update_task, move_task, " +
 			"expand_task and delete_task.",
@@ -177,7 +179,7 @@ func addReadTools(s *sdk.Server) {
 		}
 		out := getBoardOut{Board: boardOut{ID: v.Board.ID, GuildID: v.Board.GuildID, Name: v.Board.Name}}
 		for _, c := range v.Columns {
-			col := columnOut{Column: c.Column, Tasks: []taskOut{}}
+			col := columnOut{ID: c.ID, Name: c.Name, Tasks: []taskOut{}}
 			for _, t := range c.Tasks {
 				col.Tasks = append(col.Tasks, taskOutOf(t))
 			}

@@ -21,7 +21,8 @@ type createTaskIn struct {
 	BoardID     uint64 `json:"board_id" jsonschema:"a board id from list_boards"`
 	Title       string `json:"title" jsonschema:"1 to 200 characters"`
 	Description string `json:"description,omitempty"`
-	Column      string `json:"column,omitempty" jsonschema:"backlog (the default), todo, doing or done; the task goes to the bottom"`
+	ColumnID    uint64 `json:"column_id,omitempty" jsonschema:"a column id from get_board; the task goes to the bottom"`
+	Column      string `json:"column,omitempty" jsonschema:"or a column name, e.g. To do; without either the task goes to the board's first column"`
 }
 
 type taskResult struct {
@@ -36,7 +37,8 @@ type updateTaskIn struct {
 
 type moveTaskIn struct {
 	TaskID       uint64  `json:"task_id" jsonschema:"a task id from get_board"`
-	Column       string  `json:"column" jsonschema:"backlog, todo, doing or done"`
+	ColumnID     uint64  `json:"column_id,omitempty" jsonschema:"a column id from get_board"`
+	Column       string  `json:"column,omitempty" jsonschema:"or a column name, e.g. Doing (ignoring case)"`
 	AfterTaskID  *uint64 `json:"after_task_id,omitempty" jsonschema:"put it right below this task in that column"`
 	BeforeTaskID *uint64 `json:"before_task_id,omitempty" jsonschema:"put it right above this task in that column"`
 }
@@ -96,14 +98,14 @@ func addWriteTools(s *sdk.Server) {
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "create_task",
 		Title:       "Create a task",
-		Description: "Adds a task to a board, at the bottom of a column (backlog unless you say otherwise), and returns it with its id.",
+		Description: "Adds a task to a board, at the bottom of a column (the board's first column unless you give column_id or a column name), and returns it with its id.",
 		Annotations: &sdk.ToolAnnotations{DestructiveHint: ptr(false), OpenWorldHint: ptr(false)},
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in createTaskIn) (*sdk.CallToolResult, taskResult, error) {
 		me, err := memberID(ctx)
 		if err != nil {
 			return nil, taskResult{}, err
 		}
-		t, err := boards.CreateTask(ctx, in.BoardID, me, in.Title, in.Description, in.Column)
+		t, err := boards.CreateTask(ctx, in.BoardID, me, in.Title, in.Description, boards.ColumnRef{ID: in.ColumnID, Name: in.Column})
 		if err != nil {
 			r, _ := failed(err)
 			return r, taskResult{}, nil
@@ -132,7 +134,7 @@ func addWriteTools(s *sdk.Server) {
 	sdk.AddTool(s, &sdk.Tool{
 		Name:  "move_task",
 		Title: "Move a task",
-		Description: "Moves a task to a column: right below after_task_id and/or right above before_task_id, or to the " +
+		Description: "Moves a task to a column (column_id, or a column name): right below after_task_id and/or right above before_task_id, or to the " +
 			"bottom of the column when you give neither. Neighbours must be other tasks in that column. A subtask has " +
 			"no column: it moves among its parent's other subtasks the same way, and column is ignored. Returns the task.",
 		Annotations: &sdk.ToolAnnotations{DestructiveHint: ptr(false), OpenWorldHint: ptr(false)},
@@ -141,7 +143,7 @@ func addWriteTools(s *sdk.Server) {
 		if err != nil {
 			return nil, taskResult{}, err
 		}
-		t, err := boards.MoveTask(ctx, in.TaskID, me, in.Column, in.AfterTaskID, in.BeforeTaskID)
+		t, err := boards.MoveTask(ctx, in.TaskID, me, boards.ColumnRef{ID: in.ColumnID, Name: in.Column}, in.AfterTaskID, in.BeforeTaskID)
 		if err != nil {
 			r, _ := failed(err)
 			return r, taskResult{}, nil

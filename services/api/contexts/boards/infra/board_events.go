@@ -35,7 +35,7 @@ func boardEventOf(event any) (ev BoardEvent, ok bool) {
 	switch e := event.(type) {
 	case domain.TaskCreated:
 		return BoardEvent{Type: "task.created", BoardID: e.BoardID, ActorID: e.ActorID,
-			Data: map[string]any{"task_id": e.TaskID, "column": e.Column, "position": e.Position}}, true
+			Data: map[string]any{"task_id": e.TaskID, "column_id": e.ColumnID, "position": e.Position}}, true
 	case domain.TaskEdited:
 		if e.ParentID != nil {
 			return updated(*e.ParentID, e.BoardID, e.ActorID, map[string]any{"subtask_id": e.TaskID})
@@ -62,6 +62,18 @@ func boardEventOf(event any) (ev BoardEvent, ok bool) {
 		return updated(e.ParentID, e.BoardID, e.ActorID, map[string]any{"subtask_id": e.SubtaskID})
 	case domain.SubtaskMoved:
 		return updated(e.ParentID, e.BoardID, e.ActorID, map[string]any{"subtask_id": e.SubtaskID})
+	case domain.ColumnCreated:
+		return BoardEvent{Type: "column.created", BoardID: e.BoardID, ActorID: e.ActorID,
+			Data: map[string]any{"column_id": e.ColumnID, "name": e.Name, "position": e.Position}}, true
+	case domain.ColumnRenamed:
+		return BoardEvent{Type: "column.updated", BoardID: e.BoardID, ActorID: e.ActorID,
+			Data: map[string]any{"column_id": e.ColumnID, "name": e.Name}}, true
+	case domain.ColumnMoved:
+		return BoardEvent{Type: "column.moved", BoardID: e.BoardID, ActorID: e.ActorID,
+			Data: map[string]any{"column_id": e.ColumnID, "position": e.Position}}, true
+	case domain.ColumnDeleted:
+		return BoardEvent{Type: "column.deleted", BoardID: e.BoardID, ActorID: e.ActorID,
+			Data: map[string]any{"column_id": e.ColumnID}}, true
 	}
 	return BoardEvent{}, false
 }

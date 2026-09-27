@@ -42,12 +42,46 @@ func (r boardRecord) toDomain() domain.Board {
 
 type Boards struct{}
 
+// columnRecord stores a board column; position is COLLATE "C" like task
+// positions.
+type columnRecord struct {
+	ID       uint64 `gorm:"primaryKey"`
+	BoardID  uint64
+	Name     string
+	Position string
+	orm.Timestamps
+}
+
+func (columnRecord) TableName() string { return "board_columns" }
+
+func (r columnRecord) toDomain() domain.Column {
+	return domain.Column{ID: r.ID, BoardID: r.BoardID, Name: r.Name, Position: r.Position}
+}
+
+// Add stores a new board with its columns in one transaction.
 func (Boards) Add(ctx context.Context, b domain.Board) (domain.Board, error) {
 	rec := boardRecord{GuildID: b.GuildID, Name: b.Name}
-	if err := query(ctx).Create(&rec); err != nil {
+	cols := make([]columnRecord, len(b.Columns))
+	err := facades.Orm().WithContext(ctx).Transaction(func(tx contractsorm.Query) error {
+		if err := tx.Create(&rec); err != nil {
+			return err
+		}
+		for i, c := range b.Columns {
+			cols[i] = columnRecord{BoardID: rec.ID, Name: c.Name, Position: c.Position}
+			if err := tx.Create(&cols[i]); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
 		return domain.Board{}, err
 	}
-	return rec.toDomain(), nil
+	out := rec.toDomain()
+	for _, c := range cols {
+		out.Columns = append(out.Columns, c.toDomain())
+	}
+	return out, nil
 }
 
 func (Boards) ByID(ctx context.Context, id uint64) (domain.Board, bool, error) {
@@ -58,7 +92,67 @@ func (Boards) ByID(ctx context.Context, id uint64) (domain.Board, bool, error) {
 		}
 		return domain.Board{}, false, err
 	}
+	var cols []columnRecord
+	if err := query(ctx).Where("board_id", id).OrderBy("position").Find(&cols); err != nil {
+		return domain.Board{}, false, err
+	}
+	b := rec.toDomain()
+	for _, c := range cols {
+		b.Columns = append(b.Columns, c.toDomain())
+	}
+	return b, true, nil
+}
+
+func (Boards) ColumnByID(ctx context.Context, id uint64) (domain.Column, bool, error) {
+	var rec columnRecord
+	if err := query(ctx).Where("id", id).FirstOrFail(&rec); err != nil {
+		if notFound(err) {
+			return domain.Column{}, false, nil
+		}
+		return domain.Column{}, false, err
+	}
 	return rec.toDomain(), true, nil
+}
+
+func (Boards) AddColumn(ctx context.Context, c domain.Column) (domain.Column, error) {
+	rec := columnRecord{BoardID: c.BoardID, Name: c.Name, Position: c.Position}
+	if err := query(ctx).Create(&rec); err != nil {
+		return domain.Column{}, columnWriteError(err)
+	}
+	return rec.toDomain(), nil
+}
+
+func (Boards) SaveColumn(ctx context.Context, c domain.Column) error {
+	_, err := query(ctx).Model(&columnRecord{}).Where("id", c.ID).Update(map[string]any{
+		"name":     c.Name,
+		"position": c.Position,
+	})
+	if err != nil {
+		return columnWriteError(err)
+	}
+	return nil
+}
+
+// DeleteColumn removes a column. The tasks' foreign key refuses it while a
+// task still stands there, in case one moved in after the use case looked.
+func (Boards) DeleteColumn(ctx context.Context, id uint64) error {
+	_, err := query(ctx).Where("id", id).Delete(&columnRecord{})
+	if err != nil && strings.Contains(err.Error(), "23503") {
+		return domain.ErrColumnNotEmpty
+	}
+	return err
+}
+
+// columnWriteError tells a taken position (retry) from a name another
+// column took at the same moment.
+func columnWriteError(err error) error {
+	switch {
+	case strings.Contains(err.Error(), "board_columns_name_unique"):
+		return domain.ErrDuplicateColumn
+	case isUniqueViolation(err):
+		return app.ErrPositionTaken
+	}
+	return err
 }
 
 func (Boards) OfGuild(ctx context.Context, guildID uint64) ([]domain.Board, error) {
@@ -85,16 +179,16 @@ func (Boards) ByName(ctx context.Context, guildID uint64, name string) (domain.B
 	return rec.toDomain(), true, nil
 }
 
-// taskRecord stores a task. The column is stored as column_key because
-// "column" is an SQL keyword; position is COLLATE "C" so it sorts by byte.
+// taskRecord stores a task. ColumnID is NULL for a subtask; position is
+// COLLATE "C" so it sorts by byte.
 type taskRecord struct {
 	ID          uint64 `gorm:"primaryKey"`
 	BoardID     uint64
 	ParentID    *uint64
+	ColumnID    *uint64
 	Done        bool
 	Title       string
 	Description string
-	ColumnKey   string
 	Position    string
 	orm.Timestamps
 }
@@ -103,16 +197,27 @@ func (taskRecord) TableName() string { return "tasks" }
 
 func (r taskRecord) toDomain() domain.Task {
 	return domain.Task{
-		ID: r.ID, BoardID: r.BoardID, ParentID: r.ParentID, Title: r.Title, Description: r.Description,
-		Column: domain.Column(r.ColumnKey), Position: r.Position, Done: r.Done,
+		ID: r.ID, BoardID: r.BoardID, ParentID: r.ParentID, ColumnID: deref(r.ColumnID), Title: r.Title,
+		Description: r.Description, Position: r.Position, Done: r.Done,
 	}
 }
 
-func taskToRecord(t domain.Task) taskRecord {
-	return taskRecord{
-		BoardID: t.BoardID, ParentID: t.ParentID, Title: t.Title, Description: t.Description,
-		ColumnKey: string(t.Column), Position: t.Position, Done: t.Done,
+func deref(id *uint64) uint64 {
+	if id == nil {
+		return 0
 	}
+	return *id
+}
+
+func taskToRecord(t domain.Task) taskRecord {
+	rec := taskRecord{
+		BoardID: t.BoardID, ParentID: t.ParentID, Title: t.Title, Description: t.Description,
+		Position: t.Position, Done: t.Done,
+	}
+	if t.ColumnID != 0 {
+		rec.ColumnID = &t.ColumnID
+	}
+	return rec
 }
 
 type Tasks struct{}
@@ -132,7 +237,7 @@ func (Tasks) Save(ctx context.Context, t domain.Task) error {
 	_, err := query(ctx).Model(&taskRecord{}).Where("id", t.ID).Update(map[string]any{
 		"title":       t.Title,
 		"description": t.Description,
-		"column_key":  string(t.Column),
+		"column_id":   taskToRecord(t).ColumnID,
 		"position":    t.Position,
 		"done":        t.Done,
 	})
@@ -161,11 +266,11 @@ func (Tasks) ByID(ctx context.Context, id uint64) (domain.Task, bool, error) {
 // OfBoard and InColumn return top-level tasks only; subtasks are not in a
 // column.
 func (Tasks) OfBoard(ctx context.Context, boardID uint64) ([]domain.Task, error) {
-	return findTasks(query(ctx).Where("board_id", boardID).WhereNull("parent_id").OrderBy("column_key").OrderBy("position"))
+	return findTasks(query(ctx).Where("board_id", boardID).WhereNull("parent_id").OrderBy("column_id").OrderBy("position"))
 }
 
-func (Tasks) InColumn(ctx context.Context, boardID uint64, column domain.Column) ([]domain.Task, error) {
-	return findTasks(query(ctx).Where("board_id", boardID).WhereNull("parent_id").Where("column_key", string(column)).OrderBy("position"))
+func (Tasks) InColumn(ctx context.Context, columnID uint64) ([]domain.Task, error) {
+	return findTasks(query(ctx).Where("column_id", columnID).WhereNull("parent_id").OrderBy("position"))
 }
 
 func (Tasks) AddAll(ctx context.Context, ts []domain.Task) ([]domain.Task, error) {

@@ -41,6 +41,10 @@ func Routes(r route.Router) {
 		r.Get("/api/guilds/{guild}/boards", c.ListBoards)
 		r.Post("/api/guilds/{guild}/boards", c.CreateBoard)
 		r.Get("/api/boards/{board}", c.GetBoard)
+		r.Post("/api/boards/{board}/columns", c.AddColumn)
+		r.Patch("/api/columns/{column}", c.RenameColumn)
+		r.Post("/api/columns/{column}/move", c.MoveColumn)
+		r.Delete("/api/columns/{column}", c.DeleteColumn)
 		r.Post("/api/boards/{board}/tasks", c.CreateTask)
 		r.Get("/api/tasks/{task}", c.GetTask)
 		r.Patch("/api/tasks/{task}", c.UpdateTask)
@@ -96,8 +100,8 @@ func SeedBoard(ctx context.Context, guildID, memberID uint64, name string, tasks
 		if err != nil {
 			return err
 		}
-		if st.Column != string(domain.Backlog) {
-			if _, err := service.MoveTask(ctx, t.ID, memberID, st.Column, nil, nil); err != nil {
+		if st.Column != "" && st.Column != b.First().Name {
+			if _, err := service.MoveTask(ctx, t.ID, memberID, app.ColumnRef{Name: st.Column}, nil, nil); err != nil {
 				return err
 			}
 		}
@@ -112,25 +116,39 @@ type Board struct {
 	Name    string
 }
 
-// Task is a task or a subtask. A subtask has a ParentID and no Column. The
-// subtask counts are filled in where the caller asked for them (GetBoard,
-// GetTask).
+// Task is a task or a subtask. A subtask has a ParentID and no column
+// (ColumnID 0). The subtask counts are filled in where the caller asked for
+// them (GetBoard, GetTask).
 type Task struct {
 	ID            uint64
 	BoardID       uint64
 	ParentID      *uint64
+	ColumnID      uint64
 	Title         string
 	Description   string
-	Column        string
 	Done          bool
 	SubtasksTotal int
 	SubtasksDone  int
 }
 
+// Column is one of a board's columns with its tasks in order.
 type Column struct {
-	Column string
-	Tasks  []Task
+	ID    uint64
+	Name  string
+	Tasks []Task
 }
+
+// ColumnRef names a board's column by id or, when ID is 0, by name
+// (ignoring case).
+type ColumnRef struct {
+	ID   uint64
+	Name string
+}
+
+func (r ColumnRef) app() app.ColumnRef { return app.ColumnRef{ID: r.ID, Name: r.Name} }
+
+// Given reports whether the ref names a column at all.
+func (r ColumnRef) Given() bool { return r.ID != 0 || r.Name != "" }
 
 type BoardView struct {
 	Board   Board
@@ -140,11 +158,7 @@ type BoardView struct {
 func boardOf(b domain.Board) Board { return Board{ID: b.ID, GuildID: b.GuildID, Name: b.Name} }
 
 func taskOf(t domain.Task) Task {
-	out := Task{ID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID, Title: t.Title, Description: t.Description, Done: t.Done}
-	if !t.IsSubtask() {
-		out.Column = string(t.Column)
-	}
-	return out
+	return Task{ID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID, ColumnID: t.ColumnID, Title: t.Title, Description: t.Description, Done: t.Done}
 }
 
 func tasksOf(ts []domain.Task) []Task {
@@ -168,22 +182,22 @@ func ListBoards(ctx context.Context, guildID, memberID uint64) ([]Board, error) 
 	return out, nil
 }
 
-// GetBoard returns a board with all four columns in order, each with its
-// tasks in order.
+// GetBoard returns a board with its columns in order, each with its tasks
+// in order.
 func GetBoard(ctx context.Context, boardID, memberID uint64) (BoardView, error) {
 	b, tasks, counts, err := service.GetBoard(ctx, boardID, memberID)
 	if err != nil {
 		return BoardView{}, err
 	}
-	byColumn := map[domain.Column][]Task{}
+	byColumn := map[uint64][]Task{}
 	for _, t := range tasks {
 		out := taskOf(t)
 		out.SubtasksTotal, out.SubtasksDone = counts[t.ID].Total, counts[t.ID].Done
-		byColumn[t.Column] = append(byColumn[t.Column], out)
+		byColumn[t.ColumnID] = append(byColumn[t.ColumnID], out)
 	}
 	view := BoardView{Board: boardOf(b)}
-	for _, c := range domain.Columns {
-		view.Columns = append(view.Columns, Column{Column: string(c), Tasks: append([]Task{}, byColumn[c]...)})
+	for _, c := range b.Columns {
+		view.Columns = append(view.Columns, Column{ID: c.ID, Name: c.Name, Tasks: append([]Task{}, byColumn[c.ID]...)})
 	}
 	return view, nil
 }
@@ -194,11 +208,12 @@ func CreateBoard(ctx context.Context, guildID, memberID uint64, name string) (Bo
 	return boardOf(b), err
 }
 
-// CreateTask adds a task at the bottom of column ("" means backlog).
-func CreateTask(ctx context.Context, boardID, memberID uint64, title, description, column string) (Task, error) {
-	if column != "" && column != string(domain.Backlog) {
+// CreateTask adds a task at the bottom of a column (the board's first when
+// column is not given).
+func CreateTask(ctx context.Context, boardID, memberID uint64, title, description string, column ColumnRef) (Task, error) {
+	if column.Given() {
 		// Refuse a bad column before anything is created.
-		if _, err := domain.ParseColumn(column); err != nil {
+		if _, err := service.ResolveColumn(ctx, boardID, memberID, column.app()); err != nil {
 			return Task{}, err
 		}
 	}
@@ -206,8 +221,8 @@ func CreateTask(ctx context.Context, boardID, memberID uint64, title, descriptio
 	if err != nil {
 		return Task{}, err
 	}
-	if column != "" && column != string(domain.Backlog) {
-		if t, err = service.MoveTask(ctx, t.ID, memberID, column, nil, nil); err != nil {
+	if column.Given() {
+		if t, err = service.MoveTask(ctx, t.ID, memberID, column.app(), nil, nil); err != nil {
 			return Task{}, err
 		}
 	}
@@ -245,8 +260,8 @@ func UpdateTask(ctx context.Context, taskID, memberID uint64, title, description
 
 // MoveTask puts a task in column right after afterID and/or right before
 // beforeID; with neither, at the bottom.
-func MoveTask(ctx context.Context, taskID, memberID uint64, column string, afterID, beforeID *uint64) (Task, error) {
-	t, err := service.MoveTask(ctx, taskID, memberID, column, afterID, beforeID)
+func MoveTask(ctx context.Context, taskID, memberID uint64, column ColumnRef, afterID, beforeID *uint64) (Task, error) {
+	t, err := service.MoveTask(ctx, taskID, memberID, column.app(), afterID, beforeID)
 	return taskOf(t), err
 }
 

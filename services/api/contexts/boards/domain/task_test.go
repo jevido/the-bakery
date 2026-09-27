@@ -7,7 +7,7 @@ import (
 )
 
 func TestExpand(t *testing.T) {
-	parent := Task{ID: 7, BoardID: 1, Column: Todo, Position: "a0"}
+	parent := Task{ID: 7, BoardID: 1, ColumnID: 2, Position: "a0"}
 	parentID := uint64(7)
 	subtask := Task{ID: 8, BoardID: 1, ParentID: &parentID, Position: "a0"}
 	many := make([]string, 51)
@@ -80,7 +80,7 @@ func TestCompleteAndReopen(t *testing.T) {
 		t.Error("reopening an open subtask announces")
 	}
 
-	top := Task{ID: 1, BoardID: 1, Column: Backlog}
+	top := Task{ID: 1, BoardID: 1, ColumnID: 1}
 	if _, err := top.Complete(); !errors.Is(err, ErrNotSubtask) {
 		t.Errorf("Complete() on a task error = %v, want ErrNotSubtask", err)
 	}
@@ -92,13 +92,13 @@ func TestCompleteAndReopen(t *testing.T) {
 func TestSubtaskHasNoColumn(t *testing.T) {
 	parentID := uint64(1)
 	st := Task{ID: 2, BoardID: 1, ParentID: &parentID, Position: "a0"}
-	if _, err := st.Move(Doing, "", ""); !errors.Is(err, ErrSubtaskNoColumn) {
+	if _, err := st.Move(3, "", ""); !errors.Is(err, ErrSubtaskNoColumn) {
 		t.Errorf("Move() on a subtask error = %v, want ErrSubtaskNoColumn", err)
 	}
 	if _, err := st.Reposition("", "a0"); err != nil || st.Position >= "a0" {
 		t.Errorf("Reposition() = %v, position %q", err, st.Position)
 	}
-	top := Task{ID: 1, Column: Backlog, Position: "a0"}
+	top := Task{ID: 1, ColumnID: 1, Position: "a0"}
 	if _, err := top.Reposition("", ""); !errors.Is(err, ErrNotSubtask) {
 		t.Errorf("Reposition() on a task error = %v, want ErrNotSubtask", err)
 	}

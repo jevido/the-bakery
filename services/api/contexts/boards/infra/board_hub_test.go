@@ -99,11 +99,16 @@ func TestBoardEventOf(t *testing.T) {
 		{"subtask moved", domain.SubtaskMoved{SubtaskID: 9, ParentID: 7, BoardID: 1}, "task.updated", 7},
 		{"commented", domain.TaskCommented{TaskID: 7, BoardID: 1, CommentID: 3}, "task.updated", 7},
 		{"comment edited", domain.CommentChanged{TaskID: 7, BoardID: 1, CommentID: 3}, "task.updated", 7},
+		{"column added", domain.ColumnCreated{ColumnID: 5, BoardID: 1}, "column.created", 0},
+		{"column renamed", domain.ColumnRenamed{ColumnID: 5, BoardID: 1}, "column.updated", 0},
+		{"column moved", domain.ColumnMoved{ColumnID: 5, BoardID: 1}, "column.moved", 0},
+		{"column deleted", domain.ColumnDeleted{ColumnID: 5, BoardID: 1}, "column.deleted", 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ev, ok := boardEventOf(tt.event)
-			if !ok || ev.Type != tt.wantType || ev.BoardID != 1 || ev.Data["task_id"] != tt.wantTask {
+			task, _ := ev.Data["task_id"].(uint64)
+			if !ok || ev.Type != tt.wantType || ev.BoardID != 1 || task != tt.wantTask {
 				t.Errorf("boardEventOf() = %+v, %v; want %s for task %d", ev, ok, tt.wantType, tt.wantTask)
 			}
 		})
