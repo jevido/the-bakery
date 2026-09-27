@@ -3,8 +3,9 @@ info:
   title: The Bakery API
   version: 0.1.0
   description: >-
-    The JSON API behind The Bakery: members, guilds, boards and tasks. The
-    desktop app uses the same endpoints and the same token. Refusals are
+    The JSON API behind The Bakery: members, guilds, invites, boards and
+    tasks. The desktop app (bearer token) and the website (session cookie)
+    use the same endpoints. Refusals are
     `{"error": "<sentence>"}`, with `field` added when one field is to blame.
 servers:
   - url: https://api.bakery.jevido.app
@@ -688,6 +689,7 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/NotMember" }
+        "409": { $ref: "#/components/responses/ArchivedBoard" }
         "422": { $ref: "#/components/responses/Invalid" }
 
   /api/boards/{board}:
@@ -755,6 +757,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/NotMember" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/ArchivedBoard" }
         "422": { $ref: "#/components/responses/Invalid" }
 
   /api/tasks/{task}:
@@ -784,6 +787,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/NotMember" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/ArchivedBoard" }
         "422": { $ref: "#/components/responses/Invalid" }
     delete:
       tags: [Tasks]
@@ -796,6 +800,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/NotMember" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/ArchivedBoard" }
 
   /api/tasks/{task}/move:
     post:
@@ -915,6 +920,12 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
           example: { error: "this guild is archived; restore it first" }
+    ArchivedBoard:
+      description: The board's guild is archived; its boards are read-only.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { error: "this guild is archived; its boards are read-only" }
     LastMember:
       description: The last member cannot leave or be removed.
       content:
