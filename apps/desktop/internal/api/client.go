@@ -27,6 +27,9 @@ type Error struct {
 	Status  int
 	Message string
 	Field   string
+	// Body is the whole answer, for refusals that carry more (a 409 with the
+	// agent as it is now).
+	Body []byte
 }
 
 func (e *Error) Error() string { return e.Message }
@@ -103,6 +106,11 @@ func (c *Client) Me(ctx context.Context, token string) (Member, error) {
 
 // do sends a JSON request and decodes a JSON response into out (if not nil).
 func (c *Client) do(ctx context.Context, method, path, token string, in, out any) error {
+	return c.doWith(ctx, method, path, token, nil, in, out)
+}
+
+// doWith is do with extra request headers.
+func (c *Client) doWith(ctx context.Context, method, path, token string, headers map[string]string, in, out any) error {
 	var body io.Reader
 	if in != nil {
 		b, err := json.Marshal(in)
@@ -122,6 +130,9 @@ func (c *Client) do(ctx context.Context, method, path, token string, in, out any
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
 	res, err := c.http.Do(req)
 	if err != nil {
 		return &Unreachable{URL: c.baseURL, Err: err}
@@ -133,14 +144,15 @@ func (c *Client) do(ctx context.Context, method, path, token string, in, out any
 			Error string `json:"error"`
 			Field string `json:"field"`
 		}
-		_ = json.NewDecoder(res.Body).Decode(&e)
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 8<<20))
+		_ = json.Unmarshal(body, &e)
 		if res.StatusCode == http.StatusUnauthorized && token != "" {
 			return ErrUnauthorized
 		}
 		if e.Error == "" {
 			e.Error = http.StatusText(res.StatusCode)
 		}
-		return &Error{Status: res.StatusCode, Message: e.Error, Field: e.Field}
+		return &Error{Status: res.StatusCode, Message: e.Error, Field: e.Field, Body: body}
 	}
 	if out == nil || res.StatusCode == http.StatusNoContent {
 		return nil

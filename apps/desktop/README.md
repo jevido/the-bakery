@@ -42,6 +42,13 @@ directory and logs a warning.
   indicator and `board:resync` after a reconnect (backoff 1 s up to 30 s).
 - `internal/api/` — typed client for the API. `internal/session/` — the
   signed-in member and token storage.
+- `internal/agents/` — the member's agents as folders under
+  `~/.config/the-bakery/agents/<slug>/` (`agent.toml`, `skills/`, `.sync.json`)
+  and the sync engine that keeps them in step with the API: pushes local
+  edits, pulls the server's, creates new folders as agents, trashes deleted
+  ones, and turns edits on both sides into a conflict (the server's copy
+  under `.conflicts/<slug>/`) instead of overwriting either. The folder belongs
+  to one member of one API; another's moves aside to `agents-<host>-<id>`.
 - `frontend/src/lib/bindings.ts` — the one import point for generated bindings.
 - `frontend/src/lib/colony.svelte.ts` — the open guild and board; moves are
   shown right away and undone by reloading the board if the API refuses.
