@@ -81,15 +81,16 @@ type Service struct {
 	comments    Comments
 	activity    ActivityLog
 	presence    PresenceLog
+	workTypes   WorkTypes
 	names       MemberNames
 	events      Events
 	now         func() time.Time
 }
 
-func NewService(memberships Memberships, boards Boards, tasks Tasks, comments Comments, activity ActivityLog, presence PresenceLog, names MemberNames, events Events) *Service {
+func NewService(memberships Memberships, boards Boards, tasks Tasks, comments Comments, activity ActivityLog, presence PresenceLog, workTypes WorkTypes, names MemberNames, events Events) *Service {
 	return &Service{
 		memberships: memberships, boards: boards, tasks: tasks, comments: comments,
-		activity: activity, presence: presence, names: names, events: events, now: time.Now,
+		activity: activity, presence: presence, workTypes: workTypes, names: names, events: events, now: time.Now,
 	}
 }
 
@@ -275,9 +276,14 @@ func (s *Service) ExpandTask(ctx context.Context, taskID, memberID uint64, title
 	return nil, ErrPositionTaken
 }
 
-func (s *Service) CreateTask(ctx context.Context, boardID, memberID uint64, title, description string) (domain.Task, error) {
+// CreateTask adds a task at the bottom of the board's first column, with a
+// work type key of the guild ("" for none).
+func (s *Service) CreateTask(ctx context.Context, boardID, memberID uint64, title, description, workType string) (domain.Task, error) {
 	b, err := s.writableBoard(ctx, boardID, memberID)
 	if err != nil {
+		return domain.Task{}, err
+	}
+	if err := s.checkWorkType(ctx, b.GuildID, workType); err != nil {
 		return domain.Task{}, err
 	}
 	first := b.First()
@@ -294,6 +300,7 @@ func (s *Service) CreateTask(ctx context.Context, boardID, memberID uint64, titl
 		if err != nil {
 			return domain.Task{}, err
 		}
+		t.WorkType = workType
 		t, err = s.tasks.Add(ctx, t)
 		if errors.Is(err, ErrPositionTaken) {
 			continue
@@ -308,14 +315,33 @@ func (s *Service) CreateTask(ctx context.Context, boardID, memberID uint64, titl
 	return domain.Task{}, ErrPositionTaken
 }
 
-// UpdateTask changes the title and/or description, and ticks a subtask off
-// or on; nil leaves a field as it is.
-func (s *Service) UpdateTask(ctx context.Context, taskID, memberID uint64, title, description *string, done *bool) (domain.Task, error) {
+// TaskChanges are the fields UpdateTask changes; nil leaves one as it is.
+// An empty WorkType clears it.
+type TaskChanges struct {
+	Title       *string
+	Description *string
+	WorkType    *string
+	Done        *bool
+}
+
+// UpdateTask changes a task's title, description and work type, and ticks a
+// subtask off or on.
+func (s *Service) UpdateTask(ctx context.Context, taskID, memberID uint64, c TaskChanges) (domain.Task, error) {
+	title, description, done := c.Title, c.Description, c.Done
 	t, err := s.task(ctx, taskID, memberID)
 	if err != nil {
 		return domain.Task{}, err
 	}
-	edited, err := t.Edit(title, description)
+	if c.WorkType != nil {
+		b, _, err := s.boards.ByID(ctx, t.BoardID)
+		if err != nil {
+			return domain.Task{}, err
+		}
+		if err := s.checkWorkType(ctx, b.GuildID, *c.WorkType); err != nil {
+			return domain.Task{}, err
+		}
+	}
+	edited, err := t.Edit(title, description, c.WorkType)
 	if err != nil {
 		return domain.Task{}, err
 	}

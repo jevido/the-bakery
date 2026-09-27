@@ -190,6 +190,8 @@ type taskRecord struct {
 	Title       string
 	Description string
 	Position    string
+	// WorkType is NULL for none.
+	WorkType *string
 	orm.Timestamps
 }
 
@@ -198,8 +200,15 @@ func (taskRecord) TableName() string { return "tasks" }
 func (r taskRecord) toDomain() domain.Task {
 	return domain.Task{
 		ID: r.ID, BoardID: r.BoardID, ParentID: r.ParentID, ColumnID: deref(r.ColumnID), Title: r.Title,
-		Description: r.Description, Position: r.Position, Done: r.Done,
+		Description: r.Description, Position: r.Position, Done: r.Done, WorkType: derefString(r.WorkType),
 	}
+}
+
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 func deref(id *uint64) uint64 {
@@ -216,6 +225,9 @@ func taskToRecord(t domain.Task) taskRecord {
 	}
 	if t.ColumnID != 0 {
 		rec.ColumnID = &t.ColumnID
+	}
+	if t.WorkType != "" {
+		rec.WorkType = &t.WorkType
 	}
 	return rec
 }
@@ -238,6 +250,7 @@ func (Tasks) Save(ctx context.Context, t domain.Task) error {
 		"title":       t.Title,
 		"description": t.Description,
 		"column_id":   taskToRecord(t).ColumnID,
+		"work_type":   taskToRecord(t).WorkType,
 		"position":    t.Position,
 		"done":        t.Done,
 	})

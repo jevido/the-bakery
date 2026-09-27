@@ -20,6 +20,7 @@ responsible for who is in a guild (guilds) or who a person is (identity).
 | Subtask | A task whose parent is another task on the same board; one level deep, with a `done` flag, not in a column. |
 | Comment | Text a member writes on a task; only its author edits or deletes it. |
 | Activity | What happened to a task, in order, built from domain events. |
+| Work type | A kind of work a task needs; each guild has its own ordered list, each identified by a key (`coding`, `research`, …). |
 | Board event | A change on a board, announced on the board's event stream (published language, below). |
 | Presence | Which members have a board open right now; short-lived, never history. |
 
@@ -32,6 +33,7 @@ responsible for who is in a guild (guilds) or who a person is (identity).
 | Board (root) | Belongs to exactly one guild (by id). Name is 1–60 characters. Owns its columns: at least one, names 1–40 characters and unique on the board (ignoring case), ordered by position. A new board starts with Backlog, To do, Doing, Done. A column is removed only when it holds no tasks. |
 | Task (root) | Belongs to one board (by id). Title is 1–200 characters. A task on the board refers to one of that board's columns by id. Position is unique per column among top-level tasks. |
 | Task as subtask | Its parent is on the same board and has no parent itself. A task with subtasks cannot become a subtask. Position is unique per parent. Expanding adds 1–50 subtasks in one transaction. |
+| Work type (root) | Belongs to one guild (by id). Key matches `^[a-z][a-z0-9-]{0,31}$` and is unique in the guild; name 1–40 characters; ordered by position. Can be deleted only while no task has it. A task's work type, when set, is one of its guild's keys. |
 | Comment (root) | Belongs to one task (by id) and one author (a member id). Body is 1–10 000 characters. Only the author edits or deletes it. |
 
 ### Commands
@@ -46,6 +48,9 @@ responsible for who is in a guild (guilds) or who a person is (identity).
 - **Add a subtask**, **expand** a task into several subtasks, **tick** or
   untick a subtask, and **reorder** subtasks under their parent.
 - **Comment** on a task; **edit** or **delete** your own comment.
+- **List** a guild's work types (the defaults Coding, Research, Writing,
+  Testing, Design, Review, Ops the first time); **add**, **rename**, **move**
+  and **delete** one; give a task a work type or clear it.
 - **List a task's activity**, newest first.
 
 Every command is refused unless the calling member is a member of the board's
@@ -56,7 +61,7 @@ that does not exist is reported as not found.
 
 - `TaskCreated` — task id, board id, column, position.
 - `TaskMoved` — task id, board id, from column, to column, new position.
-- `TaskEdited` — task id, board id, which of title and description changed.
+- `TaskEdited` — task id, board id, which of title, description and work type changed.
 - `TaskCommented` — task id, board id, comment id.
 - `SubtaskAdded` — subtask id, parent task id, board id.
 - `SubtaskCompleted` — subtask id, parent task id, board id.
@@ -87,8 +92,9 @@ Changing a type or removing a field is a breaking change for the desktop app.
 
 - **Publishes:** Go functions in the root package (`ListBoards`, `GetBoard`,
   `CreateBoard`, `CreateTask`, `GetTask`, `UpdateTask`, `ExpandTask`,
-  `MoveTask`, `DeleteTask`, `ListComments`, `CommentOnTask`) with their own
-  types, for the MCP server.
+  `MoveTask`, `DeleteTask`, `ListComments`, `CommentOnTask`, `ListWorkTypes`)
+  with their own types, for the MCP server. Work type **keys** are published
+  language: the agents context keys work priorities by them.
 - **Consumes:** identity's authenticated member id and display names by id
   (`identity.DisplayNames`, behind boards' `MemberNames` port); guilds'
   `Memberships.IsMember` and `Memberships.IsArchived`. A guild and a member
@@ -130,3 +136,12 @@ Changing a type or removing a field is a breaking change for the desktop app.
   broker. `NOTIFY` payloads are small, so events carry ids and changed fields
   and clients refetch when in doubt. Delivery is best effort: a client that
   reconnects refetches the board instead of replaying missed events.
+- **A guild's work types appear the first time they are asked for.** Boards
+  cannot react to a guild being founded (it would have to read guilds' tables
+  or subscribe to guilds' events, which guilds does not publish), so listing a
+  guild's work types creates the defaults when it has none, idempotently
+  through the unique (guild, key) index. The cost: a guild nobody has opened
+  has no rows yet, which nobody can tell apart from outside.
+- **Work types are known to others by key, not id.** The agents context keys
+  an agent's work priorities by work type key, so one agent's priorities make
+  sense across all the guilds it works in.

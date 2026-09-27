@@ -34,11 +34,11 @@ func (DatabaseSeeder) Run() error {
 		return fmt.Errorf("seeding First Colony: %w", err)
 	}
 	err = boards.SeedBoard(ctx, guildID, ids[0], "Getting settled", []boards.SeedTask{
-		{Title: "Build a research bench", Column: "backlog"},
-		{Title: "Hunt the boomalope before it explodes", Column: "backlog"},
-		{Title: "Plant rice by the river", Column: "todo"},
-		{Title: "Wall in the freezer", Column: "doing"},
-		{Title: "Bury the raider in the graveyard", Column: "done"},
+		{Title: "Build a research bench", Column: "backlog", WorkType: "coding"},
+		{Title: "Hunt the boomalope before it explodes", Column: "backlog", WorkType: "research"},
+		{Title: "Plant rice by the river", Column: "todo", WorkType: "writing"},
+		{Title: "Wall in the freezer", Column: "doing", WorkType: "testing"},
+		{Title: "Bury the raider in the graveyard", Column: "done", WorkType: "coding"},
 	})
 	if err != nil {
 		return fmt.Errorf("seeding board Getting settled: %w", err)

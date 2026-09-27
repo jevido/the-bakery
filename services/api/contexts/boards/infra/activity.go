@@ -36,7 +36,7 @@ func (ActivityProjector) Handle(ctx context.Context, event any) {
 		data = map[string]any{"column": columnName(ctx, ev.ColumnID)}
 	case domain.TaskEdited:
 		rec = activityRecord{TaskID: ev.TaskID, BoardID: ev.BoardID, ActorID: ev.ActorID, Kind: string(app.ActivityEdited)}
-		data = map[string]any{"title": ev.Title, "description": ev.Description}
+		data = map[string]any{"title": ev.Title, "description": ev.Description, "work_type": ev.WorkType}
 	case domain.TaskMoved:
 		rec = activityRecord{TaskID: ev.TaskID, BoardID: ev.BoardID, ActorID: ev.ActorID, Kind: string(app.ActivityMoved)}
 		data = map[string]any{"from": columnName(ctx, ev.From), "to": columnName(ctx, ev.To)}

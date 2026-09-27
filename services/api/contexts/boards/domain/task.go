@@ -32,6 +32,8 @@ type Task struct {
 	Description string
 	Position    string
 	Done        bool
+	// WorkType is the key of one of the guild's work types, or "" for none.
+	WorkType string
 }
 
 func (t Task) IsSubtask() bool { return t.ParentID != nil }
@@ -57,6 +59,7 @@ type TaskEdited struct {
 	ParentID    *uint64
 	Title       bool
 	Description bool
+	WorkType    bool
 }
 
 // TaskDeleted is announced when a task (with its subtasks) or a subtask is
@@ -160,9 +163,11 @@ func (t Task) Added() SubtaskAdded {
 	return SubtaskAdded{SubtaskID: t.ID, ParentID: *t.ParentID, BoardID: t.BoardID, Title: t.Title}
 }
 
-// Edit changes the title and/or description (nil leaves one as it is). The
-// event is announced only when something actually changed.
-func (t *Task) Edit(title, description *string) (*TaskEdited, error) {
+// Edit changes the title, description and/or work type (nil leaves one as
+// it is; an empty work type clears it). The use case makes sure the work type
+// is one of the guild's. The event is announced only when something actually
+// changed.
+func (t *Task) Edit(title, description, workType *string) (*TaskEdited, error) {
 	ev := TaskEdited{TaskID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID}
 	if title != nil {
 		before := t.Title
@@ -175,7 +180,11 @@ func (t *Task) Edit(title, description *string) (*TaskEdited, error) {
 		ev.Description = t.Description != *description
 		t.Describe(*description)
 	}
-	if !ev.Title && !ev.Description {
+	if workType != nil {
+		ev.WorkType = t.WorkType != *workType
+		t.WorkType = *workType
+	}
+	if !ev.Title && !ev.Description && !ev.WorkType {
 		return nil, nil
 	}
 	return &ev, nil

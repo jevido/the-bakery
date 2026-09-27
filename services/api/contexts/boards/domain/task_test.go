@@ -107,18 +107,58 @@ func TestSubtaskHasNoColumn(t *testing.T) {
 func TestEditAnnouncesOnlyChanges(t *testing.T) {
 	str := func(s string) *string { return &s }
 	task := Task{ID: 1, BoardID: 2, Title: "Dig", Description: "Deep"}
-	if ev, err := task.Edit(str("Dig"), str("Deep")); err != nil || ev != nil {
+	if ev, err := task.Edit(str("Dig"), str("Deep"), nil); err != nil || ev != nil {
 		t.Errorf("unchanged Edit() = %+v, %v; want no event", ev, err)
 	}
-	ev, err := task.Edit(str("Dig deeper"), nil)
+	ev, err := task.Edit(str("Dig deeper"), nil, nil)
 	if err != nil || ev == nil || !ev.Title || ev.Description {
 		t.Errorf("title Edit() = %+v, %v", ev, err)
 	}
-	ev, err = task.Edit(nil, str("Very deep"))
+	ev, err = task.Edit(nil, str("Very deep"), nil)
 	if err != nil || ev == nil || ev.Title || !ev.Description {
 		t.Errorf("description Edit() = %+v, %v", ev, err)
 	}
-	if _, err := task.Edit(str(" "), nil); !errors.Is(err, ErrInvalidTitle) {
+	if _, err := task.Edit(str(" "), nil, nil); !errors.Is(err, ErrInvalidTitle) {
 		t.Errorf("empty title Edit() error = %v", err)
+	}
+}
+
+func TestEditWorkType(t *testing.T) {
+	str := func(s string) *string { return &s }
+	task := Task{ID: 1, BoardID: 2}
+	ev, err := task.Edit(nil, nil, str("coding"))
+	if err != nil || ev == nil || !ev.WorkType || task.WorkType != "coding" {
+		t.Fatalf("setting a work type: %+v, %v, %q", ev, err, task.WorkType)
+	}
+	if ev, _ := task.Edit(nil, nil, str("coding")); ev != nil {
+		t.Error("the same work type again announces a change")
+	}
+	if ev, _ := task.Edit(nil, nil, str("")); ev == nil || task.WorkType != "" {
+		t.Error("clearing the work type")
+	}
+}
+
+func TestWorkTypes(t *testing.T) {
+	defaults := DefaultsFor(1)
+	if len(defaults) != 7 || defaults[0].Key != "coding" || defaults[6].Name != "Ops" {
+		t.Fatalf("defaults = %+v", defaults)
+	}
+	for i := 1; i < len(defaults); i++ {
+		if defaults[i-1].Position >= defaults[i].Position {
+			t.Errorf("defaults out of order at %d", i)
+		}
+	}
+	for _, key := range []string{"lore", "a", "ops-2", "x" + strings.Repeat("y", 31)} {
+		if _, err := NewWorkType(1, key, "Lore", ""); err != nil {
+			t.Errorf("NewWorkType(%q) error = %v", key, err)
+		}
+	}
+	for _, key := range []string{"", "Lore", "2d", "-x", "a b", "x" + strings.Repeat("y", 32)} {
+		if _, err := NewWorkType(1, key, "Lore", ""); !errors.Is(err, ErrInvalidWorkTypeKey) {
+			t.Errorf("NewWorkType(%q) error = %v, want ErrInvalidWorkTypeKey", key, err)
+		}
+	}
+	if _, err := NewWorkType(1, "lore", " ", ""); !errors.Is(err, ErrInvalidWorkTypeName) {
+		t.Errorf("empty name error = %v", err)
 	}
 }

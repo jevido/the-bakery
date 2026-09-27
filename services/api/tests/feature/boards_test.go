@@ -477,3 +477,49 @@ func (s *BoardsTestSuite) TestColumns() {
 	s.post(token, fmt.Sprintf("/api/guilds/%d/archive", guildID), "").AssertSuccessful()
 	s.post(token, fmt.Sprintf("/api/boards/%d/columns", boardID), `{"name":"Later"}`).AssertConflict()
 }
+
+func (s *BoardsTestSuite) TestWorkTypes() {
+	_, token := s.register()
+	guildID := s.foundGuild(token, "Work Colony")
+	boardID := s.createBoard(token, guildID, "Getting settled")
+	path := fmt.Sprintf("/api/guilds/%d/work-types", guildID)
+	keys := func() []string {
+		res := s.get(token, path)
+		res.AssertOk()
+		var out []string
+		for _, wt := range s.jsonOf(res)["work_types"].([]any) {
+			out = append(out, wt.(map[string]any)["key"].(string))
+		}
+		return out
+	}
+	defaults := []string{"coding", "research", "writing", "testing", "design", "review", "ops"}
+	s.Equal(defaults, keys())
+	s.Equal(defaults, keys(), "the defaults are made once")
+
+	// A task's work type round-trips; an unknown one is refused.
+	res := s.post(token, fmt.Sprintf("/api/boards/%d/tasks", boardID), `{"title":"Read the old logs","work_type":"research"}`)
+	res.AssertCreated()
+	taskID := uint64(s.jsonOf(res)["task"].(map[string]any)["id"].(float64))
+	board := s.jsonOf(s.get(token, fmt.Sprintf("/api/boards/%d", boardID)))
+	s.Equal("research", board["columns"].([]any)[0].(map[string]any)["tasks"].([]any)[0].(map[string]any)["work_type"])
+	s.post(token, fmt.Sprintf("/api/boards/%d/tasks", boardID), `{"title":"Nope","work_type":"lore"}`).AssertUnprocessableEntity()
+	s.send("PATCH", token, fmt.Sprintf("/api/tasks/%d", taskID), `{"work_type":"lore"}`).AssertUnprocessableEntity()
+
+	// Add, rename, move, delete.
+	s.post(token, path, `{"key":"lore","name":"Lore"}`).AssertCreated()
+	s.post(token, path, `{"key":"lore","name":"Lore again"}`).AssertUnprocessableEntity()
+	s.post(token, path, `{"key":"Bad Key","name":"Bad"}`).AssertUnprocessableEntity()
+	s.send("PATCH", token, path+"/lore", `{"name":"Old lore","position":0}`).AssertOk()
+	s.Equal(append([]string{"lore"}, defaults...), keys())
+	s.send("PATCH", token, fmt.Sprintf("/api/tasks/%d", taskID), `{"work_type":"lore"}`).AssertOk()
+	s.send("DELETE", token, path+"/lore", "").AssertConflict()
+	s.send("PATCH", token, fmt.Sprintf("/api/tasks/%d", taskID), `{"work_type":""}`).AssertOk()
+	s.send("DELETE", token, path+"/lore", "").AssertNoContent()
+	s.send("DELETE", token, path+"/lore", "").AssertNotFound()
+	s.Equal(defaults, keys())
+
+	// Outsiders see nothing.
+	_, stranger := s.register()
+	s.get(stranger, path).AssertForbidden()
+	s.post(stranger, path, `{"key":"mine","name":"Mine"}`).AssertForbidden()
+}

@@ -47,6 +47,7 @@ type taskJSON struct {
 	Description   string  `json:"description"`
 	Position      string  `json:"position"`
 	Done          bool    `json:"done"`
+	WorkType      *string `json:"work_type"`
 	SubtasksTotal *int    `json:"subtasks_total,omitempty"`
 	SubtasksDone  *int    `json:"subtasks_done,omitempty"`
 }
@@ -55,6 +56,9 @@ func taskToJSON(t domain.Task) taskJSON {
 	out := taskJSON{ID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID, Title: t.Title, Description: t.Description, Position: t.Position, Done: t.Done}
 	if !t.IsSubtask() {
 		out.ColumnID = &t.ColumnID
+	}
+	if t.WorkType != "" {
+		out.WorkType = &t.WorkType
 	}
 	return out
 }
@@ -153,6 +157,7 @@ func (c *Controller) GetBoard(ctx contractshttp.Context) contractshttp.Response 
 type createTaskRequest struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
+	WorkType    string `json:"work_type"`
 }
 
 func (c *Controller) CreateTask(ctx contractshttp.Context) contractshttp.Response {
@@ -164,16 +169,19 @@ func (c *Controller) CreateTask(ctx contractshttp.Context) contractshttp.Respons
 	if err := ctx.Request().Bind(&req); err != nil {
 		return badRequest(ctx)
 	}
-	t, err := c.service.CreateTask(ctx.Context(), boardID, c.me(ctx), req.Title, req.Description)
+	t, err := c.service.CreateTask(ctx.Context(), boardID, c.me(ctx), req.Title, req.Description, req.WorkType)
 	if err != nil {
 		return failure(ctx, err)
 	}
 	return ctx.Response().Json(contractshttp.StatusCreated, contractshttp.Json{"task": taskToJSON(t)})
 }
 
+// updateTaskRequest: a field left out stays as it is; work_type "" clears
+// the task's work type.
 type updateTaskRequest struct {
 	Title       *string `json:"title"`
 	Description *string `json:"description"`
+	WorkType    *string `json:"work_type"`
 	Done        *bool   `json:"done"`
 }
 
@@ -186,7 +194,7 @@ func (c *Controller) UpdateTask(ctx contractshttp.Context) contractshttp.Respons
 	if err := ctx.Request().Bind(&req); err != nil {
 		return badRequest(ctx)
 	}
-	t, err := c.service.UpdateTask(ctx.Context(), taskID, c.me(ctx), req.Title, req.Description, req.Done)
+	t, err := c.service.UpdateTask(ctx.Context(), taskID, c.me(ctx), app.TaskChanges{Title: req.Title, Description: req.Description, WorkType: req.WorkType, Done: req.Done})
 	if err != nil {
 		return failure(ctx, err)
 	}
@@ -341,6 +349,16 @@ func failure(ctx contractshttp.Context, err error) contractshttp.Response {
 		status, field = contractshttp.StatusUnprocessableEntity, "titles"
 	case errors.Is(err, domain.ErrNotSubtask):
 		status, field = contractshttp.StatusUnprocessableEntity, "done"
+	case errors.Is(err, domain.ErrUnknownWorkType):
+		status, field = contractshttp.StatusUnprocessableEntity, "work_type"
+	case errors.Is(err, domain.ErrInvalidWorkTypeKey), errors.Is(err, domain.ErrDuplicateWorkType):
+		status, field = contractshttp.StatusUnprocessableEntity, "key"
+	case errors.Is(err, domain.ErrInvalidWorkTypeName):
+		status, field = contractshttp.StatusUnprocessableEntity, "name"
+	case errors.Is(err, domain.ErrWorkTypeInUse):
+		status = contractshttp.StatusConflict
+	case errors.Is(err, app.ErrWorkTypeNotFound):
+		status = contractshttp.StatusNotFound
 	case errors.Is(err, domain.ErrInvalidCommentBody):
 		status, field = contractshttp.StatusUnprocessableEntity, "body"
 	case errors.Is(err, domain.ErrNestedSubtask):

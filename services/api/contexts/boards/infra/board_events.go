@@ -41,7 +41,7 @@ func boardEventOf(event any) (ev BoardEvent, ok bool) {
 		if e.ParentID != nil {
 			return updated(*e.ParentID, e.BoardID, e.ActorID, map[string]any{"subtask_id": e.TaskID})
 		}
-		return updated(e.TaskID, e.BoardID, e.ActorID, map[string]any{"title": e.Title, "description": e.Description})
+		return updated(e.TaskID, e.BoardID, e.ActorID, map[string]any{"title": e.Title, "description": e.Description, "work_type": e.WorkType})
 	case domain.TaskMoved:
 		return BoardEvent{Type: "task.moved", BoardID: e.BoardID, ActorID: e.ActorID,
 			Data: map[string]any{"task_id": e.TaskID, "from": e.From, "to": e.To, "position": e.Position}}, true

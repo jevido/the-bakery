@@ -31,6 +31,7 @@ type taskOut struct {
 	Title         string  `json:"title"`
 	Description   string  `json:"description"`
 	ColumnID      uint64  `json:"column_id,omitempty" jsonschema:"the column it stands in (see get_board); a subtask has none"`
+	WorkType      string  `json:"work_type,omitempty" jsonschema:"the kind of work it needs, a key from list_work_types"`
 	Done          *bool   `json:"done,omitempty" jsonschema:"set on a subtask: whether it is ticked off"`
 	SubtasksTotal *int    `json:"subtasks_total,omitempty" jsonschema:"how many subtasks this task has"`
 	SubtasksDone  *int    `json:"subtasks_done,omitempty" jsonschema:"how many of them are done"`
@@ -43,7 +44,7 @@ type columnOut struct {
 }
 
 func taskOutOf(t boards.Task) taskOut {
-	out := taskOut{ID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID, Title: t.Title, Description: t.Description, ColumnID: t.ColumnID}
+	out := taskOut{ID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID, Title: t.Title, Description: t.Description, ColumnID: t.ColumnID, WorkType: t.WorkType}
 	if t.ParentID != nil {
 		out.Done = &t.Done
 	} else {
@@ -70,6 +71,19 @@ type commentOut struct {
 
 func commentOutOf(c boards.Comment) commentOut {
 	return commentOut{ID: c.ID, AuthorName: c.AuthorName, Body: c.Body, CreatedAt: c.CreatedAt, EditedAt: c.EditedAt}
+}
+
+type listWorkTypesIn struct {
+	GuildID uint64 `json:"guild_id" jsonschema:"a guild id from list_guilds"`
+}
+
+type workTypeOut struct {
+	Key  string `json:"key" jsonschema:"use this in create_task and update_task"`
+	Name string `json:"name"`
+}
+
+type listWorkTypesOut struct {
+	WorkTypes []workTypeOut `json:"work_types" jsonschema:"in the guild's order"`
 }
 
 type getTaskIn struct {
@@ -184,6 +198,28 @@ func addReadTools(s *sdk.Server) {
 				col.Tasks = append(col.Tasks, taskOutOf(t))
 			}
 			out.Columns = append(out.Columns, col)
+		}
+		return nil, out, nil
+	})
+
+	sdk.AddTool(s, &sdk.Tool{
+		Name:        "list_work_types",
+		Title:       "List work types",
+		Description: "Lists the kinds of work a guild's tasks can need (Coding, Research, ...): key and name. A task's work_type is one of these keys.",
+		Annotations: readOnly,
+	}, func(ctx context.Context, _ *sdk.CallToolRequest, in listWorkTypesIn) (*sdk.CallToolResult, listWorkTypesOut, error) {
+		me, err := memberID(ctx)
+		if err != nil {
+			return nil, listWorkTypesOut{}, err
+		}
+		wts, err := boards.ListWorkTypes(ctx, in.GuildID, me)
+		if err != nil {
+			r, _ := failed(err)
+			return r, listWorkTypesOut{}, nil
+		}
+		out := listWorkTypesOut{WorkTypes: []workTypeOut{}}
+		for _, wt := range wts {
+			out.WorkTypes = append(out.WorkTypes, workTypeOut{Key: wt.Key, Name: wt.Name})
 		}
 		return nil, out, nil
 	})

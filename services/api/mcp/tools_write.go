@@ -23,6 +23,7 @@ type createTaskIn struct {
 	Description string `json:"description,omitempty"`
 	ColumnID    uint64 `json:"column_id,omitempty" jsonschema:"a column id from get_board; the task goes to the bottom"`
 	Column      string `json:"column,omitempty" jsonschema:"or a column name, e.g. To do; without either the task goes to the board's first column"`
+	WorkType    string `json:"work_type,omitempty" jsonschema:"a work type key from list_work_types, e.g. coding"`
 }
 
 type taskResult struct {
@@ -33,6 +34,7 @@ type updateTaskIn struct {
 	TaskID      uint64  `json:"task_id" jsonschema:"a task id from get_board"`
 	Title       *string `json:"title,omitempty" jsonschema:"new title; leave out to keep it"`
 	Description *string `json:"description,omitempty" jsonschema:"new description; leave out to keep it"`
+	WorkType    *string `json:"work_type,omitempty" jsonschema:"a work type key from list_work_types; empty string clears it; leave out to keep it"`
 }
 
 type moveTaskIn struct {
@@ -105,7 +107,7 @@ func addWriteTools(s *sdk.Server) {
 		if err != nil {
 			return nil, taskResult{}, err
 		}
-		t, err := boards.CreateTask(ctx, in.BoardID, me, in.Title, in.Description, boards.ColumnRef{ID: in.ColumnID, Name: in.Column})
+		t, err := boards.CreateTask(ctx, in.BoardID, me, in.Title, in.Description, in.WorkType, boards.ColumnRef{ID: in.ColumnID, Name: in.Column})
 		if err != nil {
 			r, _ := failed(err)
 			return r, taskResult{}, nil
@@ -116,14 +118,14 @@ func addWriteTools(s *sdk.Server) {
 	sdk.AddTool(s, &sdk.Tool{
 		Name:        "update_task",
 		Title:       "Update a task",
-		Description: "Changes a task's title and/or description. Leave a field out to keep it. Returns the task.",
+		Description: "Changes a task's title, description and/or work type. Leave a field out to keep it. Returns the task.",
 		Annotations: &sdk.ToolAnnotations{DestructiveHint: ptr(false), IdempotentHint: true, OpenWorldHint: ptr(false)},
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in updateTaskIn) (*sdk.CallToolResult, taskResult, error) {
 		me, err := memberID(ctx)
 		if err != nil {
 			return nil, taskResult{}, err
 		}
-		t, err := boards.UpdateTask(ctx, in.TaskID, me, in.Title, in.Description, nil)
+		t, err := boards.UpdateTask(ctx, in.TaskID, me, boards.TaskChanges{Title: in.Title, Description: in.Description, WorkType: in.WorkType})
 		if err != nil {
 			r, _ := failed(err)
 			return r, taskResult{}, nil
@@ -181,7 +183,7 @@ func addWriteTools(s *sdk.Server) {
 		if err != nil {
 			return nil, taskResult{}, err
 		}
-		t, err := boards.UpdateTask(ctx, in.TaskID, me, nil, nil, &in.Done)
+		t, err := boards.UpdateTask(ctx, in.TaskID, me, boards.TaskChanges{Done: &in.Done})
 		if err != nil {
 			r, _ := failed(err)
 			return r, taskResult{}, nil

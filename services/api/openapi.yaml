@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: The Bakery API
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     The JSON API behind The Bakery: members, guilds, invites, boards and
     tasks. The desktop app (bearer token) and the website (session cookie)
@@ -821,6 +821,100 @@ paths:
         "403": { $ref: "#/components/responses/NotMember" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /api/guilds/{guild}/work-types:
+    get:
+      tags: [Boards]
+      summary: List a guild's work types
+      description: >-
+        In the guild's order. A guild starts with coding, research, writing,
+        testing, design, review and ops.
+      parameters:
+        - $ref: "#/components/parameters/Guild"
+      responses:
+        "200":
+          description: The work types.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [work_types]
+                properties:
+                  work_types:
+                    type: array
+                    items: { $ref: "#/components/schemas/WorkType" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+    post:
+      tags: [Boards]
+      summary: Add a work type
+      description: At the end of the guild's list.
+      parameters:
+        - $ref: "#/components/parameters/Guild"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WorkType" }
+            example: { key: lore, name: Lore }
+      responses:
+        "201":
+          description: Added.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkTypeResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "409": { $ref: "#/components/responses/Archived" }
+        "422": { $ref: "#/components/responses/Invalid" }
+
+  /api/guilds/{guild}/work-types/{key}:
+    patch:
+      tags: [Boards]
+      summary: Rename or move a work type
+      parameters:
+        - $ref: "#/components/parameters/Guild"
+        - { name: key, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 1, maxLength: 40 }
+                position: { type: integer, minimum: 0, description: "Its new place in the list, from 0." }
+            example: { name: Old lore, position: 0 }
+      responses:
+        "200":
+          description: Changed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkTypeResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Archived" }
+        "422": { $ref: "#/components/responses/Invalid" }
+    delete:
+      tags: [Boards]
+      summary: Delete a work type
+      description: Only while no task has it (409 otherwise).
+      parameters:
+        - $ref: "#/components/parameters/Guild"
+        - { name: key, in: path, required: true, schema: { type: string } }
+      responses:
+        "204":
+          description: Deleted.
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Tasks still have this work type, or the guild is archived.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /api/boards/{board}/columns:
     post:
       tags: [Boards]
@@ -993,7 +1087,8 @@ paths:
               properties:
                 title: { type: string, minLength: 1, maxLength: 200, description: "Trimmed." }
                 description: { type: string }
-            example: { title: Build a research bench }
+                work_type: { type: string, description: "A key of the guild's work types (optional)." }
+            example: { title: Build a research bench, work_type: coding }
       responses:
         "201":
           description: Added.
@@ -1050,6 +1145,7 @@ paths:
               properties:
                 title: { type: string, minLength: 1, maxLength: 200 }
                 description: { type: string }
+                work_type: { type: string, description: "A key of the guild's work types; an empty string clears it." }
                 done: { type: boolean, description: "Subtasks only." }
             example: { title: Build a research bench near the base }
       responses:
@@ -1555,6 +1651,17 @@ components:
           description: >-
             For desktop releases up to 0.1.3: `backlog`, `todo`, `doing` or
             `done` for a column with a default name, else the name.
+    WorkType:
+      type: object
+      required: [key, name]
+      properties:
+        key: { type: string, pattern: "^[a-z][a-z0-9-]{0,31}$", description: "Unique in the guild; how tasks and agents name it." }
+        name: { type: string, minLength: 1, maxLength: 40 }
+    WorkTypeResponse:
+      type: object
+      required: [work_type]
+      properties:
+        work_type: { $ref: "#/components/schemas/WorkType" }
     ColumnResponse:
       type: object
       required: [column]
@@ -1581,6 +1688,9 @@ components:
           description: The column the task stands in; null for a subtask.
         position: { type: string, description: "A sortable key; clients only need the order." }
         done: { type: boolean, description: "Whether a subtask is ticked off; always false for a task on the board." }
+        work_type:
+          type: [string, "null"]
+          description: The key of one of the guild's work types, or null.
         subtasks_total: { type: integer, description: "On a board's tasks and in GET /api/tasks/{task}: how many subtasks it has." }
         subtasks_done: { type: integer, description: "How many of those are done." }
     TaskResponse:

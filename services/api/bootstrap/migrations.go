@@ -21,5 +21,6 @@ func Migrations() []schema.Migration {
 		&migrations.M20260927000010CreateTaskActivityTable{},
 		&migrations.M20260927000011CreateBoardColumnsTable{},
 		&migrations.M20260927000012CreateBoardPresenceTable{},
+		&migrations.M20260927000013CreateWorkTypesTable{},
 	}
 }

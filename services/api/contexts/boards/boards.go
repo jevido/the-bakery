@@ -26,7 +26,7 @@ func (memberNames) DisplayNames(ctx context.Context, ids []uint64) (map[uint64]s
 }
 
 var service = app.NewService(
-	guilds.NewMemberships(), infra.Boards{}, infra.Tasks{}, infra.Comments{}, infra.ActivityLog{}, infra.PresenceLog{}, memberNames{},
+	guilds.NewMemberships(), infra.Boards{}, infra.Tasks{}, infra.Comments{}, infra.ActivityLog{}, infra.PresenceLog{}, infra.WorkTypes{}, memberNames{},
 	app.NewDispatcher(infra.LogEvents{}.Handle, infra.ActivityProjector{}.Handle, infra.BoardEventPublisher{}.Handle),
 )
 
@@ -42,6 +42,10 @@ func Routes(r route.Router) {
 		r.Post("/api/guilds/{guild}/boards", c.CreateBoard)
 		r.Get("/api/boards/{board}", c.GetBoard)
 		r.Post("/api/boards/{board}/columns", c.AddColumn)
+		r.Get("/api/guilds/{guild}/work-types", c.ListWorkTypes)
+		r.Post("/api/guilds/{guild}/work-types", c.AddWorkType)
+		r.Patch("/api/guilds/{guild}/work-types/{key}", c.UpdateWorkType)
+		r.Delete("/api/guilds/{guild}/work-types/{key}", c.DeleteWorkType)
 		r.Patch("/api/columns/{column}", c.RenameColumn)
 		r.Post("/api/columns/{column}/move", c.MoveColumn)
 		r.Delete("/api/columns/{column}", c.DeleteColumn)
@@ -84,8 +88,9 @@ func CloseStreams() { hub.Close() }
 
 // SeedTask is a task for SeedBoard.
 type SeedTask struct {
-	Title  string
-	Column string
+	Title    string
+	Column   string
+	WorkType string
 }
 
 // SeedBoard makes sure the guild has a board with this name; a new board
@@ -100,7 +105,7 @@ func SeedBoard(ctx context.Context, guildID, memberID uint64, name string, tasks
 		return err
 	}
 	for _, st := range tasks {
-		t, err := service.CreateTask(ctx, b.ID, memberID, st.Title, "")
+		t, err := service.CreateTask(ctx, b.ID, memberID, st.Title, "", st.WorkType)
 		if err != nil {
 			return err
 		}
@@ -130,6 +135,7 @@ type Task struct {
 	ColumnID      uint64
 	Title         string
 	Description   string
+	WorkType      string
 	Done          bool
 	SubtasksTotal int
 	SubtasksDone  int
@@ -162,7 +168,7 @@ type BoardView struct {
 func boardOf(b domain.Board) Board { return Board{ID: b.ID, GuildID: b.GuildID, Name: b.Name} }
 
 func taskOf(t domain.Task) Task {
-	return Task{ID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID, ColumnID: t.ColumnID, Title: t.Title, Description: t.Description, Done: t.Done}
+	return Task{ID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID, ColumnID: t.ColumnID, Title: t.Title, Description: t.Description, WorkType: t.WorkType, Done: t.Done}
 }
 
 func tasksOf(ts []domain.Task) []Task {
@@ -214,14 +220,14 @@ func CreateBoard(ctx context.Context, guildID, memberID uint64, name string) (Bo
 
 // CreateTask adds a task at the bottom of a column (the board's first when
 // column is not given).
-func CreateTask(ctx context.Context, boardID, memberID uint64, title, description string, column ColumnRef) (Task, error) {
+func CreateTask(ctx context.Context, boardID, memberID uint64, title, description, workType string, column ColumnRef) (Task, error) {
 	if column.Given() {
 		// Refuse a bad column before anything is created.
 		if _, err := service.ResolveColumn(ctx, boardID, memberID, column.app()); err != nil {
 			return Task{}, err
 		}
 	}
-	t, err := service.CreateTask(ctx, boardID, memberID, title, description)
+	t, err := service.CreateTask(ctx, boardID, memberID, title, description, workType)
 	if err != nil {
 		return Task{}, err
 	}
@@ -255,11 +261,39 @@ func ExpandTask(ctx context.Context, taskID, memberID uint64, titles []string) (
 	return tasksOf(added), err
 }
 
-// UpdateTask changes a task's title and/or description, and ticks a subtask
-// off or on (nil keeps a field).
-func UpdateTask(ctx context.Context, taskID, memberID uint64, title, description *string, done *bool) (Task, error) {
-	t, err := service.UpdateTask(ctx, taskID, memberID, title, description, done)
+// TaskChanges are the fields UpdateTask changes; nil leaves one as it is,
+// and an empty WorkType clears it.
+type TaskChanges struct {
+	Title       *string
+	Description *string
+	WorkType    *string
+	Done        *bool
+}
+
+// UpdateTask changes a task's title, description or work type, and ticks a
+// subtask off or on.
+func UpdateTask(ctx context.Context, taskID, memberID uint64, c TaskChanges) (Task, error) {
+	t, err := service.UpdateTask(ctx, taskID, memberID, app.TaskChanges(c))
 	return taskOf(t), err
+}
+
+// WorkType is one of a guild's work types.
+type WorkType struct {
+	Key  string
+	Name string
+}
+
+// ListWorkTypes returns the guild's work types in order.
+func ListWorkTypes(ctx context.Context, guildID, memberID uint64) ([]WorkType, error) {
+	wts, err := service.ListWorkTypes(ctx, guildID, memberID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]WorkType, len(wts))
+	for i, wt := range wts {
+		out[i] = WorkType{Key: wt.Key, Name: wt.Name}
+	}
+	return out, nil
 }
 
 // MoveTask puts a task in column right after afterID and/or right before
