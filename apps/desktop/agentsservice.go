@@ -222,6 +222,7 @@ type AgentSummary struct {
 	Name  string `json:"name"`
 	Title string `json:"title"`
 	Seed  string `json:"portrait_seed"`
+	Model string `json:"model"`
 	// WorkPriorities maps a work type key to 1 (first) … 4 (last).
 	WorkPriorities map[string]int   `json:"work_priorities"`
 	Skills         []api.AgentSkill `json:"skills"`
@@ -256,7 +257,7 @@ func (s *AgentsService) List() ([]AgentSummary, error) {
 		if priorities == nil {
 			priorities = map[string]int{}
 		}
-		sum := AgentSummary{Slug: f.Slug, Name: f.Manifest.Name, Title: f.Manifest.Title, Seed: f.Manifest.PortraitSeed,
+		sum := AgentSummary{Slug: f.Slug, Name: f.Manifest.Name, Title: f.Manifest.Title, Seed: f.Manifest.PortraitSeed, Model: f.Manifest.Model,
 			WorkPriorities: priorities, Skills: []api.AgentSkill{},
 			Conflict: inConflict[f.Slug], Synced: f.Sync != nil && !f.Changed()}
 		for path, content := range f.Files {

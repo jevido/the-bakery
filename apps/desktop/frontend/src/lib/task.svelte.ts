@@ -2,7 +2,7 @@
 // only through TaskService. After every change it tells the board, so a
 // card's subtask badge and title follow.
 
-import { TaskService, isSignedOut, messageOf, type Activity, type Comment, type Task } from './bindings'
+import { TaskService, isSignedOut, messageOf, type Activity, type Comment, type Run, type Task } from './bindings'
 
 const ACTIVITY_PAGE = 50
 
@@ -12,6 +12,8 @@ export class OpenTask {
   subtasks = $state<Task[]>([])
   comments = $state.raw<Comment[]>([])
   activity = $state.raw<Activity[]>([])
+  // Runs of agents on the task, by every member, newest first.
+  runs = $state.raw<Run[]>([])
   // Whether older activity is left to load.
   moreActivity = $state(false)
   error = $state('')
@@ -40,16 +42,18 @@ export class OpenTask {
 
   async open(id: number) {
     const n = ++this.#loading
-    const [detail, comments, activity] = await Promise.all([
+    const [detail, comments, activity, runs] = await Promise.all([
       this.#run(() => TaskService.GetTask(id)),
       this.#run(() => TaskService.ListComments(id)),
       this.#run(() => TaskService.ListActivity(id, 0, ACTIVITY_PAGE)),
+      this.#run(() => TaskService.ListRuns(id)),
     ])
     if (n !== this.#loading || !detail) return
     this.task = detail.task
     this.subtasks = detail.subtasks ?? []
     this.comments = comments ?? []
     this.activity = activity ?? []
+    this.runs = runs ?? []
     this.moreActivity = this.activity.length === ACTIVITY_PAGE
   }
 
@@ -91,6 +95,7 @@ export class OpenTask {
     this.subtasks = []
     this.comments = []
     this.activity = []
+    this.runs = []
     this.moreActivity = false
     this.error = ''
   }

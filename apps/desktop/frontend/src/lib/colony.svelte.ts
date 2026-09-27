@@ -5,6 +5,7 @@
 import { Events } from '@wailsio/runtime'
 import { BoardsService, LiveService, WorkshopService, isSignedOut, messageOf, type Board, type BoardSettings, type BoardView, type Guild, type Task, type WorkType } from './bindings'
 import { OpenTask } from './task.svelte'
+import { Workshop } from './workshop.svelte'
 
 export type ColumnState = { id: number; name: string; tasks: Task[] }
 
@@ -73,6 +74,10 @@ export class Colony {
   // whether its settings panel is open in place of the task panel.
   settings = $state.raw<BoardSettings | null>(null)
   settingsOpen = $state(false)
+  // This machine's runs, and which tasks have one going anywhere.
+  workshop = new Workshop()
+  // The run shown in the side panel in place of the task, by its id here.
+  openRunId = $state<string | null>(null)
   // Open streams on the board, by stream id: who has it open right now.
   #streams = $state<Record<string, { id: number; name: string }>>({})
   // One entry per member, however many windows they have open.
@@ -99,6 +104,7 @@ export class Colony {
   // is called (when the colony screen goes away).
   listen(): () => void {
     const offs = [
+      this.workshop.listen(),
       Events.On('board:event', (e) => this.apply(e.data as BoardEvent)),
       Events.On('board:status', (e) => {
         const s = e.data as { board_id: number; state: LiveState }
@@ -191,8 +197,8 @@ export class Colony {
       }
       case 'run.started':
       case 'run.finished':
-        // Nothing on the board itself changes; an open task panel reloaded
-        // above.
+        // The card's working mark follows; an open task panel reloaded above.
+        this.workshop.onRunEvent(ev.type, ev.data)
         return
       default:
         // task.created, task.updated, column.created, column.moved, and
@@ -203,6 +209,7 @@ export class Colony {
 
   openTask(id: number) {
     this.settingsOpen = false
+    this.openRunId = null
     this.openTaskId = id
     this.task.open(id)
   }
@@ -286,7 +293,17 @@ export class Colony {
     if (s && this.boardId === id) this.settings = s
   }
 
+  openRun(id: string) {
+    this.settingsOpen = false
+    this.openRunId = id
+  }
+
+  closeRun() {
+    this.openRunId = null
+  }
+
   openSettings() {
+    this.openRunId = null
     this.closeTask()
     this.settingsOpen = true
   }

@@ -8,6 +8,7 @@
     dragging = false,
     selected = false,
     workTypeName = '',
+    working = false,
     ondragstart,
     ondragend,
     onopen,
@@ -17,6 +18,8 @@
     dragging?: boolean
     selected?: boolean
     workTypeName?: string
+    // working marks a task an agent is on right now.
+    working?: boolean
     ondragstart: (event: DragEvent) => void
     ondragend: () => void
     onopen: () => void
@@ -45,6 +48,7 @@
   {:else}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <span class="title" ondblclick={onopen} title="Double-click to open">{task.title}</span>
+    {#if working}<span class="working" title="An agent is working on this">Working</span>{/if}
     {#if task.work_type}
       <span class="wt" style={workTypeStyle(task.work_type)} title="Work type">{workTypeName || task.work_type}</span>
     {/if}
@@ -89,6 +93,28 @@
     background: var(--wt-bg);
     border: 1px solid var(--wt-border);
     border-radius: var(--radius);
+  }
+
+  .working {
+    padding: 0 5px;
+    font-size: 11px;
+    line-height: 16px;
+    color: var(--olive-bright);
+    border: 1px solid var(--olive);
+    border-radius: var(--radius);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .working {
+      animation: none;
+    }
   }
 
   .badge {

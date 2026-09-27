@@ -12,6 +12,7 @@ export type {
   Comment,
   Activity,
   WorkType,
+  Run,
 } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/internal/api/models'
 
 // Go errors reach the frontend as rejected promises; this pulls out the
@@ -29,7 +30,7 @@ export function isSignedOut(err: unknown): boolean {
   return messageOf(err).toLowerCase().startsWith('signed out')
 }
 
-export type { AgentDetail, AgentSummary, SkillEntry, TraitList, BoardSettings, ConfigProblem } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/models'
-export type { BoardConfig } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/internal/workshop/models'
+export type { AgentDetail, AgentSummary, SkillEntry, TraitList, BoardSettings, ConfigProblem, RunInfo } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/models'
+export type { BoardConfig, RunEvent } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/internal/workshop/models'
 export type { Manifest } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/internal/agents/models'
 export type { Agent, Trait } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/internal/api/models'

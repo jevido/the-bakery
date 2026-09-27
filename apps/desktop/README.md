@@ -111,6 +111,14 @@ directory and logs a warning.
   and the work type editor (add, rename, drag to reorder, delete). Task cards
   show their work type as a chip (`lib/worktype.ts` picks its colour); the
   task panel sets it.
+- `frontend/src/components/AgentPicker.svelte` and `RunPanel.svelte` — the
+  task panel's **Assign** (off until the board is linked on this machine)
+  lists the member's agents by their work priority for the task's work
+  type; the run panel, in the task panel's place, streams what the agent
+  says and does (`run:<id>`), with Stop. The task panel's **Runs** tab lists
+  every member's runs of the task; a card shows **Working** while a run is
+  going (`lib/workshop.svelte.ts`, from `workshop:runs` and the board's
+  `run.started` / `run.finished` events).
 - `frontend/src/components/ColumnHeader.svelte` — a column's title bar: drag
   handle, name (double-click to rename), task count, and a menu whose Delete is
   off for a column with tasks or the last one.

@@ -12,6 +12,9 @@ type RunEvent struct {
 	// Kind is "init", "text", "tool_call", "tool_result", "result", or
 	// "note" (something the workshop itself says: a missing skill, an exit).
 	Kind string `json:"kind"`
+	// Seq numbers a run's events from 1, so a panel that loads the past and
+	// listens for the new can drop the ones it has twice.
+	Seq int `json:"seq"`
 
 	// init
 	Model          string      `json:"model,omitempty"`

@@ -80,3 +80,10 @@ func (s *TaskService) ListActivity(ctx context.Context, taskID, before uint64, l
 func (s *TaskService) SetWorkType(ctx context.Context, taskID uint64, key string) (api.Task, error) {
 	return call(s.session, func(t string) (api.Task, error) { return s.client.SetTaskWorkType(ctx, t, taskID, key) })
 }
+
+// ListRuns returns the task's runs by every member, newest first.
+func (s *TaskService) ListRuns(ctx context.Context, taskID uint64) ([]api.Run, error) {
+	return call(s.session, func(t string) ([]api.Run, error) {
+		return s.client.ListRuns(ctx, t, taskID)
+	})
+}

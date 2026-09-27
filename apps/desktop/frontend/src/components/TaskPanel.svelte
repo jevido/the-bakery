@@ -3,7 +3,9 @@
   import type { OpenTask } from '../lib/task.svelte'
   import { renderMarkdown, openLinksOutside } from '../lib/markdown'
   import { activityLine, timeAgo, fullTime } from '../lib/activity'
-  import type { WorkType } from '../lib/bindings'
+  import type { RunInfo, WorkType } from '../lib/bindings'
+  import type { Workshop } from '../lib/workshop.svelte'
+  import AgentPicker from './AgentPicker.svelte'
 
   // me is the signed-in member's id: only their own comments can be changed.
   // column is the name of the task's column, for the title bar.
@@ -12,13 +14,48 @@
     me,
     column,
     workTypes = [],
+    workshop,
+    linked,
+    onassign,
+    onopenrun,
     onclose,
-  }: { open: OpenTask; me: number; column: string; workTypes?: WorkType[]; onclose: () => void } = $props()
+  }: {
+    open: OpenTask
+    me: number
+    column: string
+    workTypes?: WorkType[]
+    workshop: Workshop
+    // linked says whether this machine can run agents on the board.
+    linked: boolean
+    onassign: (agentSlug: string) => Promise<string>
+    onopenrun: (run: RunInfo) => void
+    onclose: () => void
+  } = $props()
 
   const TABS = [
     { id: 'comments', label: 'Comments' },
     { id: 'activity', label: 'Activity' },
+    { id: 'runs', label: 'Runs' },
   ]
+
+  let picking = $state(false)
+  let assigning = $state(false)
+  let assignError = $state('')
+
+  async function assign(slug: string) {
+    assigning = true
+    assignError = await onassign(slug)
+    assigning = false
+    if (!assignError) picking = false
+  }
+
+  const RUN_STATUS: Record<string, string> = {
+    running: 'Working',
+    succeeded: 'Done',
+    failed: 'Failed',
+    stopped: 'Stopped',
+    lost: 'Lost',
+  }
   let tab = $state('comments')
 
   let newComment = $state('')
@@ -222,6 +259,32 @@
       </div>
 
       {#if !task.parent_id}
+        {@const localRun = workshop.runs.find((r) => r.task_id === task.id && r.status === 'running')}
+        <div class="assign">
+          {#if localRun}
+            <Button onclick={() => onopenrun(localRun)}>{localRun.agent_name} is working · Watch</Button>
+          {:else}
+            <Button
+              variant="confirm"
+              disabled={!linked}
+              title={linked ? 'Put one of your agents to work on this task' : 'Link this board to a repository in Board settings first'}
+              onclick={() => {
+                assignError = ''
+                picking = !picking
+              }}>Assign</Button
+            >
+          {/if}
+        </div>
+        {#if picking}
+          <AgentPicker
+            workType={task.work_type ?? null}
+            workTypeName={workTypes.find((w) => w.key === task.work_type)?.name ?? ''}
+            busy={assigning}
+            error={assignError}
+            onpick={assign}
+            oncancel={() => (picking = false)}
+          />
+        {/if}
         <label class="work-type">
           <span>Work type</span>
           <select value={task.work_type ?? ''} onchange={(e) => open.setWorkType((e.currentTarget as HTMLSelectElement).value)}>
@@ -349,6 +412,28 @@
               ></textarea>
               <Button variant="confirm" onclick={sendComment} disabled={sending || !newComment.trim()}>Comment</Button>
             </div>
+          {:else if active === 'runs'}
+            {#if open.runs.length === 0}
+              <p class="dim">No agent has worked on this yet.</p>
+            {/if}
+            <ul class="runs">
+              {#each open.runs as r (r.id)}
+                {@const mine = workshop.local(r.id)}
+                <li>
+                  <div class="run-head">
+                    <strong>{r.agent_name}</strong>
+                    <span class={['run-status', r.status]}>{RUN_STATUS[r.status] ?? r.status}</span>
+                    <span class="dim when" title={fullTime(r.started_at)}>{timeAgo(r.started_at, now)}</span>
+                  </div>
+                  <span class="dim small">
+                    by {r.member_name} · ${r.cost_usd.toFixed(2)}{#if r.files_changed} · +{r.additions} −{r.deletions} in {r.files_changed} files{/if}
+                    · <code>{r.branch}</code>
+                  </span>
+                  {#if r.summary}<p class="run-summary">{r.summary}</p>{/if}
+                  {#if mine}<button class="link" onclick={() => onopenrun(mine)}>Open run</button>{/if}
+                </li>
+              {/each}
+            </ul>
           {:else}
             {#if open.activity.length === 0}
               <p class="dim">Nothing has happened yet.</p>
@@ -543,6 +628,72 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+  }
+
+  .assign {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .runs {
+    list-style: none;
+    margin: 0 0 8px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .runs li {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    align-items: flex-start;
+  }
+
+  .run-head {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    width: 100%;
+  }
+
+  .run-head .when {
+    margin-left: auto;
+  }
+
+  .run-status {
+    padding: 0 6px;
+    font-size: 11px;
+    color: var(--text-dim);
+    border: 1px solid var(--frame-dim);
+    border-radius: var(--radius);
+  }
+
+  .run-status.running {
+    color: var(--olive-bright);
+    border-color: var(--olive);
+  }
+
+  .run-status.failed,
+  .run-status.lost {
+    color: var(--rust-bright);
+    border-color: var(--rust);
+  }
+
+  .run-summary {
+    margin: 2px 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .runs code {
+    font-size: 11px;
+  }
+
+  .small {
+    font-size: 12px;
   }
 
   .comment {

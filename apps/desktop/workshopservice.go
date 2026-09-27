@@ -302,6 +302,7 @@ type localRun struct {
 	mu     sync.Mutex
 	info   RunInfo
 	skills []string
+	seq    int
 	events []workshop.RunEvent
 	proc   *workshop.Process
 }
@@ -403,8 +404,11 @@ func (s *WorkshopService) record(run *localRun, ev workshop.RunEvent) {
 	case "result":
 		run.info.CostUSD, run.info.Turns, run.info.DurationMS = ev.CostUSD, ev.Turns, ev.DurationMS
 	}
-	for _, e := range append([]workshop.RunEvent{ev}, notes...) {
-		run.events = append(run.events, e)
+	all := append([]workshop.RunEvent{ev}, notes...)
+	for i := range all {
+		run.seq++
+		all[i].Seq = run.seq
+		run.events = append(run.events, all[i])
 		if len(run.events) > keptRunEvents {
 			run.events = run.events[len(run.events)-keptRunEvents:]
 		}
@@ -412,9 +416,8 @@ func (s *WorkshopService) record(run *localRun, ev workshop.RunEvent) {
 	id := run.info.ID
 	run.mu.Unlock()
 	if s.app != nil {
-		s.app.Event.Emit(eventRunPrefix+id, ev)
-		for _, n := range notes {
-			s.app.Event.Emit(eventRunPrefix+id, n)
+		for _, e := range all {
+			s.app.Event.Emit(eventRunPrefix+id, e)
 		}
 	}
 }

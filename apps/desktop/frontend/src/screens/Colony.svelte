@@ -6,6 +6,7 @@
   import AgentsScreen from '../components/AgentsScreen.svelte'
   import WorkTab from '../components/WorkTab.svelte'
   import BoardSettings from '../components/BoardSettings.svelte'
+  import RunPanel from '../components/RunPanel.svelte'
   import { AgentSync } from '../lib/agentsync.svelte'
   import { Colony } from '../lib/colony.svelte'
   import { WebsiteService, messageOf, type Member } from '../lib/bindings'
@@ -49,6 +50,15 @@
     } catch (err) {
       colony.error = messageOf(err)
     }
+  }
+
+  // Puts an agent to work on the open task; says why not, or "".
+  async function assign(agentSlug: string): Promise<string> {
+    if (colony.boardId === null || colony.openTaskId === null) return 'Open a task first.'
+    const { run, error } = await colony.workshop.start(colony.boardId, colony.openTaskId, agentSlug)
+    if (error || !run) return error ?? 'The run did not start.'
+    colony.openRun(run.id)
+    return ''
   }
 
   async function addBoard(event: SubmitEvent) {
@@ -140,12 +150,32 @@
     {:else if view === 'work'}
       <WorkTab {colony} sync={agentSync} />
     {:else if colony.view}
-      <div class={['work', { 'with-panel': colony.openTaskId !== null || colony.settingsOpen }]}>
+      {@const openRun = colony.openRunId ? colony.workshop.byId(colony.openRunId) : undefined}
+      <div class={['work', { 'with-panel': colony.openTaskId !== null || colony.settingsOpen || openRun }]}>
         <BoardView {colony} />
         {#if colony.settingsOpen}
           <BoardSettings {colony} onclose={() => (colony.settingsOpen = false)} />
+        {:else if openRun}
+          <RunPanel
+            run={openRun}
+            onback={() => colony.openTask(openRun.task_id)}
+            onclose={() => {
+              colony.closeRun()
+              colony.closeTask()
+            }}
+          />
         {:else if colony.openTaskId !== null}
-          <TaskPanel open={colony.task} me={member.id} column={openColumn} workTypes={colony.workTypes} onclose={() => colony.closeTask()} />
+          <TaskPanel
+            open={colony.task}
+            me={member.id}
+            column={openColumn}
+            workTypes={colony.workTypes}
+            workshop={colony.workshop}
+            linked={!!colony.settings?.linked}
+            onassign={assign}
+            onopenrun={(r) => colony.openRun(r.id)}
+            onclose={() => colony.closeTask()}
+          />
         {/if}
       </div>
     {:else if colony.guild}
