@@ -1,6 +1,7 @@
 <script lang="ts">
   import Login from './screens/Login.svelte'
   import Colony from './screens/Colony.svelte'
+  import UpdatePanel from './components/UpdatePanel.svelte'
   import { SessionService, messageOf, type Member } from './lib/bindings'
 
   // undefined while the saved session is being checked.
@@ -36,6 +37,8 @@
 {/if}
 
 {#if error}<p class="error">{error}</p>{/if}
+
+<UpdatePanel />
 
 <style>
   .loading {

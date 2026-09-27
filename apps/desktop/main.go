@@ -33,6 +33,8 @@ func main() {
 	client := api.New(cmp.Or(os.Getenv("BAKERY_API_URL"), defaultAPIURL))
 	sess := session.New(client, session.NewStore(client.BaseURL(), logger))
 
+	updates := &UpdateService{logger: logger, version: version}
+
 	app := application.New(application.Options{
 		Name:        "The Bakery",
 		Description: "A desktop workbench where guilds plan and run their work",
@@ -40,6 +42,7 @@ func main() {
 		Services: []application.Service{
 			application.NewService(NewSessionService(sess, logger)),
 			application.NewService(NewBoardsService(client, sess)),
+			application.NewService(updates),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -48,6 +51,8 @@ func main() {
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
 	})
+
+	updates.app = app
 
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:     "The Bakery",

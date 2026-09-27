@@ -30,6 +30,8 @@ directory and logs a warning.
 - `main.go` — the application, its services and its window.
 - `sessionservice.go` — `SessionService`, the Wails service the frontend signs
   in and out with (`Register`, `Login`, `Logout`, `Me`).
+- `updateservice.go` — `UpdateService`: self-update from GitHub releases (see
+  below).
 - `boardsservice.go` — `BoardsService`: guilds, boards and tasks, each call
   made with the member's token. A refused token ends the session.
 - `internal/api/` — typed client for the API. `internal/session/` — the
@@ -74,3 +76,19 @@ Update files are signed with an Ed25519 key. The private key is the
 repo); the public key is `build/updater.pub`, which the app checks updates
 against. A local package: `task desktop:package` (Linux: AppImage, deb, rpm,
 Arch package in `bin/`).
+
+## Self-update
+
+Release builds check
+`https://github.com/jevido/the-bakery/releases/latest/download/manifest.json`
+five seconds after start and then every 6 hours. The Wails updater downloads
+the file for this platform and verifies its digest and Ed25519 signature
+against the embedded `build/updater.pub`; anything that does not verify is
+refused and nothing changes. The frontend's `UpdatePanel` listens to the
+updater's `wails:updater:*` events and offers "Install now" or "Later".
+
+On Linux the verified AppImage replaces the running `$APPIMAGE` file and the
+new version is started (the stock updater would try to write into the
+AppImage's read-only mount). On Windows and macOS the updater swaps the
+executable or `.app` and restarts. Dev builds (version `dev`) never update.
+`BAKERY_UPDATE_MANIFEST_URL` points a build at another manifest, for testing.

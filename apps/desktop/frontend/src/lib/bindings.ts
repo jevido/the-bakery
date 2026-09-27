@@ -1,6 +1,6 @@
 // One import point for the generated Wails bindings (`wails3 generate
 // bindings`, run by `task desktop:dev` and `task desktop:check`).
-export { SessionService, BoardsService } from '../../bindings/github.com/jevido/the-bakery/apps/desktop'
+export { SessionService, BoardsService, UpdateService } from '../../bindings/github.com/jevido/the-bakery/apps/desktop'
 export type {
   Member,
   Guild,

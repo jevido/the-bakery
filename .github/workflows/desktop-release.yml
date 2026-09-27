@@ -141,6 +141,15 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - name: Release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The same notes go on the release page and into the manifest, where
+          # the app shows them in its update panel.
+          gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" -f tag_name="$TAG" -q .body > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
+
       - name: Sign and write the update manifest
         env:
           BAKERY_UPDATE_KEY: ${{ secrets.BAKERY_UPDATE_KEY }}
@@ -153,6 +162,7 @@ jobs:
           wails3 updater manifest \
             -version "$VERSION" \
             -name "The Bakery $VERSION" \
+            -notes-file "$RUNNER_TEMP/notes.md" \
             -key "$RUNNER_TEMP/updater.key" \
             -url-prefix "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/" \
             -output manifest.json \
@@ -168,5 +178,5 @@ jobs:
           VERSION="${TAG#desktop-v}"
           gh release create "$TAG" dist/* \
             --title "The Bakery $VERSION" \
-            --generate-notes \
+            --notes-file "$RUNNER_TEMP/notes.md" \
             --latest
