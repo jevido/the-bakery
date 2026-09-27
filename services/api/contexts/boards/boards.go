@@ -26,7 +26,7 @@ func (memberNames) DisplayNames(ctx context.Context, ids []uint64) (map[uint64]s
 }
 
 var service = app.NewService(
-	guilds.NewMemberships(), infra.Boards{}, infra.Tasks{}, infra.Comments{}, infra.ActivityLog{}, memberNames{},
+	guilds.NewMemberships(), infra.Boards{}, infra.Tasks{}, infra.Comments{}, infra.ActivityLog{}, infra.PresenceLog{}, memberNames{},
 	app.NewDispatcher(infra.LogEvents{}.Handle, infra.ActivityProjector{}.Handle, infra.BoardEventPublisher{}.Handle),
 )
 

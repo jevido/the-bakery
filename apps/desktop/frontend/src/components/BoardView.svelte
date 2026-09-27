@@ -20,6 +20,13 @@
   }
   let newTitle = $state('')
 
+  // Portraits come later; for now initials.
+  const MAX_FACES = 5
+  function initials(name: string): string {
+    const parts = name.trim().split(/\s+/).filter(Boolean)
+    return ((parts[0]?.[0] ?? '?') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase()
+  }
+
   // Columns are dragged by their header, with their own data type so a
   // column never lands in a task list and a card never moves a column.
   const COLUMN_TYPE = 'application/x-bakery-column'
@@ -159,6 +166,24 @@
     {#if colony.live !== 'off'}
       <span class={['live', colony.live]} title="Changes by others show up here as they happen">{LIVE[colony.live]}</span>
     {/if}
+    {#if colony.present.length}
+      <ul class="faces" aria-label="Who has this board open">
+        {#each colony.present.slice(0, MAX_FACES) as m (m.id)}
+          <li class="face" title={m.name}>{initials(m.name)}</li>
+        {/each}
+        {#if colony.present.length > MAX_FACES}
+          <li
+            class="face more"
+            title={colony.present
+              .slice(MAX_FACES)
+              .map((m) => m.name)
+              .join(', ')}
+          >
+            +{colony.present.length - MAX_FACES}
+          </li>
+        {/if}
+      </ul>
+    {/if}
   </header>
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
@@ -254,6 +279,33 @@
     font-family: var(--font-display);
     font-size: 16px;
     font-weight: 600;
+  }
+
+  .faces {
+    display: flex;
+    gap: 3px;
+    margin: 0 0 0 auto;
+    padding: 0;
+    list-style: none;
+  }
+
+  .face {
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--panel-title);
+    border: 1px solid var(--frame);
+    border-radius: 50%;
+    cursor: default;
+  }
+
+  .face.more {
+    color: var(--text-dim);
+    background: var(--panel-inset);
   }
 
   .live {

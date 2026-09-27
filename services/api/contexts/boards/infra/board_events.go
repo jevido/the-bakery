@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jevido/the-bakery/services/api/app/facades"
+	"github.com/jevido/the-bakery/services/api/contexts/boards/app"
 	"github.com/jevido/the-bakery/services/api/contexts/boards/domain"
 )
 
@@ -71,6 +72,12 @@ func boardEventOf(event any) (ev BoardEvent, ok bool) {
 	case domain.ColumnMoved:
 		return BoardEvent{Type: "column.moved", BoardID: e.BoardID, ActorID: e.ActorID,
 			Data: map[string]any{"column_id": e.ColumnID, "position": e.Position}}, true
+	case app.PresenceChanged:
+		data := map[string]any{"state": e.State, "member_id": e.ActorID, "conn_id": e.ConnID}
+		if e.DisplayName != "" {
+			data["display_name"] = e.DisplayName
+		}
+		return BoardEvent{Type: "presence", BoardID: e.BoardID, ActorID: e.ActorID, Data: data}, true
 	case domain.ColumnDeleted:
 		return BoardEvent{Type: "column.deleted", BoardID: e.BoardID, ActorID: e.ActorID,
 			Data: map[string]any{"column_id": e.ColumnID}}, true

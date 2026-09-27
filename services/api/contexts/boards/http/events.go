@@ -1,6 +1,9 @@
 package http
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	nethttp "net/http"
@@ -19,6 +22,13 @@ type BoardEvents interface {
 }
 
 const pingEvery = 20 * time.Second
+
+// newConnID names one open stream, for presence.
+func newConnID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
 
 type EventsController struct {
 	service  *app.Service
@@ -42,6 +52,7 @@ func (c *EventsController) Stream(ctx contractshttp.Context) contractshttp.Respo
 	if err := c.service.WatchBoard(ctx.Context(), boardID, me); err != nil {
 		return failure(ctx, err)
 	}
+	connID := newConnID()
 	w := ctx.Response().Writer()
 	flusher, ok := w.(nethttp.Flusher)
 	if !ok {
@@ -49,6 +60,17 @@ func (c *EventsController) Stream(ctx contractshttp.Context) contractshttp.Respo
 	}
 	events, stop := c.events.Subscribe(boardID)
 	defer stop()
+	// The member is present while this stream is open. The request's context
+	// is gone by the time the deferred leave runs, so it gets its own.
+	present, err := c.service.EnterBoard(ctx.Context(), boardID, me, connID)
+	if err != nil {
+		return failure(ctx, err)
+	}
+	defer func() {
+		leaveCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = c.service.LeaveBoard(leaveCtx, boardID, me, connID)
+	}()
 
 	h := w.Header()
 	h.Set("Content-Type", "text/event-stream")
@@ -58,6 +80,16 @@ func (c *EventsController) Stream(ctx contractshttp.Context) contractshttp.Respo
 	w.WriteHeader(contractshttp.StatusOK)
 	// Ask clients to wait 3 s before reconnecting after a drop.
 	fmt.Fprint(w, "retry: 3000\n\n")
+	// Everyone here now, before any other event.
+	snapshot := make([]map[string]any, len(present))
+	for i, p := range present {
+		snapshot[i] = map[string]any{"conn_id": p.ConnID, "member_id": p.MemberID, "display_name": p.DisplayName}
+	}
+	b, _ := json.Marshal(map[string]any{
+		"type": "presence", "board_id": boardID, "at": time.Now().UTC(), "actor_id": me,
+		"data": map[string]any{"state": "snapshot", "conn_id": connID, "present": snapshot},
+	})
+	fmt.Fprintf(w, "event: presence\ndata: %s\n\n", b)
 	flusher.Flush()
 
 	ping := time.NewTicker(pingEvery)
@@ -69,6 +101,7 @@ func (c *EventsController) Stream(ctx contractshttp.Context) contractshttp.Respo
 			return nil
 		case <-ping.C:
 			fmt.Fprint(w, ": ping\n\n")
+			_ = c.service.StillOnBoard(ctx.Context(), connID)
 		case payload, open := <-events:
 			if !open {
 				// Dropped: the client reconnects and refetches.

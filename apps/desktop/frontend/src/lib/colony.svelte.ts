@@ -67,6 +67,14 @@ export class Colony {
   openTaskId = $state<number | null>(null)
   task: OpenTask
   live = $state<LiveState>('off')
+  // Open streams on the board, by stream id: who has it open right now.
+  #streams = $state<Record<string, { id: number; name: string }>>({})
+  // One entry per member, however many windows they have open.
+  present = $derived.by(() => {
+    const seen = new Map<number, { id: number; name: string }>()
+    for (const m of Object.values(this.#streams)) seen.set(m.id, m)
+    return [...seen.values()]
+  })
   #reloadTimer: ReturnType<typeof setTimeout> | undefined
 
   guild = $derived(this.guilds.find((g) => g.id === this.guildId) ?? null)
@@ -127,6 +135,21 @@ export class Colony {
       else this.task.reload()
     }
     switch (ev.type) {
+      case 'presence': {
+        const d = ev.data
+        if (d.state === 'snapshot') {
+          const streams: Record<string, { id: number; name: string }> = {}
+          for (const p of (d.present as { conn_id: string; member_id: number; display_name: string }[]) ?? []) {
+            streams[p.conn_id] = { id: p.member_id, name: p.display_name }
+          }
+          this.#streams = streams
+        } else if (d.state === 'joined') {
+          this.#streams[String(d.conn_id)] = { id: Number(d.member_id), name: String(d.display_name ?? '') }
+        } else if (d.state === 'left') {
+          delete this.#streams[String(d.conn_id)]
+        }
+        return
+      }
       case 'task.moved': {
         const target = view.columns.find((c) => c.id === Number(ev.data.to))
         const from = view.columns.find((c) => c.tasks.some((t) => t.id === taskId))
@@ -221,6 +244,7 @@ export class Colony {
     this.boardId = id
     remember(LAST_BOARD, id)
     this.live = 'connecting'
+    this.#streams = {}
     LiveService.Watch(id)
     await this.reloadBoard()
   }

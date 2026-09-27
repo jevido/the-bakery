@@ -79,7 +79,7 @@ only; a client that is unsure refetches the board.
 | `task.moved` | a task changed column or position |
 | `task.deleted` | a task was deleted |
 | `column.created` · `column.updated` · `column.moved` · `column.deleted` | a column was added, renamed, reordered or removed |
-| `presence` | someone opened or left the board, or the current list (`snapshot`) on connect |
+| `presence` | someone opened or left the board, or the current list (`snapshot`) on connect: `state` (`snapshot`, `joined`, `left`), `conn_id` (one open stream), `member_id`, `display_name`; a snapshot lists `present` streams. A member with two windows open has two streams and counts once. |
 
 Changing a type or removing a field is a breaking change for the desktop app.
 
