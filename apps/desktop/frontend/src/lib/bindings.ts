@@ -27,3 +27,7 @@ export function messageOf(err: unknown): string {
 export function isSignedOut(err: unknown): boolean {
   return messageOf(err).toLowerCase().startsWith('signed out')
 }
+
+export type { AgentDetail, AgentSummary, SkillEntry, TraitList } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/models'
+export type { Manifest } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/internal/agents/models'
+export type { Agent, Trait } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/internal/api/models'

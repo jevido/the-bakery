@@ -135,3 +135,72 @@ func (c *Client) DeleteAgent(ctx context.Context, token string, id uint64, based
 	err := c.doWith(ctx, http.MethodDelete, fmt.Sprintf("/api/agents/%d", id), token, map[string]string{"If-Match": strconv.Itoa(basedOn)}, nil, nil)
 	return stale(err)
 }
+
+// Trait is one of the fixed traits an agent can have.
+type Trait struct {
+	Key           string   `json:"key"`
+	Label         string   `json:"label"`
+	Description   string   `json:"description"`
+	ConflictsWith []string `json:"conflicts_with"`
+}
+
+// Traits returns the trait list and the permission modes agents may use.
+func (c *Client) Traits(ctx context.Context, token string) ([]Trait, []string, error) {
+	var res struct {
+		Traits          []Trait  `json:"traits"`
+		PermissionModes []string `json:"permission_modes"`
+	}
+	err := c.do(ctx, http.MethodGet, "/api/agent-traits", token, nil, &res)
+	return res.Traits, res.PermissionModes, err
+}
+
+// ShareAgent shares (on) or unshares one of my agents with a guild.
+func (c *Client) ShareAgent(ctx context.Context, token string, id, guildID uint64, on bool) error {
+	method := http.MethodPut
+	if !on {
+		method = http.MethodDelete
+	}
+	return c.do(ctx, method, fmt.Sprintf("/api/agents/%d/shares/%d", id, guildID), token, nil, nil)
+}
+
+// GuildAgents lists the agents shared with a guild.
+func (c *Client) GuildAgents(ctx context.Context, token string, guildID uint64) ([]Agent, error) {
+	var res struct {
+		Agents []Agent `json:"agents"`
+	}
+	err := c.do(ctx, http.MethodGet, fmt.Sprintf("/api/guilds/%d/agents", guildID), token, nil, &res)
+	return res.Agents, err
+}
+
+// RecruitAgent copies an agent shared with the guild into my roster.
+func (c *Client) RecruitAgent(ctx context.Context, token string, agentID, guildID uint64) (Agent, error) {
+	var res struct {
+		Agent Agent `json:"agent"`
+	}
+	err := c.do(ctx, http.MethodPost, "/api/agents/recruit", token, map[string]uint64{"agent_id": agentID, "guild_id": guildID}, &res)
+	return res.Agent, err
+}
+
+// Origin is how a recruited copy stands against its original.
+type Origin struct {
+	OriginAgentID   uint64 `json:"origin_agent_id"`
+	Gone            bool   `json:"gone"`
+	OriginRevision  int    `json:"origin_revision"`
+	CurrentRevision int    `json:"current_revision"`
+	Newer           bool   `json:"newer"`
+}
+
+func (c *Client) AgentOrigin(ctx context.Context, token string, id uint64) (Origin, error) {
+	var res Origin
+	err := c.do(ctx, http.MethodGet, fmt.Sprintf("/api/agents/%d/origin", id), token, nil, &res)
+	return res, err
+}
+
+// PullOrigin updates a recruited copy from its original.
+func (c *Client) PullOrigin(ctx context.Context, token string, id uint64, basedOn int) (Agent, error) {
+	var res struct {
+		Agent Agent `json:"agent"`
+	}
+	err := c.doWith(ctx, http.MethodPost, fmt.Sprintf("/api/agents/%d/pull-origin", id), token, map[string]string{"If-Match": strconv.Itoa(basedOn)}, nil, &res)
+	return res.Agent, stale(err)
+}

@@ -338,3 +338,66 @@ func TestAnotherMembersFolderMovesAside(t *testing.T) {
 }
 
 func contains(s, sub string) bool { return strings.Contains(s, sub) }
+
+func TestRosterEditing(t *testing.T) {
+	e, remote := setup(t)
+	mustSync(t, e)
+	slug, err := e.NewAgent(Manifest{Name: "Ivo the Researcher", Title: "Researcher", Traits: []string{"curious"}})
+	if err != nil || slug != "ivo-the-researcher" {
+		t.Fatalf("NewAgent = %q, %v", slug, err)
+	}
+	if again, _ := e.NewAgent(Manifest{Name: "Ivo the Researcher"}); again != "ivo-the-researcher-2" {
+		t.Errorf("second slug = %q", again)
+	}
+	src := filepath.Join(t.TempDir(), "go-tests")
+	write(t, filepath.Join(src, "SKILL.md"), skill)
+	write(t, filepath.Join(src, "examples", "table.go"), "package x")
+	write(t, filepath.Join(src, ".git", "HEAD"), "ref")
+	if name, err := e.AddSkill(slug, src); err != nil || name != "go-tests" {
+		t.Fatalf("AddSkill = %q, %v", name, err)
+	}
+	// A symlinked skill, as in ~/.claude/skills.
+	real := filepath.Join(t.TempDir(), "real-notes")
+	write(t, filepath.Join(real, "SKILL.md"), "---\nname: notes\ndescription: Notes.\n---\n")
+	link := filepath.Join(t.TempDir(), "notes")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	if name, err := e.AddSkill(slug, link); err != nil || name != "notes" {
+		t.Fatalf("AddSkill of a symlink = %q, %v", name, err)
+	}
+	if err := e.RemoveSkill(slug, "notes"); err != nil {
+		t.Fatal(err)
+	}
+	bad := filepath.Join(t.TempDir(), "broken")
+	write(t, filepath.Join(bad, "SKILL.md"), "no front matter")
+	if _, err := e.AddSkill(slug, bad); err == nil {
+		t.Error("a broken skill was added")
+	}
+	f, _ := e.Folder(slug)
+	if len(f.Files) != 2 {
+		t.Errorf("files = %v (hidden directories must stay out)", f.Files)
+	}
+	rep := mustSync(t, e)
+	if len(rep.Created) != 2 {
+		t.Fatalf("report = %+v", rep)
+	}
+	var id uint64
+	for _, a := range remote.agents {
+		if a.Slug == slug {
+			id = a.ID
+		}
+	}
+	if err := e.Delete(context.Background(), 7, slug); err != nil {
+		t.Fatal(err)
+	}
+	if !remote.agents[id].Deleted {
+		t.Error("deleting in the app did not delete on the server")
+	}
+	if _, err := e.Folder(slug); err == nil {
+		t.Error("the folder is still there")
+	}
+	if rep := mustSync(t, e); len(rep.Pulled) != 0 {
+		t.Errorf("a deleted agent came back: %+v", rep)
+	}
+}

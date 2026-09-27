@@ -3,6 +3,7 @@
   import BoardView from '../components/BoardView.svelte'
   import TaskPanel from '../components/TaskPanel.svelte'
   import ConflictDialog from '../components/ConflictDialog.svelte'
+  import AgentsScreen from '../components/AgentsScreen.svelte'
   import { AgentSync } from '../lib/agentsync.svelte'
   import { Colony } from '../lib/colony.svelte'
   import { WebsiteService, messageOf, type Member } from '../lib/bindings'
@@ -22,6 +23,9 @@
   const agentSync = new AgentSync()
   $effect(() => agentSync.listen())
   let showConflicts = $state(false)
+
+  // The main area shows the board or the roster.
+  let view = $state<'board' | 'agents'>('board')
 
   const SYNC_LABEL: Record<string, string> = {
     idle: 'Agents in sync',
@@ -54,6 +58,11 @@
 
 <div class="colony">
   <aside>
+    <nav class="views" aria-label="Screens">
+      <button class={['view', { active: view === 'board' }]} onclick={() => (view = 'board')}>Boards</button>
+      <button class={['view', { active: view === 'agents' }]} onclick={() => (view = 'agents')}>Agents</button>
+    </nav>
+
     <Panel title="Guilds">
       {#if colony.guilds.length === 0 && colony.loaded}
         <p class="dim">No guild yet.</p>
@@ -123,6 +132,8 @@
         <Button variant="confirm" onclick={openAdmin}>Found a guild on the website</Button>
         <p class="dim small">Once you are in a guild, it shows up here. {#if colony.loaded}<button class="link" onclick={() => colony.load()}>Check again</button>{/if}</p>
       </Panel>
+    {:else if view === 'agents'}
+      <AgentsScreen sync={agentSync} guilds={colony.guilds} guildId={colony.guildId} />
     {:else if colony.view}
       <div class={['work', { 'with-panel': colony.openTaskId !== null }]}>
         <BoardView {colony} />
@@ -164,6 +175,29 @@
     gap: var(--gap);
     min-width: 0;
     min-height: 0;
+  }
+
+  .views {
+    display: flex;
+    gap: 4px;
+  }
+
+  .view {
+    flex: 1;
+    font: inherit;
+    font-family: var(--font-display);
+    padding: 5px 8px;
+    color: var(--text-dim);
+    background: var(--panel);
+    border: 1px solid var(--frame-dim);
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+
+  .view.active {
+    color: var(--text);
+    background: var(--panel-title);
+    border-color: var(--frame);
   }
 
   .work {

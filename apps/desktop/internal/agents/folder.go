@@ -35,15 +35,15 @@ const (
 
 // Manifest is agent.toml: everything about an agent except its skillset.
 type Manifest struct {
-	Name           string         `toml:"name"`
-	Title          string         `toml:"title"`
-	Backstory      string         `toml:"backstory,multiline"`
-	Traits         []string       `toml:"traits"`
-	Model          string         `toml:"model"`
-	PermissionMode string         `toml:"permission_mode"`
-	AllowedTools   []string       `toml:"allowed_tools"`
-	PortraitSeed   string         `toml:"portrait_seed"`
-	WorkPriorities map[string]int `toml:"work_priorities"`
+	Name           string         `toml:"name" json:"name"`
+	Title          string         `toml:"title" json:"title"`
+	Backstory      string         `toml:"backstory,multiline" json:"backstory"`
+	Traits         []string       `toml:"traits" json:"traits"`
+	Model          string         `toml:"model" json:"model"`
+	PermissionMode string         `toml:"permission_mode" json:"permission_mode"`
+	AllowedTools   []string       `toml:"allowed_tools" json:"allowed_tools"`
+	PortraitSeed   string         `toml:"portrait_seed" json:"portrait_seed"`
+	WorkPriorities map[string]int `toml:"work_priorities" json:"work_priorities"`
 }
 
 // SyncFile is .sync.json: what the folder held at its last sync.
