@@ -12,11 +12,14 @@ COPY services/api/ ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/api . \
  && mkdir -p /out/storage
 
-FROM gcr.io/distroless/static-debian12:nonroot
+# Alpine rather than distroless: Coolify's health check runs curl or wget
+# through /bin/sh inside the container (busybox provides both).
+FROM docker.io/library/alpine:3
+RUN adduser -D -H -u 10001 bakery
 WORKDIR /app
-COPY --from=build --chown=nonroot:nonroot /out/api /app/api
+COPY --from=build --chown=bakery:bakery /out/api /app/api
 # Goravel writes logs and file sessions under storage/.
-COPY --from=build --chown=nonroot:nonroot /out/storage /app/storage
+COPY --from=build --chown=bakery:bakery /out/storage /app/storage
 ENV APP_ENV=production \
     APP_DEBUG=false \
     APP_HOST=0.0.0.0 \
@@ -24,5 +27,6 @@ ENV APP_ENV=production \
     LOG_PRINT=true \
     MIGRATE_ON_START=true
 EXPOSE 4810
-USER nonroot
+HEALTHCHECK --interval=10s --timeout=3s CMD wget -qO- http://127.0.0.1:4810/api/health || exit 1
+USER bakery
 ENTRYPOINT ["/app/api"]

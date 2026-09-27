@@ -19,7 +19,8 @@ environment at runtime.
 ## api
 
 `infra/images/api/Containerfile`: a static Go binary (`CGO_ENABLED=0`) on
-`distroless/static:nonroot`, listening on `0.0.0.0:4810`. Configuration comes
+Alpine as a non-root user (Coolify's health check needs `/bin/sh` and
+`wget` in the image), listening on `0.0.0.0:4810`. Configuration comes
 only from the environment (`APP_KEY`, `JWT_SECRET`, `DB_*`, ...); no `.env` is
 baked in. With `MIGRATE_ON_START=true` (the image default) the binary runs the
 migrations before it serves and exits non-zero if one fails, so a bad release
