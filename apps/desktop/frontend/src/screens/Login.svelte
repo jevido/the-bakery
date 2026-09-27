@@ -1,7 +1,5 @@
 <script lang="ts">
-  import Panel from '../components/Panel.svelte'
-  import Button from '../components/Button.svelte'
-  import TextField from '../components/TextField.svelte'
+  import { Panel, Button, TextField } from '@bakery/ui'
   import { SessionService, messageOf, type Member } from '../lib/bindings'
 
   let { onsignedin }: { onsignedin: (member: Member) => void } = $props()

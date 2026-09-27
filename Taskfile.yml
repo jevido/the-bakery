@@ -10,6 +10,9 @@ includes:
   desktop:
     taskfile: apps/desktop/Taskfile.yml
     dir: apps/desktop
+  ui:
+    taskfile: packages/ui/Taskfile.yml
+    dir: packages/ui
 
 vars:
   # Every port a dev server listens on, for `task down`. Keep in sync with the
@@ -80,4 +83,5 @@ tasks:
     # Add each unit's checks here as units appear.
     cmds:
       - task: api:check
+      - task: ui:check
       - task: desktop:check

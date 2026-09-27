@@ -1,0 +1,8 @@
+version: "3"
+
+tasks:
+  check:
+    desc: svelte-check the shared UI package
+    cmds:
+      - bun install
+      - bun run check

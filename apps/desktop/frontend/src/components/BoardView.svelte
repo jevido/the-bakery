@@ -1,7 +1,6 @@
 <script lang="ts">
-  import Panel from './Panel.svelte'
+  import { Panel, TextField } from '@bakery/ui'
   import TaskCard from './TaskCard.svelte'
-  import TextField from './TextField.svelte'
   import { COLUMN_TITLES, type Colony } from '../lib/colony.svelte'
 
   let { colony }: { colony: Colony } = $props()

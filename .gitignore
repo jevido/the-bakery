@@ -8,8 +8,10 @@
 /services/*/dist/
 /packages/*/dist/
 
-# Tool caches
+# Tool caches and installed dependencies (bun workspaces, see /package.json)
 /.task/
+/node_modules/
+/packages/*/node_modules/
 
 # Environment. Secrets never live in the repo.
 .env

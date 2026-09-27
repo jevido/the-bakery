@@ -1,6 +1,6 @@
 <script lang="ts">
+  import { Button } from '@bakery/ui'
   import type { Task } from '../lib/bindings'
-  import Button from './Button.svelte'
 
   let {
     task,

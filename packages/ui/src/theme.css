@@ -4,9 +4,12 @@
  * muted accents. Components use these tokens, never raw colours.
  */
 
+@import '@fontsource/pixelify-sans/400.css';
+@import '@fontsource/pixelify-sans/600.css';
+
 @font-face {
   font-family: 'Inter';
-  src: url('/Inter-Medium.ttf') format('truetype');
+  src: url('./fonts/Inter-Medium.ttf') format('truetype');
   font-weight: 500;
   font-display: block;
 }

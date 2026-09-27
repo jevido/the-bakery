@@ -1,0 +1,8 @@
+{
+  "name": "the-bakery",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/desktop/frontend"
+  ]
+}

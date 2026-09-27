@@ -31,10 +31,11 @@ tasks:
 
   install:frontend:deps:bun:
     dir: frontend
+    # The Bakery: the frontend is a bun workspace member; the lockfile lives
+    # at the repo root and `bun install` here installs the whole workspace.
     sources:
       - package.json
-      - bun.lock
-      - bun.lockb
+      - ../../../bun.lock
     generates:
       - node_modules
     preconditions:

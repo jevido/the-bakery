@@ -47,8 +47,8 @@ directory and logs a warning.
 `127.0.0.1:9099` (`WAILS_MCP_PORT` to change it). Its tools (`js_eval`,
 `mouse_drag`, `keyboard_type`, ...) let an agent click, type and drag in the
 running window.
-- `frontend/src/theme.css` — the base theme as CSS custom properties. Use its
-  tokens, not raw colours.
-- `frontend/src/components/` — `Panel` (framed box with a title bar),
-  `Button` (`plain`, `confirm`, `danger`), `TextField`.
+- The theme and the base components (`Panel`, `Button`, `TextField`) come
+  from [`@bakery/ui`](../../packages/ui); use its tokens, not raw colours.
+  The frontend is a bun workspace member: run `bun install` anywhere in the
+  repo, the lockfile is `/bun.lock`.
 - `build/` — Wails' generated build and packaging tasks per platform.
