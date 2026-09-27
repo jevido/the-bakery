@@ -12,6 +12,7 @@ import (
 	goravelgin "github.com/goravel/gin"
 
 	"github.com/jevido/the-bakery/services/api/app/facades"
+	"github.com/jevido/the-bakery/services/api/contexts/agents"
 	"github.com/jevido/the-bakery/services/api/contexts/boards"
 	"github.com/jevido/the-bakery/services/api/contexts/guilds"
 	"github.com/jevido/the-bakery/services/api/contexts/identity"
@@ -56,6 +57,7 @@ func Api() {
 		identity.Routes(r)
 		guilds.Routes(r)
 		boards.Routes(r)
+		agents.Routes(r)
 
 		// MCP over streamable HTTP. The SDK handler does its own auth (personal
 		// tokens) and writes the response itself.

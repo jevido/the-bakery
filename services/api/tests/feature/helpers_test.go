@@ -28,6 +28,9 @@ type featureSuite struct {
 // before the guild itself goes.
 var guildCleanup []func(guildID uint64) error
 
+// memberCleanup does the same for rows that hang off a member.
+var memberCleanup []func(memberID uint64) error
+
 func (s *featureSuite) TearDownTest() {
 	for _, id := range s.guildIDs {
 		for _, clean := range guildCleanup {
@@ -42,6 +45,9 @@ func (s *featureSuite) TearDownTest() {
 		var ids []uint64
 		s.NoError(facades.Orm().Query().Table("members").Where("email", email).Pluck("id", &ids))
 		for _, id := range ids {
+			for _, clean := range memberCleanup {
+				s.NoError(clean(id))
+			}
 			_, err := facades.DB().Table("guild_memberships").Where("member_id", id).Delete()
 			s.NoError(err)
 			_, err = facades.DB().Table("web_handoffs").Where("member_id", id).Delete()

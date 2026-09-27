@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: The Bakery API
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     The JSON API behind The Bakery: members, guilds, invites, boards and
     tasks. The desktop app (bearer token) and the website (session cookie)
@@ -68,6 +68,13 @@ tags:
       What happened to a task, newest first. The API writes it from what
       members (and Claude) do; nobody writes it directly. A subtask's
       entries appear on its parent.
+  - name: Agents
+    description: >-
+      A member's roster of configured Claude CLI agents, each with its
+      skillset (the files of its `.claude/skills`). Only an agent's owner
+      sees it (404 for anyone else). A change replaces the whole agent and
+      names the revision it was based on in `If-Match`; a stale revision
+      answers 409 with the agent as it is now. Bodies are at most 3 MB.
 
 paths:
   /api/health:
@@ -821,6 +828,135 @@ paths:
         "403": { $ref: "#/components/responses/NotMember" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /api/agent-traits:
+    get:
+      tags: [Agents]
+      summary: List traits and permission modes
+      description: The fixed traits an agent can have, which ones conflict, and the permission modes it may run in.
+      responses:
+        "200":
+          description: The lists.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [traits, permission_modes]
+                properties:
+                  traits:
+                    type: array
+                    items:
+                      type: object
+                      required: [key, label, description, conflicts_with]
+                      properties:
+                        key: { type: string }
+                        label: { type: string }
+                        description: { type: string }
+                        conflicts_with: { type: array, items: { type: string } }
+                  permission_modes: { type: array, items: { type: string } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/agents:
+    get:
+      tags: [Agents]
+      summary: List my agents
+      description: >-
+        Without files. With `since`, every agent changed after that time,
+        deleted ones included (`deleted: true`), for syncing.
+      parameters:
+        - name: since
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: The agents.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [agents]
+                properties:
+                  agents:
+                    type: array
+                    items: { $ref: "#/components/schemas/Agent" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/Invalid" }
+    post:
+      tags: [Agents]
+      summary: Create an agent
+      description: >-
+        At revision 1. An empty slug is made from the name; an empty portrait
+        seed gets a random one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AgentWrite" }
+      responses:
+        "201":
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AgentResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "413": { description: The body is larger than 3 MB. }
+        "422": { $ref: "#/components/responses/AgentInvalid" }
+
+  /api/agents/{agent}:
+    parameters:
+      - { name: agent, in: path, required: true, schema: { type: integer } }
+    get:
+      tags: [Agents]
+      summary: Get one of my agents
+      description: With its files.
+      responses:
+        "200":
+          description: The agent.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AgentResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [Agents]
+      summary: Replace an agent
+      description: >-
+        Fields and files, all at once. `If-Match` names the revision the change
+        is based on; the answer has the new revision.
+      parameters:
+        - { name: If-Match, in: header, required: true, schema: { type: integer }, example: 3 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AgentWrite" }
+      responses:
+        "200":
+          description: Replaced.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AgentResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/AgentStale" }
+        "413": { description: The body is larger than 3 MB. }
+        "422": { $ref: "#/components/responses/AgentInvalid" }
+        "428": { description: No If-Match header. }
+    delete:
+      tags: [Agents]
+      summary: Delete an agent
+      description: It stays as a tombstone for `GET /api/agents?since=`, and its slug is free again.
+      parameters:
+        - { name: If-Match, in: header, required: true, schema: { type: integer } }
+      responses:
+        "204":
+          description: Deleted.
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/AgentStale" }
+        "428": { description: No If-Match header. }
+
   /api/guilds/{guild}/work-types:
     get:
       tags: [Boards]
@@ -1494,6 +1630,26 @@ components:
       schema: { type: string }
 
   responses:
+    AgentStale:
+      description: The agent changed since the revision in If-Match; `agent` is how it is now.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+              agent: { $ref: "#/components/schemas/Agent" }
+    AgentInvalid:
+      description: A field needs fixing; for a skillset problem, `path` names the file.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+              field: { type: string }
+              path: { type: string }
+          example: { error: "go-tests/: has no SKILL.md", field: files, path: go-tests/ }
     TokenCannotManageTokens:
       description: The request signed in with a personal token; only a session can manage tokens.
       content:
@@ -1651,6 +1807,79 @@ components:
           description: >-
             For desktop releases up to 0.1.3: `backlog`, `todo`, `doing` or
             `done` for a column with a default name, else the name.
+    AgentWrite:
+      type: object
+      required: [name]
+      properties:
+        slug: { type: string, pattern: "^[a-z0-9]+(-[a-z0-9]+)*$", maxLength: 40, description: "Unique among your agents; made from the name when empty." }
+        name: { type: string, minLength: 1, maxLength: 40 }
+        title: { type: string, maxLength: 60 }
+        backstory: { type: string, maxLength: 2000 }
+        traits: { type: array, items: { type: string }, description: "Keys from GET /api/agent-traits; conflicting ones are refused." }
+        model: { type: string, description: "sonnet (default), opus, haiku or a claude-… model id." }
+        permission_mode: { type: string, enum: [manual, acceptEdits, plan, dontAsk, auto], default: manual }
+        allowed_tools: { type: array, maxItems: 100, items: { type: string }, example: ["Bash(go test:*)"] }
+        portrait_seed: { type: string }
+        work_priorities:
+          type: object
+          additionalProperties: { type: integer, minimum: 1, maximum: 4 }
+          description: A work type key mapped to 1 (first) … 4 (last); a missing key is off.
+          example: { coding: 1, testing: 2 }
+        files:
+          type: array
+          description: >-
+            The skillset: paths under `.claude/skills`, `<skill>/<file…>`. Each
+            skill needs a `SKILL.md` whose front matter has `name` (the
+            directory's name) and `description`. UTF-8 text; at most 50
+            skills, 300 files, 256 KB a file, 2 MB in all.
+          items:
+            type: object
+            required: [path, content]
+            properties:
+              path: { type: string, example: go-tests/SKILL.md }
+              content: { type: string }
+    Agent:
+      type: object
+      required: [id, slug, name, title, backstory, traits, model, permission_mode, allowed_tools, portrait_seed, work_priorities, skills, revision, updated_at, deleted]
+      properties:
+        id: { type: integer }
+        slug: { type: string }
+        name: { type: string }
+        title: { type: string }
+        backstory: { type: string }
+        traits: { type: array, items: { type: string } }
+        model: { type: string }
+        permission_mode: { type: string }
+        allowed_tools: { type: array, items: { type: string } }
+        portrait_seed: { type: string }
+        work_priorities: { type: object, additionalProperties: { type: integer } }
+        skills:
+          type: array
+          description: Name and description of each skill (empty in lists).
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              description: { type: string }
+        revision: { type: integer }
+        origin_agent_id: { type: [integer, "null"], description: "Set on a recruited copy." }
+        origin_revision: { type: [integer, "null"] }
+        updated_at: { type: string, format: date-time }
+        deleted: { type: boolean }
+        files:
+          type: array
+          description: Only when getting one agent.
+          items:
+            type: object
+            properties:
+              path: { type: string }
+              content: { type: string }
+              sha256: { type: string }
+    AgentResponse:
+      type: object
+      required: [agent]
+      properties:
+        agent: { $ref: "#/components/schemas/Agent" }
     WorkType:
       type: object
       required: [key, name]

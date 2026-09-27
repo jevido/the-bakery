@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jevido/the-bakery/services/api/contexts/agents"
 	"github.com/jevido/the-bakery/services/api/contexts/boards"
 	"github.com/jevido/the-bakery/services/api/contexts/guilds"
 	"github.com/jevido/the-bakery/services/api/contexts/identity"
@@ -43,5 +44,24 @@ func (DatabaseSeeder) Run() error {
 	if err != nil {
 		return fmt.Errorf("seeding board Getting settled: %w", err)
 	}
+	err = agents.SeedAgent(ctx, ids[0], "vera", "Vera", "Backend engineer", []string{"careful", "tidy"}, "sonnet",
+		map[string]int{"coding": 1, "testing": 2, "review": 3},
+		[]agents.SeedSkill{{Path: "go-tests/SKILL.md", Content: veraGoTests}},
+	)
+	if err != nil {
+		return fmt.Errorf("seeding agent Vera: %w", err)
+	}
 	return nil
 }
+
+// veraGoTests is the seeded agent's one skill.
+const veraGoTests = `---
+name: go-tests
+description: Write and fix Go tests the way this repo does, table-driven with t.Run.
+---
+
+# Go tests
+
+- One table per behaviour, one t.Run per row, named after what the row shows.
+- Run go test ./... before calling a change done.
+`
