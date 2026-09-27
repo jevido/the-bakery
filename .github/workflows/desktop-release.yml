@@ -1,0 +1,151 @@
+# Desktop release: a tag desktop-vX.Y.Z builds the app for Linux, Windows
+# and macOS, signs the update files and publishes a GitHub release with a
+# Wails update manifest. The running app reads that manifest to update
+# itself (apps/desktop, "self-update").
+name: desktop-release
+
+on:
+  push:
+    tags: ["desktop-v*"]
+
+permissions:
+  contents: write
+
+env:
+  WAILS_VERSION: v3.0.0-beta.18
+  API_URL: https://api.bakery.jevido.app
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux
+          - os: windows-latest
+            platform: windows
+          - os: macos-latest
+            platform: darwin
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27"
+          cache-dependency-path: apps/desktop/go.sum
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Linux build dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev libfuse2t64 file
+
+      - name: Install wails3
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}
+
+      - name: Version from the tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#desktop-v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          # Stamp it into the platform metadata (Info.plist, NSIS, nfpm, ...).
+          sed -i.bak -E "s/^(  version: )\"[^\"]*\"/\1\"$VERSION\"/" apps/desktop/build/config.yml
+          rm apps/desktop/build/config.yml.bak
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build and package
+        working-directory: apps/desktop
+        run: |
+          wails3 task common:update:build-assets
+          LDFLAGS="-X main.version=$VERSION -X main.defaultAPIURL=$API_URL"
+          case "${{ matrix.platform }}" in
+            linux)   wails3 task linux:package EXTRA_LDFLAGS="$LDFLAGS" ;;
+            windows) wails3 task windows:package EXTRA_LDFLAGS="$LDFLAGS" ;;
+            darwin)  wails3 task darwin:package:universal EXTRA_LDFLAGS="$LDFLAGS" ;;
+          esac
+
+      - name: Collect release files
+        working-directory: apps/desktop
+        run: |
+          mkdir -p dist
+          N="the-bakery-$VERSION"
+          case "${{ matrix.platform }}" in
+            linux)
+              # The AppImage installs and updates; the deb is for apt users.
+              cp bin/*.AppImage "dist/$N-linux-x86_64.AppImage"
+              cp bin/the-bakery.deb "dist/the-bakery_${VERSION}_amd64.deb"
+              ;;
+            windows)
+              # The installer is for first installs; the zip holds the exe
+              # the updater swaps in.
+              cp "$(find . -name '*installer*.exe' -not -path './dist/*' | head -1)" "dist/$N-windows-amd64-installer.exe"
+              7z a "dist/$N-windows-amd64.zip" ./bin/the-bakery.exe
+              ;;
+            darwin)
+              ditto -c -k --keepParent bin/the-bakery.app "dist/$N-darwin-universal.zip"
+              ;;
+          esac
+          ls -la dist
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: desktop-${{ matrix.platform }}
+          path: apps/desktop/dist/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27"
+          cache: false
+
+      - name: Install wails3
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}
+
+      - uses: actions/download-artifact@v6
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Sign and write the update manifest
+        env:
+          BAKERY_UPDATE_KEY: ${{ secrets.BAKERY_UPDATE_KEY }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#desktop-v}"
+          umask 077
+          printf '%s\n' "$BAKERY_UPDATE_KEY" > "$RUNNER_TEMP/updater.key"
+          cd dist
+          # Only the files the updater installs go in the manifest.
+          wails3 updater manifest \
+            -version "$VERSION" \
+            -name "The Bakery $VERSION" \
+            -key "$RUNNER_TEMP/updater.key" \
+            -url-prefix "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/" \
+            -output manifest.json \
+            ./*.AppImage ./*-windows-amd64.zip ./*-darwin-universal.zip
+          wails3 updater verify -manifest manifest.json -publickey ../apps/desktop/build/updater.pub
+          rm "$RUNNER_TEMP/updater.key"
+          ls -la
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#desktop-v}"
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "The Bakery $VERSION" \
+            --generate-notes \
+            --latest

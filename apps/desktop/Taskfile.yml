@@ -1,6 +1,10 @@
 version: '3'
 
 vars:
+  # The desktop app's directory. Wails' build tasks assume they run from the
+  # app root; when this file is included from the repo root, ROOT_DIR is the
+  # repo root instead, so the root Taskfile passes APP_ROOT.
+  APP_ROOT: '{{.APP_ROOT | default .ROOT_DIR}}'
   APP_NAME: "the-bakery"
   BIN_DIR: "bin"
   PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "bun"}}'

@@ -19,9 +19,18 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// Release builds set these with -ldflags "-X main.version=... -X
+// main.defaultAPIURL=..." (see .github/workflows/desktop-release.yml).
+// BAKERY_API_URL still overrides the API URL at run time.
+var (
+	version       = "dev"
+	defaultAPIURL = api.DefaultURL
+)
+
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-	client := api.New(cmp.Or(os.Getenv("BAKERY_API_URL"), api.DefaultURL))
+	logger.Info("starting The Bakery", "version", version)
+	client := api.New(cmp.Or(os.Getenv("BAKERY_API_URL"), defaultAPIURL))
 	sess := session.New(client, session.NewStore(client.BaseURL(), logger))
 
 	app := application.New(application.Options{

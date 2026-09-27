@@ -4,4 +4,8 @@
 /frontend/node_modules/
 /frontend/bindings/
 /build/linux/appimage/build/
+# Copied in by `create:appimage` while packaging.
+/build/linux/appimage/the-bakery
+/build/linux/appimage/the-bakery.png
+/build/linux/appimage/*.AppImage
 /build/windows/nsis/MicrosoftEdgeWebview2Setup.exe

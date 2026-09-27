@@ -10,6 +10,8 @@ includes:
   desktop:
     taskfile: apps/desktop/Taskfile.yml
     dir: apps/desktop
+    vars:
+      APP_ROOT: '{{.ROOT_DIR}}/apps/desktop'
   web:
     taskfile: apps/web/Taskfile.yml
     dir: apps/web
