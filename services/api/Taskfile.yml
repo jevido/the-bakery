@@ -1,0 +1,19 @@
+version: "3"
+
+tasks:
+  dev:
+    desc: Run the API on 127.0.0.1:4810
+    cmds:
+      - go run .
+
+  check:
+    desc: gofmt, go vet and go test
+    cmds:
+      - gofmt -l . | (! grep .)
+      - go vet ./...
+      - go test ./...
+
+  migrate:
+    desc: Run database migrations
+    cmds:
+      - go run . artisan migrate

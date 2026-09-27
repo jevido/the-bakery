@@ -3,6 +3,11 @@
 
 version: "3"
 
+includes:
+  api:
+    taskfile: services/api/Taskfile.yml
+    dir: services/api
+
 vars:
   # Every port a dev task listens on. Keep in sync with the table in CLAUDE.md.
   DEV_PORTS: "4810 4820 4830"
@@ -23,7 +28,7 @@ tasks:
   dev:
     desc: Run every unit's dev server together (Ctrl+C stops all)
     # Add each unit's dev task here, e.g. deps: [api:dev, web:dev]
-    deps: [db:up]
+    deps: [db:up, api:dev]
 
   db:up:
     desc: Start the dev Postgres (Podman)
@@ -39,4 +44,4 @@ tasks:
     desc: Format check, lint, test and type-check every unit
     # Add each unit's checks here as units appear.
     cmds:
-      - echo "no units yet"
+      - task: api:check
