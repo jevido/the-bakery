@@ -48,7 +48,7 @@
     </Panel>
   {:else}
     <Panel title={`Join ${info.guild_name}`}>
-      <p>{info.member_count} {info.member_count === 1 ? 'member' : 'members'} already work here.</p>
+      <p>{info.member_count === 1 ? '1 member already works here.' : `${info.member_count} members already work here.`}</p>
       {#if error}<p class="error" role="alert">{error}</p>{/if}
       {#if session.member}
         <Button variant="confirm" onclick={join} disabled={busy}>Join as {session.member.display_name}</Button>
