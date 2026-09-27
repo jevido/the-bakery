@@ -7,6 +7,7 @@
   import SignUp from './pages/SignUp.svelte'
   import Admin from './pages/Admin.svelte'
   import AdminGuild from './pages/AdminGuild.svelte'
+  import AdminTokens from './pages/AdminTokens.svelte'
   import NotFound from './pages/NotFound.svelte'
   import Handoff from './pages/Handoff.svelte'
   import Join from './pages/Join.svelte'
@@ -23,6 +24,7 @@
     '/signin': SignIn,
     '/signup': SignUp,
     '/admin': Admin,
+    '/admin/tokens': AdminTokens,
     '/handoff': Handoff,
   }
 

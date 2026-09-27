@@ -3,6 +3,7 @@
   import { guilds, type Guild } from '../lib/guilds'
   import { router } from '../lib/router.svelte'
   import { ApiError } from '../lib/api'
+  import AdminNav from '../components/AdminNav.svelte'
 
   let showArchived = $state(false)
   let list = $state<Guild[] | undefined>(undefined)
@@ -41,6 +42,8 @@
 <svelte:head>
   <title>Your guilds — The Bakery</title>
 </svelte:head>
+
+<AdminNav />
 
 <h1>Your guilds</h1>
 

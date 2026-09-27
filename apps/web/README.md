@@ -1,10 +1,12 @@
 # web
 
 The Bakery's website, bakery.jevido.app: a Svelte 5 + Vite + TypeScript
-single-page app (no SvelteKit) using [`@bakery/ui`](../../packages/ui). Today
-it has the landing page `/` and the download page `/desktop`; sign-in and the
-guild admin come later on the same app. A client of `services/api`; it hosts
-no bounded context.
+single-page app (no SvelteKit) using [`@bakery/ui`](../../packages/ui): the
+landing, explainer and download pages, sign-in and sign-up, and behind sign-in
+the admin (`/admin` guilds, `/admin/guilds/{id}`, `/admin/tokens` personal
+tokens with the `claude mcp add` command), plus invite links (`/join/{code}`)
+and the desktop hand-off (`/handoff`). A client of `services/api`; it hosts no
+bounded context.
 
 ## Run
 
