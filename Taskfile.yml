@@ -12,8 +12,10 @@ includes:
     dir: apps/desktop
 
 vars:
-  # Every port a dev task listens on. Keep in sync with the table in CLAUDE.md.
-  DEV_PORTS: "4810 4820 4830"
+  # Every port a dev server listens on, for `task down`. Keep in sync with the
+  # table in CLAUDE.md. Postgres (4820) is left out on purpose: it is a
+  # container, stopped with `task db:down`.
+  DEV_PORTS: "4810 4830"
 
 tasks:
   default:
@@ -29,14 +31,44 @@ tasks:
       - ./infra/dev/down.sh {{.DEV_PORTS}}
 
   dev:
-    desc: Run every unit's dev server together (Ctrl+C stops all)
-    # Add each unit's dev task here, e.g. deps: [api:dev, web:dev]
-    deps: [db:up, api:dev, desktop:dev]
+    desc: Start Postgres, migrate, then run the API and the desktop app (Ctrl+C stops both)
+    cmds:
+      - task: db:up
+      - task: db:wait
+      - task: api:migrate
+      - task: dev:servers
+
+  dev:servers:
+    internal: true
+    # Add each unit's dev task here; they run in parallel.
+    deps: [api:dev, desktop:dev]
+
+  seed:
+    desc: Seed the dev database (First Colony with ada, bram and cas @bakery.test, password "password")
+    cmds:
+      - task: db:up
+      - task: db:wait
+      - task: api:migrate
+      - task: api:seed
 
   db:up:
     desc: Start the dev Postgres (Podman)
     cmds:
       - podman compose -f infra/dev/compose.yml up -d
+
+  db:wait:
+    # Over TCP: during first-start initialisation Postgres answers on its
+    # socket only, then restarts.
+    desc: Wait until the dev Postgres accepts connections (30s at most)
+    silent: true
+    cmds:
+      - |
+        for i in $(seq 1 30); do
+          podman compose -f infra/dev/compose.yml exec -T postgres pg_isready -h 127.0.0.1 -U bakery -q 2>/dev/null && exit 0
+          sleep 1
+        done
+        echo "Postgres did not become ready within 30s" >&2
+        exit 1
 
   db:down:
     desc: Stop the dev Postgres

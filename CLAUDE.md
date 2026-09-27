@@ -57,9 +57,11 @@ workspace, org or team.
 
 ```sh
 task                 # list tasks
-task dev             # run every unit's dev server
+task dev             # Postgres, migrations, then every unit's dev server
+task seed            # seed the dev database (ada@bakery.test / password)
 task check           # format, lint, test and type-check every unit
-task down            # stop every dev server this repo started
+task down            # stop every dev server this repo started (not Postgres)
+task db:down         # stop Postgres
 ```
 
 **Local ports:** range 48xx, each unit its own decade, with strict port
@@ -71,8 +73,9 @@ binding so a clash fails loudly instead of silently moving.
 | 4820 | Postgres (`infra/dev/compose.yml`) |
 | 4830 | `apps/desktop` Vite dev server     |
 
-New units take the next free decade; add them here and to `DEV_PORTS` in the
-root `Taskfile.yml` so `task down` stops them.
+New units take the next free decade; add them here and, for dev servers, to
+`DEV_PORTS` in the root `Taskfile.yml` so `task down` stops them. Containers
+(Postgres) stay out of `DEV_PORTS`; `task db:down` stops them.
 
 ## Conventions
 

@@ -20,14 +20,35 @@ Each unit is one directory under its category (`apps/<name>`,
 
 ## Getting started
 
-Requirements: [Task](https://taskfile.dev), [Podman](https://podman.io), plus
-whatever each unit's `README.md` lists.
+Requirements:
+
+- [Go](https://go.dev) 1.27 (e.g. via [mise](https://mise.jdx.dev))
+- [bun](https://bun.sh)
+- [Wails](https://v3.wails.io) CLI v3.0.0-beta.18:
+  `go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.18`
+  (`wails3 doctor` lists the system libraries it still needs)
+- [Podman](https://podman.io) with `podman compose`
+- [Task](https://taskfile.dev)
+- On Linux, a Secret Service for the keyring (gnome-keyring or KWallet).
+  Without one the desktop app keeps its token in a file and warns.
+
+Then:
+
+```sh
+task dev    # Postgres, migrations, the API on :4810 and the desktop app
+task seed   # in a second terminal: the "First Colony" guild and its board
+```
+
+`task dev` creates `services/api/.env` from `.env.example` with fresh keys
+the first time. Sign in to the desktop app as `ada@bakery.test` with password
+`password` (bram@ and cas@ work too), open First Colony, and drag tasks on
+"Getting settled".
 
 ```sh
 task            # list tasks
-task dev        # run every unit's dev server
 task check      # format, lint, test and type-check every unit
-task down       # stop every dev server this repo started
+task down       # stop the API and the desktop app (Postgres keeps running)
+task db:down    # stop Postgres
 ```
 
 Conventions for people and coding agents live in [`CLAUDE.md`](CLAUDE.md).
