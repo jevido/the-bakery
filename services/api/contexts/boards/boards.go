@@ -78,6 +78,10 @@ func WatchBoard(ctx context.Context, boardID, memberID uint64) (<-chan []byte, f
 	return events, stop, nil
 }
 
+// CloseStreams ends every open board event stream in this process and
+// refuses new ones, for when the process is about to stop.
+func CloseStreams() { hub.Close() }
+
 // SeedTask is a task for SeedBoard.
 type SeedTask struct {
 	Title  string

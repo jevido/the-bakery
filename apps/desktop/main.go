@@ -36,6 +36,7 @@ func main() {
 	sess := session.New(client, session.NewStore(client.BaseURL(), logger))
 
 	updates := &UpdateService{logger: logger, version: version}
+	live := NewLiveService(client, sess, logger)
 	website := &WebsiteService{client: client, session: sess, logger: logger, baseURL: cmp.Or(os.Getenv("BAKERY_WEB_URL"), defaultWebURL)}
 
 	app := application.New(application.Options{
@@ -46,6 +47,7 @@ func main() {
 			application.NewService(NewSessionService(sess, logger)),
 			application.NewService(NewBoardsService(client, sess)),
 			application.NewService(NewTaskService(client, sess)),
+			application.NewService(live),
 			application.NewService(updates),
 			application.NewService(website),
 		},
@@ -58,6 +60,7 @@ func main() {
 	})
 
 	updates.app = app
+	live.app = app
 	website.app = app
 
 	app.Window.NewWithOptions(application.WebviewWindowOptions{

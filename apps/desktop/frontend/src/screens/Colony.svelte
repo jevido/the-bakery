@@ -13,6 +13,12 @@
 
   const colony = new Colony(() => onsignedout())
   colony.load()
+  // Follow the open board's live events while this screen is up.
+  $effect(() => colony.listen())
+
+  let openColumn = $derived(
+    colony.view?.columns.find((c) => c.id === colony.task.task?.column_id)?.name ?? '',
+  )
 
   let newBoard = $state('')
 
@@ -89,7 +95,7 @@
       <div class={['work', { 'with-panel': colony.openTaskId !== null }]}>
         <BoardView {colony} />
         {#if colony.openTaskId !== null}
-          <TaskPanel open={colony.task} me={member.id} onclose={() => colony.closeTask()} />
+          <TaskPanel open={colony.task} me={member.id} column={openColumn} onclose={() => colony.closeTask()} />
         {/if}
       </div>
     {:else if colony.guild}

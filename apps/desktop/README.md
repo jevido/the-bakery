@@ -36,11 +36,17 @@ directory and logs a warning.
   made with the member's token. A refused token ends the session.
 - `taskservice.go` — `TaskService`: one task in full for the task panel
   (title, description, subtasks, comments, activity), the same way.
+- `liveservice.go` — `LiveService`: keeps the open board's event stream
+  (`internal/api/events.go`) open from Go and passes each event to the
+  frontend as the Wails event `board:event`, with `board:status` for the
+  indicator and `board:resync` after a reconnect (backoff 1 s up to 30 s).
 - `internal/api/` — typed client for the API. `internal/session/` — the
   signed-in member and token storage.
 - `frontend/src/lib/bindings.ts` — the one import point for generated bindings.
 - `frontend/src/lib/colony.svelte.ts` — the open guild and board; moves are
   shown right away and undone by reloading the board if the API refuses.
+  Live events are applied in place where they carry enough (moves, deletes,
+  renames) and otherwise refetch the board.
 - `frontend/src/lib/task.svelte.ts` — the task open in the panel; ticks and
   subtask moves are shown right away and undone if the API refuses.
 - `frontend/src/lib/markdown.ts` — markdown for descriptions and comments: raw
@@ -49,7 +55,8 @@ directory and logs a warning.
 - `frontend/src/lib/activity.ts` — how activity reads: `activityLine(entry)`
   builds every sentence, `timeAgo` the relative times.
 - `frontend/src/screens/` — full screens (`Login`, `Colony`).
-- `frontend/src/components/BoardView.svelte` — the four columns and HTML5
+- `frontend/src/components/BoardView.svelte` — the board's columns (scrolling
+  sideways when they do not fit), the live indicator, and HTML5
   drag and drop; `TaskCard.svelte` — a card: double-click opens the task
   panel, a badge counts done subtasks, delete after confirming;
   `TaskPanel.svelte` — the side panel: title, markdown description with

@@ -29,7 +29,18 @@ func init() {
 	go func() {
 		for range usr1 {
 			draining.Store(true)
+			// Board event streams never finish by themselves; end them so
+			// their clients reconnect to the process taking over.
+			boards.CloseStreams()
 		}
+	}()
+	// The same on a stop: graceful shutdown waits for open requests, and a
+	// stream would keep it waiting until the process is killed.
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
+	go func() {
+		<-stop
+		boards.CloseStreams()
 	}()
 }
 

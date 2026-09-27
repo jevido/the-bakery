@@ -1,14 +1,22 @@
 <script lang="ts">
   import { Panel, TextField } from '@bakery/ui'
   import TaskCard from './TaskCard.svelte'
-  import { COLUMN_TITLES, type Colony } from '../lib/colony.svelte'
+  import type { Colony, LiveState } from '../lib/colony.svelte'
 
   let { colony }: { colony: Colony } = $props()
 
   let draggedId = $state<number | null>(null)
   // Where the dragged task would land: a column and an index among the
   // column's other tasks.
-  let dropTarget = $state<{ column: string; index: number } | null>(null)
+  let dropTarget = $state<{ column: number; index: number } | null>(null)
+
+  const LIVE: Record<LiveState, string> = {
+    off: '',
+    connecting: 'Connecting…',
+    live: 'Live',
+    reconnecting: 'Reconnecting…',
+    'signed-out': 'Signed out',
+  }
   let newTitle = $state('')
 
   function dragStart(event: DragEvent, id: number) {
@@ -24,7 +32,7 @@
 
   // The drop index is the number of other cards whose middle is above the
   // pointer.
-  function dragOver(event: DragEvent, column: string) {
+  function dragOver(event: DragEvent, column: number) {
     if (draggedId === null) return
     event.preventDefault()
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
@@ -60,7 +68,7 @@
 
   // Index of the indicator among the rendered cards (which still include the
   // dragged one when it is in this column).
-  function indicatorAt(column: string, tasks: { id: number }[]): number {
+  function indicatorAt(column: number, tasks: { id: number }[]): number {
     if (!dropTarget || dropTarget.column !== column) return -1
     let seen = 0
     for (let i = 0; i < tasks.length; i++) {
@@ -73,14 +81,20 @@
 </script>
 
 {#if colony.view}
+  <header class="board-head">
+    <h1>{colony.view.board.name}</h1>
+    {#if colony.live !== 'off'}
+      <span class={['live', colony.live]} title="Changes by others show up here as they happen">{LIVE[colony.live]}</span>
+    {/if}
+  </header>
   <div class="board">
-    {#each colony.view.columns as col (col.column)}
-      {@const at = indicatorAt(col.column, col.tasks)}
-      <Panel title={`${COLUMN_TITLES[col.column] ?? col.column} · ${col.tasks.length}`}>
+    {#each colony.view.columns as col, c (col.id)}
+      {@const at = indicatorAt(col.id, col.tasks)}
+      <Panel title={`${col.name} · ${col.tasks.length}`}>
         <ul
-          class={['tasks', { over: dropTarget?.column === col.column }]}
-          data-column={col.column}
-          ondragover={(e) => dragOver(e, col.column)}
+          class={['tasks', { over: dropTarget?.column === col.id }]}
+          data-column={col.id}
+          ondragover={(e) => dragOver(e, col.id)}
           ondragleave={dragLeave}
           ondrop={drop}
         >
@@ -98,7 +112,7 @@
           {/each}
           {#if at === col.tasks.length}<li class="indicator" aria-hidden="true"></li>{/if}
         </ul>
-        {#if col.column === 'backlog'}
+        {#if c === 0}
           <div class="add">
             <TextField placeholder="New task, then Enter" maxlength={200} bind:value={newTitle} onkeydown={addTask} />
           </div>
@@ -109,12 +123,50 @@
 {/if}
 
 <style>
+  .board-head {
+    display: flex;
+    align-items: center;
+    gap: var(--gap);
+    padding: 0 2px 6px;
+  }
+
+  h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .live {
+    padding: 0 6px;
+    font-size: 11px;
+    line-height: 16px;
+    color: var(--text-dim);
+    border: 1px solid var(--frame-dim);
+    border-radius: var(--radius);
+  }
+
+  .live.live {
+    color: var(--olive-bright);
+    border-color: var(--olive);
+  }
+
+  .live.reconnecting,
+  .live.signed-out {
+    color: var(--rust-bright);
+    border-color: var(--rust);
+  }
+
+  /* As many columns as the board has; past the window's width it scrolls
+     sideways. */
   .board {
     display: grid;
-    grid-template-columns: repeat(4, minmax(180px, 1fr));
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(200px, 1fr);
     gap: var(--gap);
     height: 100%;
     min-height: 0;
+    overflow-x: auto;
   }
 
   .board :global(.panel) {

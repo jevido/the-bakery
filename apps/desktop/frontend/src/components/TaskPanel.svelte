@@ -1,12 +1,12 @@
 <script lang="ts">
   import { Panel, Button, TextField, Tabs } from '@bakery/ui'
   import type { OpenTask } from '../lib/task.svelte'
-  import { COLUMN_TITLES } from '../lib/colony.svelte'
   import { renderMarkdown, openLinksOutside } from '../lib/markdown'
   import { activityLine, timeAgo, fullTime } from '../lib/activity'
 
   // me is the signed-in member's id: only their own comments can be changed.
-  let { open, me, onclose }: { open: OpenTask; me: number; onclose: () => void } = $props()
+  // column is the name of the task's column, for the title bar.
+  let { open, me, column, onclose }: { open: OpenTask; me: number; column: string; onclose: () => void } = $props()
 
   const TABS = [
     { id: 'comments', label: 'Comments' },
@@ -193,7 +193,7 @@
 <svelte:window onkeydown={closeOnEscape} />
 
 <aside class="task-panel" aria-label="Task">
-  <Panel title={task ? (COLUMN_TITLES[task.column] ?? 'Task') : 'Task'}>
+  <Panel title={column || 'Task'}>
     {#snippet actions()}
       <button class="close" aria-label="Close" onclick={onclose}>×</button>
     {/snippet}

@@ -64,9 +64,9 @@ func (s *BoardsService) UpdateTask(ctx context.Context, taskID uint64, title, de
 
 // MoveTask puts a task in column right after afterID and/or right before
 // beforeID; null for either means that end of the column.
-func (s *BoardsService) MoveTask(ctx context.Context, taskID uint64, column string, afterID, beforeID *uint64) (api.Task, error) {
+func (s *BoardsService) MoveTask(ctx context.Context, taskID, columnID uint64, afterID, beforeID *uint64) (api.Task, error) {
 	return call(s.session, func(t string) (api.Task, error) {
-		return s.client.MoveTask(ctx, t, taskID, column, afterID, beforeID)
+		return s.client.MoveTask(ctx, t, taskID, columnID, afterID, beforeID)
 	})
 }
 

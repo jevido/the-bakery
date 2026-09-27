@@ -1,21 +1,37 @@
 // The colony screen's state: which guild and board are open, and the open
-// board's tasks. Talks to the API only through BoardsService.
+// board's columns and tasks, kept in step with the board's live events.
+// Talks to the API only through BoardsService and LiveService.
 
-import { BoardsService, isSignedOut, messageOf, type Board, type BoardView, type Guild, type Task } from './bindings'
+import { Events } from '@wailsio/runtime'
+import { BoardsService, LiveService, isSignedOut, messageOf, type Board, type BoardView, type Guild, type Task } from './bindings'
 import { OpenTask } from './task.svelte'
+
+export type ColumnState = { id: number; name: string; tasks: Task[] }
 
 // The open board, with Go's nil slices turned into empty arrays.
 export type BoardState = {
   board: Board
-  columns: { column: string; tasks: Task[] }[]
+  columns: ColumnState[]
 }
 
 function normalise(view: BoardView): BoardState {
   return {
     board: view.board,
-    columns: (view.columns ?? []).map((c) => ({ column: c.column, tasks: c.tasks ?? [] })),
+    columns: (view.columns ?? []).map((c) => ({ id: c.id, name: c.name, tasks: c.tasks ?? [] })),
   }
 }
+
+// A board event as the API's stream sends it (see
+// docs/domain/contexts/boards/README.md), passed on by LiveService.
+export type BoardEvent = {
+  type: string
+  board_id: number
+  actor_id: number
+  data: Record<string, unknown>
+}
+
+// The board stream's state, for the header's indicator.
+export type LiveState = 'off' | 'connecting' | 'live' | 'reconnecting' | 'signed-out'
 
 const LAST_GUILD = 'bakery.lastGuild'
 const LAST_BOARD = 'bakery.lastBoard'
@@ -38,13 +54,6 @@ function recall(key: string): number | null {
   }
 }
 
-export const COLUMN_TITLES: Record<string, string> = {
-  backlog: 'Backlog',
-  todo: 'To do',
-  doing: 'Doing',
-  done: 'Done',
-}
-
 export class Colony {
   guilds = $state.raw<Guild[]>([])
   guildId = $state<number | null>(null)
@@ -57,6 +66,8 @@ export class Colony {
   // The task open in the side panel.
   openTaskId = $state<number | null>(null)
   task: OpenTask
+  live = $state<LiveState>('off')
+  #reloadTimer: ReturnType<typeof setTimeout> | undefined
 
   guild = $derived(this.guilds.find((g) => g.id === this.guildId) ?? null)
 
@@ -68,6 +79,92 @@ export class Colony {
       () => this.reloadBoard(),
       () => this.#onSignedOut(),
     )
+  }
+
+  // listen follows the open board's live events until the returned function
+  // is called (when the colony screen goes away).
+  listen(): () => void {
+    const offs = [
+      Events.On('board:event', (e) => this.apply(e.data as BoardEvent)),
+      Events.On('board:status', (e) => {
+        const s = e.data as { board_id: number; state: LiveState }
+        if (s.board_id !== this.boardId) return
+        this.live = s.state
+        if (s.state === 'signed-out') this.#onSignedOut()
+      }),
+      Events.On('board:resync', (e) => {
+        if ((e.data as { board_id: number }).board_id === this.boardId) this.#resync()
+      }),
+    ]
+    return () => {
+      offs.forEach((off) => off())
+      LiveService.Unwatch()
+      this.live = 'off'
+    }
+  }
+
+  #resync() {
+    this.reloadBoard()
+    this.task.reload()
+  }
+
+  // reloadSoon refetches the board once a burst of events has passed.
+  #reloadSoon() {
+    clearTimeout(this.#reloadTimer)
+    this.#reloadTimer = setTimeout(() => this.reloadBoard(), 150)
+  }
+
+  // apply puts one live event on the board. Moves, deletes and renames are
+  // applied in place; anything that needs data the event does not carry
+  // refetches the board. Events for changes this app made itself find the
+  // board already changed and do nothing.
+  apply(ev: BoardEvent) {
+    const view = this.view
+    if (!view || ev.board_id !== this.boardId) return
+    const taskId = Number(ev.data.task_id ?? 0)
+    if (taskId && taskId === this.openTaskId) {
+      if (ev.type === 'task.deleted') this.closeTask()
+      else this.task.reload()
+    }
+    switch (ev.type) {
+      case 'task.moved': {
+        const target = view.columns.find((c) => c.id === Number(ev.data.to))
+        const from = view.columns.find((c) => c.tasks.some((t) => t.id === taskId))
+        const task = from?.tasks.find((t) => t.id === taskId)
+        const position = String(ev.data.position)
+        if (!target || !from || !task) return this.#reloadSoon()
+        if (from === target && task.position === position) return
+        from.tasks.splice(from.tasks.indexOf(task), 1)
+        task.column_id = target.id
+        task.position = position
+        // Positions sort as plain strings (the keys are ASCII).
+        const at = target.tasks.findIndex((t) => t.position > position)
+        target.tasks.splice(at < 0 ? target.tasks.length : at, 0, task)
+        return
+      }
+      case 'task.deleted':
+        for (const col of view.columns) {
+          const i = col.tasks.findIndex((t) => t.id === taskId)
+          if (i >= 0) col.tasks.splice(i, 1)
+        }
+        return
+      case 'column.updated': {
+        const col = view.columns.find((c) => c.id === Number(ev.data.column_id))
+        if (col) col.name = String(ev.data.name)
+        else this.#reloadSoon()
+        return
+      }
+      case 'column.deleted': {
+        const i = view.columns.findIndex((c) => c.id === Number(ev.data.column_id))
+        if (i >= 0 && view.columns[i].tasks.length === 0) view.columns.splice(i, 1)
+        else if (i >= 0) this.#reloadSoon()
+        return
+      }
+      default:
+        // task.created, task.updated, column.created, column.moved, and
+        // types this version does not know.
+        this.#reloadSoon()
+    }
   }
 
   openTask(id: number) {
@@ -111,8 +208,11 @@ export class Colony {
     const pick = this.boards.find((b) => b.id === last) ?? this.boards[0]
     if (pick) await this.openBoard(pick.id)
     else {
+      this.closeTask()
       this.boardId = null
       this.view = null
+      LiveService.Unwatch()
+      this.live = 'off'
     }
   }
 
@@ -120,6 +220,8 @@ export class Colony {
     if (id !== this.boardId) this.closeTask()
     this.boardId = id
     remember(LAST_BOARD, id)
+    this.live = 'connecting'
+    LiveService.Watch(id)
     await this.reloadBoard()
   }
 
@@ -142,7 +244,8 @@ export class Colony {
     if (this.boardId === null) return false
     const task = await this.#run(() => BoardsService.CreateTask(this.boardId!, title))
     if (!task) return false
-    this.view?.columns.find((c) => c.column === 'backlog')?.tasks.push(task)
+    const first = this.view?.columns[0]
+    if (first && !first.tasks.some((t) => t.id === task.id)) first.tasks.push(task)
     return true
   }
 
@@ -159,9 +262,9 @@ export class Colony {
     if (!ok) await this.reloadBoard()
   }
 
-  // moveTask moves the task to index in column right away, then tells the
-  // API its new neighbours. If the API refuses, the board is reloaded.
-  async moveTask(id: number, column: string, index: number) {
+  // moveTask moves the task to index in the column right away, then tells
+  // the API its new neighbours. If the API refuses, the board is reloaded.
+  async moveTask(id: number, columnId: number, index: number) {
     const view = this.view
     if (!view) return
     let task
@@ -169,15 +272,15 @@ export class Colony {
       const i = col.tasks.findIndex((t) => t.id === id)
       if (i >= 0) [task] = col.tasks.splice(i, 1)
     }
-    const target = view.columns.find((c) => c.column === column)
+    const target = view.columns.find((c) => c.id === columnId)
     if (!task || !target) return this.reloadBoard()
     index = Math.max(0, Math.min(index, target.tasks.length))
-    task.column = column
+    task.column_id = columnId
     target.tasks.splice(index, 0, task)
 
     const afterId = target.tasks[index - 1]?.id ?? null
     const beforeId = target.tasks[index + 1]?.id ?? null
-    const moved = await this.#run(() => BoardsService.MoveTask(id, column, afterId, beforeId))
+    const moved = await this.#run(() => BoardsService.MoveTask(id, columnId, afterId, beforeId))
     if (!moved) await this.reloadBoard()
     else task.position = moved.position
   }

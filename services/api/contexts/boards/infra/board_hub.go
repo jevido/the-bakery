@@ -23,9 +23,10 @@ const subscriberBuffer = 64
 // subscriber. If that connection drops, every stream is closed, because
 // events may have been missed; clients reconnect and refetch.
 type BoardHub struct {
-	mu    sync.Mutex
-	subs  map[uint64]map[chan []byte]struct{}
-	start sync.Once
+	mu     sync.Mutex
+	subs   map[uint64]map[chan []byte]struct{}
+	closed bool
+	start  sync.Once
 	// listen is replaced in tests.
 	listen func(ctx context.Context, deliver func(payload []byte)) error
 }
@@ -40,6 +41,11 @@ func (h *BoardHub) Subscribe(boardID uint64) (<-chan []byte, func()) {
 	h.start.Do(func() { go h.run(context.Background()) })
 	ch := make(chan []byte, subscriberBuffer)
 	h.mu.Lock()
+	if h.closed {
+		h.mu.Unlock()
+		close(ch)
+		return ch, func() {}
+	}
 	if h.subs[boardID] == nil {
 		h.subs[boardID] = map[chan []byte]struct{}{}
 	}
@@ -79,6 +85,16 @@ func (h *BoardHub) deliver(payload []byte) {
 			close(ch)
 		}
 	}
+}
+
+// Close ends every stream and refuses new ones: the process is about to
+// stop, and an open stream would keep it waiting. Clients reconnect, to
+// another process.
+func (h *BoardHub) Close() {
+	h.mu.Lock()
+	h.closed = true
+	h.mu.Unlock()
+	h.dropAll()
 }
 
 // dropAll closes every stream.

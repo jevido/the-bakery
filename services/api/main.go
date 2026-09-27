@@ -25,6 +25,7 @@ func main() {
 
 	// Start blocks until SIGINT or SIGTERM, then shuts the HTTP server down
 	// gracefully: it stops accepting and lets in-flight requests finish,
-	// which the 3 second request timeout (config/http.go) bounds.
+	// which the 3 second request timeout (routes/api.go) bounds. Board event
+	// streams are ended on the same signal (routes/api.go).
 	app.Start()
 }

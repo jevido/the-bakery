@@ -18,16 +18,17 @@ type Board struct {
 	Name    string `json:"name"`
 }
 
-// Task is a task or a subtask. A subtask has a ParentID and no Column.
+// Task is a task or a subtask. A subtask has a ParentID and no column
+// (ColumnID nil).
 // SubtasksTotal and SubtasksDone are filled in on a board's tasks and in
 // GetTask.
 type Task struct {
 	ID            uint64  `json:"id"`
 	BoardID       uint64  `json:"board_id"`
 	ParentID      *uint64 `json:"parent_id"`
+	ColumnID      *uint64 `json:"column_id"`
 	Title         string  `json:"title"`
 	Description   string  `json:"description"`
-	Column        string  `json:"column"`
 	Position      string  `json:"position"`
 	Done          bool    `json:"done"`
 	SubtasksTotal int     `json:"subtasks_total"`
@@ -40,10 +41,11 @@ type TaskDetail struct {
 	Subtasks []Task `json:"subtasks"`
 }
 
-// Column is one board column with its tasks in order.
+// Column is one of a board's columns with its tasks in order.
 type Column struct {
-	Column string `json:"column"`
-	Tasks  []Task `json:"tasks"`
+	ID    uint64 `json:"id"`
+	Name  string `json:"name"`
+	Tasks []Task `json:"tasks"`
 }
 
 // BoardView is a board with every column, in board order.
@@ -106,10 +108,10 @@ func (c *Client) UpdateTask(ctx context.Context, token string, taskID uint64, ti
 	return res.Task, err
 }
 
-// MoveTask puts a task in column right after afterID and/or right before
-// beforeID (nil for either end).
-func (c *Client) MoveTask(ctx context.Context, token string, taskID uint64, column string, afterID, beforeID *uint64) (Task, error) {
-	body := map[string]any{"column": column, "after_id": afterID, "before_id": beforeID}
+// MoveTask puts a task in the column right after afterID and/or right
+// before beforeID (nil for either end).
+func (c *Client) MoveTask(ctx context.Context, token string, taskID, columnID uint64, afterID, beforeID *uint64) (Task, error) {
+	body := map[string]any{"column_id": columnID, "after_id": afterID, "before_id": beforeID}
 	var res struct {
 		Task Task `json:"task"`
 	}

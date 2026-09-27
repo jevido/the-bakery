@@ -2,9 +2,9 @@
 // the wording (later: flavour text) can change in one place.
 
 import type { Activity } from './bindings'
-import { COLUMN_TITLES } from './colony.svelte'
 
-const column = (c: unknown) => COLUMN_TITLES[String(c)] ?? String(c)
+// Activity keeps each column's name as it was then.
+const column = (c: unknown) => String(c ?? '')
 const quoted = (s: unknown) => `“${String(s ?? '')}”`
 
 export function activityLine(e: Activity): string {

@@ -82,6 +82,20 @@ func TestHubDropsEveryoneWhenListeningStops(t *testing.T) {
 	}
 }
 
+func TestHubCloseEndsStreamsAndRefusesNewOnes(t *testing.T) {
+	h := newTestHub()
+	open, _ := h.Subscribe(1)
+	h.Close()
+	if _, ok := <-open; ok {
+		t.Error("stream still open after Close")
+	}
+	late, stop := h.Subscribe(1)
+	defer stop()
+	if _, ok := <-late; ok {
+		t.Error("new stream accepted after Close")
+	}
+}
+
 func TestBoardEventOf(t *testing.T) {
 	parent := uint64(7)
 	tests := []struct {
