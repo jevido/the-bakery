@@ -148,3 +148,82 @@ func (s *BoardsTestSuite) TestSeededBoard() {
 	cols := s.columnTitles(token, boardID)
 	s.Contains(cols["backlog"], "Build a research bench")
 }
+
+func (s *BoardsTestSuite) TestSubtasks() {
+	_, token := s.register()
+	guildID := s.foundGuild(token, "Subtask Colony")
+	boardID := s.createBoard(token, guildID, "Getting settled")
+	parentID := s.createTask(token, boardID, "Build a freezer")
+	task := func(id uint64) map[string]any {
+		res := s.get(token, fmt.Sprintf("/api/tasks/%d", id))
+		res.AssertOk()
+		return s.jsonOf(res)
+	}
+	boardTask := func() map[string]any {
+		res := s.get(token, fmt.Sprintf("/api/boards/%d", boardID))
+		res.AssertOk()
+		tasks := s.jsonOf(res)["columns"].([]any)[0].(map[string]any)["tasks"].([]any)
+		s.Require().Len(tasks, 1, "subtasks are not cards")
+		return tasks[0].(map[string]any)
+	}
+
+	res := s.post(token, fmt.Sprintf("/api/tasks/%d/expand", parentID), `{"titles":["Dig the room","Wall it in","Add a cooler"]}`)
+	res.AssertCreated()
+	added := s.jsonOf(res)["subtasks"].([]any)
+	s.Require().Len(added, 3)
+	first := uint64(added[0].(map[string]any)["id"].(float64))
+	third := uint64(added[2].(map[string]any)["id"].(float64))
+	s.Nil(added[0].(map[string]any)["column"], "a subtask has no column")
+
+	got := task(parentID)
+	s.Equal(float64(3), got["task"].(map[string]any)["subtasks_total"])
+	var titles []string
+	for _, st := range got["subtasks"].([]any) {
+		titles = append(titles, st.(map[string]any)["title"].(string))
+	}
+	s.Equal([]string{"Dig the room", "Wall it in", "Add a cooler"}, titles)
+	s.Equal(float64(3), boardTask()["subtasks_total"])
+	s.Equal(float64(0), boardTask()["subtasks_done"])
+
+	// Tick one off.
+	s.send("PATCH", token, fmt.Sprintf("/api/tasks/%d", first), `{"done":true}`).AssertOk()
+	s.Equal(float64(1), boardTask()["subtasks_done"])
+	// Only a subtask can be ticked off.
+	s.send("PATCH", token, fmt.Sprintf("/api/tasks/%d", parentID), `{"done":true}`).AssertUnprocessableEntity()
+
+	// Add one at the end, then move the last one to the top.
+	res = s.post(token, fmt.Sprintf("/api/tasks/%d/subtasks", parentID), `{"title":"Stock it"}`)
+	res.AssertCreated()
+	s.move(token, third, fmt.Sprintf(`{"before_id":%d}`, first)).AssertOk()
+	titles = nil
+	for _, st := range task(parentID)["subtasks"].([]any) {
+		titles = append(titles, st.(map[string]any)["title"].(string))
+	}
+	s.Equal([]string{"Add a cooler", "Dig the room", "Wall it in", "Stock it"}, titles)
+	// A neighbour must be a sibling.
+	s.move(token, third, fmt.Sprintf(`{"after_id":%d}`, parentID)).AssertUnprocessableEntity()
+
+	// One level deep, and 1 to 50 at a time.
+	s.post(token, fmt.Sprintf("/api/tasks/%d/expand", first), `{"titles":["Too deep"]}`).AssertUnprocessableEntity()
+	s.post(token, fmt.Sprintf("/api/tasks/%d/subtasks", first), `{"title":"Too deep"}`).AssertUnprocessableEntity()
+	s.post(token, fmt.Sprintf("/api/tasks/%d/expand", parentID), `{"titles":[]}`).AssertUnprocessableEntity()
+	s.post(token, fmt.Sprintf("/api/tasks/%d/expand", parentID), `{"titles":["Fine"," "]}`).AssertUnprocessableEntity()
+	s.Equal(float64(4), boardTask()["subtasks_total"], "a refused expand adds nothing")
+
+	// Moving the parent keeps its subtasks with it.
+	s.move(token, parentID, `{"column":"doing"}`).AssertOk()
+	s.Equal(float64(4), task(parentID)["task"].(map[string]any)["subtasks_total"])
+
+	// Others cannot see or add subtasks.
+	_, stranger := s.register()
+	s.get(stranger, fmt.Sprintf("/api/tasks/%d", parentID)).AssertForbidden()
+	s.post(stranger, fmt.Sprintf("/api/tasks/%d/expand", parentID), `{"titles":["Mine"]}`).AssertForbidden()
+
+	// Deleting the parent deletes its subtasks.
+	s.send("DELETE", token, fmt.Sprintf("/api/tasks/%d", parentID), "").AssertNoContent()
+	s.get(token, fmt.Sprintf("/api/tasks/%d", first)).AssertNotFound()
+	var left int64
+	left, err := facades.Orm().Query().Table("tasks").Where("parent_id", parentID).Count()
+	s.Require().NoError(err)
+	s.Zero(left)
+}

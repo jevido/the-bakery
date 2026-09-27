@@ -98,7 +98,7 @@ func addWriteTools(s *sdk.Server) {
 		if err != nil {
 			return nil, taskResult{}, err
 		}
-		t, err := boards.UpdateTask(ctx, in.TaskID, me, in.Title, in.Description)
+		t, err := boards.UpdateTask(ctx, in.TaskID, me, in.Title, in.Description, nil)
 		if err != nil {
 			r, _ := failed(err)
 			return r, taskResult{}, nil

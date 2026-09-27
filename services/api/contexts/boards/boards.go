@@ -27,7 +27,10 @@ func Routes(r route.Router) {
 		r.Post("/api/guilds/{guild}/boards", c.CreateBoard)
 		r.Get("/api/boards/{board}", c.GetBoard)
 		r.Post("/api/boards/{board}/tasks", c.CreateTask)
+		r.Get("/api/tasks/{task}", c.GetTask)
 		r.Patch("/api/tasks/{task}", c.UpdateTask)
+		r.Post("/api/tasks/{task}/subtasks", c.AddSubtask)
+		r.Post("/api/tasks/{task}/expand", c.ExpandTask)
 		r.Post("/api/tasks/{task}/move", c.MoveTask)
 		r.Delete("/api/tasks/{task}", c.DeleteTask)
 	})
@@ -71,12 +74,19 @@ type Board struct {
 	Name    string
 }
 
+// Task is a task or a subtask. A subtask has a ParentID and no Column. The
+// subtask counts are filled in where the caller asked for them (GetBoard,
+// GetTask).
 type Task struct {
-	ID          uint64
-	BoardID     uint64
-	Title       string
-	Description string
-	Column      string
+	ID            uint64
+	BoardID       uint64
+	ParentID      *uint64
+	Title         string
+	Description   string
+	Column        string
+	Done          bool
+	SubtasksTotal int
+	SubtasksDone  int
 }
 
 type Column struct {
@@ -92,7 +102,19 @@ type BoardView struct {
 func boardOf(b domain.Board) Board { return Board{ID: b.ID, GuildID: b.GuildID, Name: b.Name} }
 
 func taskOf(t domain.Task) Task {
-	return Task{ID: t.ID, BoardID: t.BoardID, Title: t.Title, Description: t.Description, Column: string(t.Column)}
+	out := Task{ID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID, Title: t.Title, Description: t.Description, Done: t.Done}
+	if !t.IsSubtask() {
+		out.Column = string(t.Column)
+	}
+	return out
+}
+
+func tasksOf(ts []domain.Task) []Task {
+	out := make([]Task, len(ts))
+	for i, t := range ts {
+		out[i] = taskOf(t)
+	}
+	return out
 }
 
 // ListBoards returns a guild's boards; the member must be in the guild.
@@ -111,13 +133,15 @@ func ListBoards(ctx context.Context, guildID, memberID uint64) ([]Board, error) 
 // GetBoard returns a board with all four columns in order, each with its
 // tasks in order.
 func GetBoard(ctx context.Context, boardID, memberID uint64) (BoardView, error) {
-	b, tasks, err := service.GetBoard(ctx, boardID, memberID)
+	b, tasks, counts, err := service.GetBoard(ctx, boardID, memberID)
 	if err != nil {
 		return BoardView{}, err
 	}
 	byColumn := map[domain.Column][]Task{}
 	for _, t := range tasks {
-		byColumn[t.Column] = append(byColumn[t.Column], taskOf(t))
+		out := taskOf(t)
+		out.SubtasksTotal, out.SubtasksDone = counts[t.ID].Total, counts[t.ID].Done
+		byColumn[t.Column] = append(byColumn[t.Column], out)
 	}
 	view := BoardView{Board: boardOf(b)}
 	for _, c := range domain.Columns {
@@ -152,9 +176,32 @@ func CreateTask(ctx context.Context, boardID, memberID uint64, title, descriptio
 	return taskOf(t), nil
 }
 
-// UpdateTask changes a task's title and/or description (nil keeps it).
-func UpdateTask(ctx context.Context, taskID, memberID uint64, title, description *string) (Task, error) {
-	t, err := service.UpdateTask(ctx, taskID, memberID, title, description)
+// GetTask returns a task with its subtasks in order.
+func GetTask(ctx context.Context, taskID, memberID uint64) (Task, []Task, error) {
+	t, subtasks, err := service.GetTask(ctx, taskID, memberID)
+	if err != nil {
+		return Task{}, nil, err
+	}
+	out := taskOf(t)
+	for _, st := range subtasks {
+		out.SubtasksTotal++
+		if st.Done {
+			out.SubtasksDone++
+		}
+	}
+	return out, tasksOf(subtasks), nil
+}
+
+// ExpandTask adds 1 to 50 subtasks at the end of a task's subtasks.
+func ExpandTask(ctx context.Context, taskID, memberID uint64, titles []string) ([]Task, error) {
+	added, err := service.ExpandTask(ctx, taskID, memberID, titles)
+	return tasksOf(added), err
+}
+
+// UpdateTask changes a task's title and/or description, and ticks a subtask
+// off or on (nil keeps a field).
+func UpdateTask(ctx context.Context, taskID, memberID uint64, title, description *string, done *bool) (Task, error) {
+	t, err := service.UpdateTask(ctx, taskID, memberID, title, description, done)
 	return taskOf(t), err
 }
 

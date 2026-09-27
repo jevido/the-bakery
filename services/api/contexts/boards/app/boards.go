@@ -14,6 +14,7 @@ var (
 	ErrBoardNotFound    = errors.New("board not found")
 	ErrTaskNotFound     = errors.New("task not found")
 	ErrInvalidNeighbour = errors.New("neighbour must be another task in the target column")
+	ErrInvalidSibling   = errors.New("neighbour must be another subtask of the same task")
 	ErrGuildArchived    = errors.New("this guild is archived; its boards are read-only")
 	// ErrPositionTaken is returned by Tasks when another write took the same
 	// position first; the use case recomputes and tries again.
@@ -45,11 +46,26 @@ type Tasks interface {
 	OfBoard(ctx context.Context, boardID uint64) ([]domain.Task, error)
 	// InColumn returns one column's tasks ordered by position.
 	InColumn(ctx context.Context, boardID uint64, column domain.Column) ([]domain.Task, error)
+	// AddAll stores several tasks in one transaction: all or none.
+	AddAll(ctx context.Context, ts []domain.Task) ([]domain.Task, error)
+	// SubtasksOf returns a task's subtasks ordered by position.
+	SubtasksOf(ctx context.Context, parentID uint64) ([]domain.Task, error)
+	// SubtaskCounts counts the subtasks of each of the given tasks; a task
+	// without subtasks is left out.
+	SubtaskCounts(ctx context.Context, parentIDs []uint64) (map[uint64]SubtaskCount, error)
+}
+
+// SubtaskCount is how many subtasks a task has, and how many are done.
+type SubtaskCount struct {
+	Total int
+	Done  int
 }
 
 type Events interface {
 	TaskCreated(ctx context.Context, ev domain.TaskCreated)
 	TaskMoved(ctx context.Context, ev domain.TaskMoved)
+	SubtaskAdded(ctx context.Context, ev domain.SubtaskAdded)
+	SubtaskCompleted(ctx context.Context, ev domain.SubtaskCompleted)
 }
 
 type Service struct {
@@ -106,6 +122,8 @@ func (s *Service) board(ctx context.Context, boardID, memberID uint64) (domain.B
 	return b, s.requireMember(ctx, b.GuildID, memberID)
 }
 
+// task is a task for changes: the member must be in its guild and the
+// guild must not be archived.
 func (s *Service) task(ctx context.Context, taskID, memberID uint64) (domain.Task, error) {
 	t, found, err := s.tasks.ByID(ctx, taskID)
 	if err != nil {
@@ -115,6 +133,22 @@ func (s *Service) task(ctx context.Context, taskID, memberID uint64) (domain.Tas
 		return domain.Task{}, ErrTaskNotFound
 	}
 	if _, err := s.writableBoard(ctx, t.BoardID, memberID); err != nil {
+		return domain.Task{}, err
+	}
+	return t, nil
+}
+
+// readableTask is a task for reading; an archived guild's tasks can still
+// be read.
+func (s *Service) readableTask(ctx context.Context, taskID, memberID uint64) (domain.Task, error) {
+	t, found, err := s.tasks.ByID(ctx, taskID)
+	if err != nil {
+		return domain.Task{}, err
+	}
+	if !found {
+		return domain.Task{}, ErrTaskNotFound
+	}
+	if _, err := s.board(ctx, t.BoardID, memberID); err != nil {
 		return domain.Task{}, err
 	}
 	return t, nil
@@ -142,13 +176,80 @@ func (s *Service) CreateBoard(ctx context.Context, guildID, memberID uint64, nam
 }
 
 // GetBoard returns the board and its tasks, by column then position.
-func (s *Service) GetBoard(ctx context.Context, boardID, memberID uint64) (domain.Board, []domain.Task, error) {
+// GetBoard returns the board's top-level tasks by column and position, and
+// how many subtasks each has.
+func (s *Service) GetBoard(ctx context.Context, boardID, memberID uint64) (domain.Board, []domain.Task, map[uint64]SubtaskCount, error) {
 	b, err := s.board(ctx, boardID, memberID)
 	if err != nil {
-		return domain.Board{}, nil, err
+		return domain.Board{}, nil, nil, err
 	}
 	tasks, err := s.tasks.OfBoard(ctx, b.ID)
-	return b, tasks, err
+	if err != nil {
+		return domain.Board{}, nil, nil, err
+	}
+	ids := make([]uint64, len(tasks))
+	for i, t := range tasks {
+		ids[i] = t.ID
+	}
+	counts, err := s.tasks.SubtaskCounts(ctx, ids)
+	return b, tasks, counts, err
+}
+
+// GetTask returns a task and, for a top-level task, its subtasks in order.
+func (s *Service) GetTask(ctx context.Context, taskID, memberID uint64) (domain.Task, []domain.Task, error) {
+	t, err := s.readableTask(ctx, taskID, memberID)
+	if err != nil {
+		return domain.Task{}, nil, err
+	}
+	if t.IsSubtask() {
+		return t, []domain.Task{}, nil
+	}
+	subtasks, err := s.tasks.SubtasksOf(ctx, t.ID)
+	return t, subtasks, err
+}
+
+// AddSubtask adds one subtask at the end of the task's subtasks.
+func (s *Service) AddSubtask(ctx context.Context, taskID, memberID uint64, title string) (domain.Task, error) {
+	added, err := s.ExpandTask(ctx, taskID, memberID, []string{title})
+	if err != nil {
+		return domain.Task{}, err
+	}
+	return added[0], nil
+}
+
+// ExpandTask adds 1 to 50 subtasks at the end of the task's subtasks, in one
+// transaction.
+func (s *Service) ExpandTask(ctx context.Context, taskID, memberID uint64, titles []string) ([]domain.Task, error) {
+	parent, err := s.task(ctx, taskID, memberID)
+	if err != nil {
+		return nil, err
+	}
+	for range positionAttempts {
+		siblings, err := s.tasks.SubtasksOf(ctx, parent.ID)
+		if err != nil {
+			return nil, err
+		}
+		last := ""
+		if len(siblings) > 0 {
+			last = siblings[len(siblings)-1].Position
+		}
+		subtasks, err := domain.Expand(parent, titles, last)
+		if err != nil {
+			return nil, err
+		}
+		added, err := s.tasks.AddAll(ctx, subtasks)
+		if errors.Is(err, ErrPositionTaken) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		for _, t := range added {
+			s.events.SubtaskAdded(ctx, t.Added())
+		}
+		return added, nil
+	}
+	return nil, ErrPositionTaken
 }
 
 func (s *Service) CreateTask(ctx context.Context, boardID, memberID uint64, title, description string) (domain.Task, error) {
@@ -183,8 +284,9 @@ func (s *Service) CreateTask(ctx context.Context, boardID, memberID uint64, titl
 	return domain.Task{}, ErrPositionTaken
 }
 
-// UpdateTask changes the title and/or description; nil leaves one as it is.
-func (s *Service) UpdateTask(ctx context.Context, taskID, memberID uint64, title, description *string) (domain.Task, error) {
+// UpdateTask changes the title and/or description, and ticks a subtask off
+// or on; nil leaves a field as it is.
+func (s *Service) UpdateTask(ctx context.Context, taskID, memberID uint64, title, description *string, done *bool) (domain.Task, error) {
 	t, err := s.task(ctx, taskID, memberID)
 	if err != nil {
 		return domain.Task{}, err
@@ -197,18 +299,40 @@ func (s *Service) UpdateTask(ctx context.Context, taskID, memberID uint64, title
 	if description != nil {
 		t.Describe(*description)
 	}
-	return t, s.tasks.Save(ctx, t)
+	var completed *domain.SubtaskCompleted
+	if done != nil {
+		var err error
+		if *done {
+			completed, err = t.Complete()
+		} else {
+			err = t.Reopen()
+		}
+		if err != nil {
+			return domain.Task{}, err
+		}
+	}
+	if err := s.tasks.Save(ctx, t); err != nil {
+		return domain.Task{}, err
+	}
+	if completed != nil {
+		s.events.SubtaskCompleted(ctx, *completed)
+	}
+	return t, nil
 }
 
 // MoveTask puts a task in column right after the task afterID and/or right
 // before the task beforeID. With neither, it goes to the bottom of the
-// column.
+// column. A subtask has no column: it moves among its siblings the same way,
+// and column is ignored.
 func (s *Service) MoveTask(ctx context.Context, taskID, memberID uint64, column string, afterID, beforeID *uint64) (domain.Task, error) {
-	col, err := domain.ParseColumn(column)
+	t, err := s.task(ctx, taskID, memberID)
 	if err != nil {
 		return domain.Task{}, err
 	}
-	t, err := s.task(ctx, taskID, memberID)
+	if t.IsSubtask() {
+		return s.moveSubtask(ctx, t, afterID, beforeID)
+	}
+	col, err := domain.ParseColumn(column)
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -238,6 +362,39 @@ func (s *Service) MoveTask(ctx context.Context, taskID, memberID uint64, column 
 			return domain.Task{}, err
 		}
 		s.events.TaskMoved(ctx, ev)
+		return moved, nil
+	}
+	return domain.Task{}, ErrPositionTaken
+}
+
+func (s *Service) moveSubtask(ctx context.Context, t domain.Task, afterID, beforeID *uint64) (domain.Task, error) {
+	for range positionAttempts {
+		siblings, err := s.tasks.SubtasksOf(ctx, *t.ParentID)
+		if err != nil {
+			return domain.Task{}, err
+		}
+		above, below, err := neighbours(siblings, t.ID, afterID, beforeID)
+		if errors.Is(err, ErrInvalidNeighbour) {
+			return domain.Task{}, ErrInvalidSibling
+		}
+		if err != nil {
+			return domain.Task{}, err
+		}
+		moved := t
+		err = moved.Reposition(above, below)
+		if errors.Is(err, domain.ErrInvalidPosition) {
+			return domain.Task{}, ErrInvalidSibling
+		}
+		if err != nil {
+			return domain.Task{}, err
+		}
+		err = s.tasks.Save(ctx, moved)
+		if errors.Is(err, ErrPositionTaken) {
+			continue
+		}
+		if err != nil {
+			return domain.Task{}, err
+		}
 		return moved, nil
 	}
 	return domain.Task{}, ErrPositionTaken

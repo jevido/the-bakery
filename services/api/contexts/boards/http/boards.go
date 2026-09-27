@@ -36,17 +36,32 @@ func boardToJSON(b domain.Board) boardJSON {
 	return boardJSON{ID: b.ID, GuildID: b.GuildID, Name: b.Name}
 }
 
+// taskJSON is a task or a subtask. A subtask has a parent_id and no
+// column; a top-level task carries its subtask counts where they are known.
 type taskJSON struct {
-	ID          uint64 `json:"id"`
-	BoardID     uint64 `json:"board_id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Column      string `json:"column"`
-	Position    string `json:"position"`
+	ID            uint64  `json:"id"`
+	BoardID       uint64  `json:"board_id"`
+	ParentID      *uint64 `json:"parent_id"`
+	Title         string  `json:"title"`
+	Description   string  `json:"description"`
+	Column        string  `json:"column,omitempty"`
+	Position      string  `json:"position"`
+	Done          bool    `json:"done"`
+	SubtasksTotal *int    `json:"subtasks_total,omitempty"`
+	SubtasksDone  *int    `json:"subtasks_done,omitempty"`
 }
 
 func taskToJSON(t domain.Task) taskJSON {
-	return taskJSON{ID: t.ID, BoardID: t.BoardID, Title: t.Title, Description: t.Description, Column: string(t.Column), Position: t.Position}
+	out := taskJSON{ID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID, Title: t.Title, Description: t.Description, Position: t.Position, Done: t.Done}
+	if !t.IsSubtask() {
+		out.Column = string(t.Column)
+	}
+	return out
+}
+
+func withCounts(out taskJSON, c app.SubtaskCount) taskJSON {
+	out.SubtasksTotal, out.SubtasksDone = &c.Total, &c.Done
+	return out
 }
 
 type columnJSON struct {
@@ -97,13 +112,13 @@ func (c *Controller) GetBoard(ctx contractshttp.Context) contractshttp.Response 
 	if !ok {
 		return notFound(ctx)
 	}
-	b, tasks, err := c.service.GetBoard(ctx.Context(), boardID, c.me(ctx))
+	b, tasks, counts, err := c.service.GetBoard(ctx.Context(), boardID, c.me(ctx))
 	if err != nil {
 		return failure(ctx, err)
 	}
 	byColumn := map[domain.Column][]taskJSON{}
 	for _, t := range tasks {
-		byColumn[t.Column] = append(byColumn[t.Column], taskToJSON(t))
+		byColumn[t.Column] = append(byColumn[t.Column], withCounts(taskToJSON(t), counts[t.ID]))
 	}
 	columns := make([]columnJSON, len(domain.Columns))
 	for i, col := range domain.Columns {
@@ -139,6 +154,7 @@ func (c *Controller) CreateTask(ctx contractshttp.Context) contractshttp.Respons
 type updateTaskRequest struct {
 	Title       *string `json:"title"`
 	Description *string `json:"description"`
+	Done        *bool   `json:"done"`
 }
 
 func (c *Controller) UpdateTask(ctx contractshttp.Context) contractshttp.Response {
@@ -150,7 +166,7 @@ func (c *Controller) UpdateTask(ctx contractshttp.Context) contractshttp.Respons
 	if err := ctx.Request().Bind(&req); err != nil {
 		return badRequest(ctx)
 	}
-	t, err := c.service.UpdateTask(ctx.Context(), taskID, c.me(ctx), req.Title, req.Description)
+	t, err := c.service.UpdateTask(ctx.Context(), taskID, c.me(ctx), req.Title, req.Description, req.Done)
 	if err != nil {
 		return failure(ctx, err)
 	}
@@ -179,6 +195,78 @@ func (c *Controller) MoveTask(ctx contractshttp.Context) contractshttp.Response 
 		return failure(ctx, err)
 	}
 	return ctx.Response().Success().Json(contractshttp.Json{"task": taskToJSON(t)})
+}
+
+// GetTask returns a task with its subtasks in order.
+func (c *Controller) GetTask(ctx contractshttp.Context) contractshttp.Response {
+	taskID, ok := routeID(ctx, "task")
+	if !ok {
+		return notFound(ctx)
+	}
+	t, subtasks, err := c.service.GetTask(ctx.Context(), taskID, c.me(ctx))
+	if err != nil {
+		return failure(ctx, err)
+	}
+	out := taskToJSON(t)
+	if !t.IsSubtask() {
+		done := 0
+		for _, st := range subtasks {
+			if st.Done {
+				done++
+			}
+		}
+		out = withCounts(out, app.SubtaskCount{Total: len(subtasks), Done: done})
+	}
+	return ctx.Response().Success().Json(contractshttp.Json{"task": out, "subtasks": tasksToJSON(subtasks)})
+}
+
+type addSubtaskRequest struct {
+	Title string `json:"title"`
+}
+
+func (c *Controller) AddSubtask(ctx contractshttp.Context) contractshttp.Response {
+	taskID, ok := routeID(ctx, "task")
+	if !ok {
+		return notFound(ctx)
+	}
+	var req addSubtaskRequest
+	if err := ctx.Request().Bind(&req); err != nil {
+		return badRequest(ctx)
+	}
+	t, err := c.service.AddSubtask(ctx.Context(), taskID, c.me(ctx), req.Title)
+	if err != nil {
+		return failure(ctx, err)
+	}
+	return ctx.Response().Json(contractshttp.StatusCreated, contractshttp.Json{"subtask": taskToJSON(t)})
+}
+
+type expandTaskRequest struct {
+	Titles []string `json:"titles"`
+}
+
+// ExpandTask adds several subtasks at once, all or none.
+func (c *Controller) ExpandTask(ctx contractshttp.Context) contractshttp.Response {
+	taskID, ok := routeID(ctx, "task")
+	if !ok {
+		return notFound(ctx)
+	}
+	var req expandTaskRequest
+	if err := ctx.Request().Bind(&req); err != nil {
+		return badRequest(ctx)
+	}
+	added, err := c.service.ExpandTask(ctx.Context(), taskID, c.me(ctx), req.Titles)
+	if err != nil {
+		return failure(ctx, err)
+	}
+	return ctx.Response().Json(contractshttp.StatusCreated, contractshttp.Json{"subtasks": tasksToJSON(added)})
+}
+
+func tasksToJSON(ts []domain.Task) []taskJSON {
+	out := make([]taskJSON, len(ts))
+	for i, t := range ts {
+		out[i] = taskToJSON(t)
+	}
+	return out
 }
 
 func (c *Controller) DeleteTask(ctx contractshttp.Context) contractshttp.Response {
@@ -218,8 +306,14 @@ func failure(ctx contractshttp.Context, err error) contractshttp.Response {
 		status, field = contractshttp.StatusUnprocessableEntity, "title"
 	case errors.Is(err, domain.ErrInvalidColumn):
 		status, field = contractshttp.StatusUnprocessableEntity, "column"
-	case errors.Is(err, app.ErrInvalidNeighbour):
+	case errors.Is(err, app.ErrInvalidNeighbour), errors.Is(err, app.ErrInvalidSibling):
 		status, field = contractshttp.StatusUnprocessableEntity, "after_id"
+	case errors.Is(err, domain.ErrTooManySubtasks):
+		status, field = contractshttp.StatusUnprocessableEntity, "titles"
+	case errors.Is(err, domain.ErrNotSubtask):
+		status, field = contractshttp.StatusUnprocessableEntity, "done"
+	case errors.Is(err, domain.ErrNestedSubtask):
+		status = contractshttp.StatusUnprocessableEntity
 	}
 	if status == contractshttp.StatusInternalServerError {
 		facades.Log().WithContext(ctx.Context()).Error(err)

@@ -1,0 +1,189 @@
+package domain
+
+import (
+	"errors"
+	"strings"
+	"unicode/utf8"
+)
+
+const (
+	taskTitleMax = 200
+	expandMax    = 50
+)
+
+var (
+	ErrInvalidTitle    = errors.New("task title must be 1 to 200 characters")
+	ErrNestedSubtask   = errors.New("a subtask cannot have subtasks")
+	ErrTooManySubtasks = errors.New("expanding takes 1 to 50 subtasks")
+	ErrNotSubtask      = errors.New("only a subtask can be ticked off")
+	ErrSubtaskNoColumn = errors.New("a subtask is not in a column; reorder it under its parent")
+)
+
+// Task is its own aggregate: moving one task never touches the board or
+// the other tasks. A task with a ParentID is a subtask: it is ordered under
+// its parent instead of standing in a column, and can be ticked off.
+type Task struct {
+	ID          uint64
+	BoardID     uint64
+	ParentID    *uint64
+	Title       string
+	Description string
+	Column      Column
+	Position    string
+	Done        bool
+}
+
+func (t Task) IsSubtask() bool { return t.ParentID != nil }
+
+// TaskCreated is announced when a task is added to a board.
+type TaskCreated struct {
+	TaskID   uint64
+	BoardID  uint64
+	Column   Column
+	Position string
+}
+
+// TaskMoved is announced when a task changes column or position.
+type TaskMoved struct {
+	TaskID   uint64
+	BoardID  uint64
+	From     Column
+	To       Column
+	Position string
+}
+
+// SubtaskAdded is announced when a task gets a subtask.
+type SubtaskAdded struct {
+	SubtaskID uint64
+	ParentID  uint64
+	BoardID   uint64
+}
+
+// SubtaskCompleted is announced when a subtask is ticked off.
+type SubtaskCompleted struct {
+	SubtaskID uint64
+	ParentID  uint64
+	BoardID   uint64
+}
+
+// NewTask creates a task at the bottom of the backlog. last is the position
+// of the backlog's current last task ("" when it is empty).
+func NewTask(boardID uint64, title, description, last string) (Task, TaskCreated, error) {
+	title, err := cleanTitle(title)
+	if err != nil {
+		return Task{}, TaskCreated{}, err
+	}
+	pos, err := KeyBetween(last, "")
+	if err != nil {
+		return Task{}, TaskCreated{}, err
+	}
+	t := Task{BoardID: boardID, Title: title, Description: description, Column: Backlog, Position: pos}
+	return t, TaskCreated{BoardID: boardID, Column: Backlog, Position: pos}, nil
+}
+
+// Expand makes subtasks of parent from titles, in order, below the parent's
+// current last subtask (at position last, "" when it has none). Subtasks
+// are one level deep, so a subtask cannot be expanded.
+func Expand(parent Task, titles []string, last string) ([]Task, error) {
+	if parent.IsSubtask() {
+		return nil, ErrNestedSubtask
+	}
+	if len(titles) < 1 || len(titles) > expandMax {
+		return nil, ErrTooManySubtasks
+	}
+	subtasks := make([]Task, len(titles))
+	for i, title := range titles {
+		title, err := cleanTitle(title)
+		if err != nil {
+			return nil, err
+		}
+		pos, err := KeyBetween(last, "")
+		if err != nil {
+			return nil, err
+		}
+		parentID := parent.ID
+		subtasks[i] = Task{BoardID: parent.BoardID, ParentID: &parentID, Title: title, Column: parent.Column, Position: pos}
+		last = pos
+	}
+	return subtasks, nil
+}
+
+// Added is the event for a subtask that has just been stored.
+func (t Task) Added() SubtaskAdded {
+	return SubtaskAdded{SubtaskID: t.ID, ParentID: *t.ParentID, BoardID: t.BoardID}
+}
+
+func (t *Task) Rename(title string) error {
+	title, err := cleanTitle(title)
+	if err != nil {
+		return err
+	}
+	t.Title = title
+	return nil
+}
+
+func (t *Task) Describe(description string) {
+	t.Description = description
+}
+
+// Complete ticks a subtask off. The event is announced only when it was
+// still open.
+func (t *Task) Complete() (*SubtaskCompleted, error) {
+	if !t.IsSubtask() {
+		return nil, ErrNotSubtask
+	}
+	if t.Done {
+		return nil, nil
+	}
+	t.Done = true
+	return &SubtaskCompleted{SubtaskID: t.ID, ParentID: *t.ParentID, BoardID: t.BoardID}, nil
+}
+
+// Reopen unticks a subtask.
+func (t *Task) Reopen() error {
+	if !t.IsSubtask() {
+		return ErrNotSubtask
+	}
+	t.Done = false
+	return nil
+}
+
+// Move puts the task in column between the tasks at positions above and
+// below ("" for the column's top or bottom end).
+func (t *Task) Move(column Column, above, below string) (TaskMoved, error) {
+	if t.IsSubtask() {
+		return TaskMoved{}, ErrSubtaskNoColumn
+	}
+	if _, err := ParseColumn(string(column)); err != nil {
+		return TaskMoved{}, err
+	}
+	pos, err := KeyBetween(above, below)
+	if err != nil {
+		return TaskMoved{}, err
+	}
+	ev := TaskMoved{TaskID: t.ID, BoardID: t.BoardID, From: t.Column, To: column, Position: pos}
+	t.Column, t.Position = column, pos
+	return ev, nil
+}
+
+// Reposition puts a subtask between its siblings at positions above and
+// below ("" for the first or last place).
+func (t *Task) Reposition(above, below string) error {
+	if !t.IsSubtask() {
+		return ErrNotSubtask
+	}
+	pos, err := KeyBetween(above, below)
+	if err != nil {
+		return err
+	}
+	t.Position = pos
+	return nil
+}
+
+func cleanTitle(title string) (string, error) {
+	title = strings.TrimSpace(title)
+	if n := utf8.RuneCountInString(title); n < 1 || n > taskTitleMax {
+		return "", ErrInvalidTitle
+	}
+	return title, nil
+}
