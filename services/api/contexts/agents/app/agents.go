@@ -38,13 +38,16 @@ type Events interface {
 }
 
 type Service struct {
-	agents Agents
-	events Events
-	now    func() time.Time
+	agents      Agents
+	shares      Shares
+	memberships Memberships
+	names       MemberNames
+	events      Events
+	now         func() time.Time
 }
 
-func NewService(agents Agents, events Events) *Service {
-	return &Service{agents: agents, events: events, now: time.Now}
+func NewService(agents Agents, shares Shares, memberships Memberships, names MemberNames, events Events) *Service {
+	return &Service{agents: agents, shares: shares, memberships: memberships, names: names, events: events, now: time.Now}
 }
 
 // Events the agents context announces.

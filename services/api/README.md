@@ -40,7 +40,8 @@ guilds or boards context publishes from its root package, so it follows the
 same membership and archive rules as REST.
 
 - Read: `list_guilds`, `list_boards`, `get_board`, `get_task` (subtasks and
-  the last 20 comments), `list_work_types`.
+  the last 20 comments), `list_work_types`, `list_agents` (yours, or those
+  shared with a guild), `get_agent`.
 - Write: `create_board`, `create_task`, `update_task`, `move_task`,
   `expand_task`, `set_subtask_done`, `add_comment`, `delete_task` (marked
   destructive, so clients ask first).

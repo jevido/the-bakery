@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: The Bakery API
-  version: 1.2.0
+  version: 1.3.0
   description: >-
     The JSON API behind The Bakery: members, guilds, invites, boards and
     tasks. The desktop app (bearer token) and the website (session cookie)
@@ -954,6 +954,128 @@ paths:
           description: Deleted.
         "401": { $ref: "#/components/responses/Unauthorized" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/AgentStale" }
+        "428": { description: No If-Match header. }
+
+  /api/agents/recruit:
+    post:
+      tags: [Agents]
+      summary: Recruit a shared agent
+      description: >-
+        Copies an agent shared with the guild into your roster: same fields and
+        skillset, you as owner, revision 1, and `origin_agent_id` /
+        `origin_revision` set. A slug you already use gets -2, -3, …
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agent_id, guild_id]
+              properties:
+                agent_id: { type: integer }
+                guild_id: { type: integer }
+                slug: { type: string, description: "Defaults to the original's slug." }
+      responses:
+        "201":
+          description: Your copy.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AgentResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "404": { description: That agent is not shared with this guild. }
+
+  /api/guilds/{guild}/agents:
+    get:
+      tags: [Agents]
+      summary: List the agents shared with a guild
+      description: For its members. No file contents; skills by name and description, and whose each agent is.
+      parameters:
+        - $ref: "#/components/parameters/Guild"
+      responses:
+        "200":
+          description: The agents.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [agents]
+                properties:
+                  agents:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: "#/components/schemas/Agent"
+                        - type: object
+                          properties:
+                            owner_id: { type: integer }
+                            owner_name: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+
+  /api/agents/{agent}/shares/{guild}:
+    parameters:
+      - { name: agent, in: path, required: true, schema: { type: integer } }
+      - $ref: "#/components/parameters/Guild"
+    put:
+      tags: [Agents]
+      summary: Share an agent with a guild
+      description: Your own agent, with a guild you are in. Sharing twice changes nothing. `GET /api/agents/{agent}` lists `shared_with`.
+      responses:
+        "204": { description: Shared. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [Agents]
+      summary: Stop sharing an agent
+      description: No new recruits; copies already made stay.
+      responses:
+        "204": { description: Unshared. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/agents/{agent}/origin:
+    get:
+      tags: [Agents]
+      summary: Compare a recruited copy with its original
+      parameters:
+        - { name: agent, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: >-
+            `newer` when the original has changed since the copy last took it;
+            `gone: true` once the original is deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  origin_agent_id: { type: integer }
+                  gone: { type: boolean }
+                  origin_revision: { type: integer }
+                  current_revision: { type: integer }
+                  newer: { type: boolean }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { description: Not your agent, or not a recruited copy. }
+
+  /api/agents/{agent}/pull-origin:
+    post:
+      tags: [Agents]
+      summary: Update a copy from its original
+      description: Takes the original's fields and skillset; your own work priorities stay.
+      parameters:
+        - { name: agent, in: path, required: true, schema: { type: integer } }
+        - { name: If-Match, in: header, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Updated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AgentResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { description: Not your agent, not a copy, or the original is gone. }
         "409": { $ref: "#/components/responses/AgentStale" }
         "428": { description: No If-Match header. }
 

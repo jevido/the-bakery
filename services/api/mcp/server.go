@@ -34,6 +34,7 @@ func Handler() http.Handler {
 	})
 	addReadTools(server)
 	addWriteTools(server)
+	addAgentTools(server)
 
 	handler := sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return server },
 		&sdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true})

@@ -146,3 +146,46 @@ func TestSlugify(t *testing.T) {
 		}
 	}
 }
+
+func TestRecruitAndPull(t *testing.T) {
+	origin, _ := NewAgent(1, "vera", vera())
+	origin.ID = 10
+	copy, err := Recruit(origin, 2, "vera")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if copy.OwnerID != 2 || copy.Revision != 1 || *copy.OriginAgentID != 10 || *copy.OriginRevision != 1 {
+		t.Fatalf("copy = %+v", copy)
+	}
+	copy.WorkPriorities["coding"] = 4
+	if origin.WorkPriorities["coding"] != 1 {
+		t.Error("tuning the copy changed the origin")
+	}
+
+	p := vera()
+	p.Title = "Principal engineer"
+	if err := origin.Revise(1, p); err != nil {
+		t.Fatal(err)
+	}
+	if err := copy.PullOrigin(1, origin); err != nil {
+		t.Fatal(err)
+	}
+	if copy.Title != "Principal engineer" || copy.WorkPriorities["coding"] != 4 || *copy.OriginRevision != 2 || copy.Revision != 2 {
+		t.Errorf("after pull: %+v", copy)
+	}
+
+	origin.DeletedAt = &time.Time{}
+	if _, err := Recruit(origin, 3, "vera"); !errors.Is(err, ErrDeleted) {
+		t.Errorf("recruiting a deleted agent error = %v", err)
+	}
+}
+
+func TestSlugFor(t *testing.T) {
+	taken := map[string]bool{"vera": true, "vera-2": true}
+	if got := SlugFor("vera", func(s string) bool { return taken[s] }); got != "vera-3" {
+		t.Errorf("SlugFor = %q", got)
+	}
+	if got := SlugFor("ivo", func(s string) bool { return taken[s] }); got != "ivo" {
+		t.Errorf("SlugFor = %q", got)
+	}
+}

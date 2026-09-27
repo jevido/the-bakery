@@ -185,7 +185,14 @@ func (c *Controller) GetAgent(ctx contractshttp.Context) contractshttp.Response 
 	if err != nil {
 		return failure(ctx, err, a)
 	}
-	return ctx.Response().Success().Json(contractshttp.Json{"agent": agentToJSON(a, true)})
+	guilds, err := c.service.SharedWith(ctx.Context(), id, c.me(ctx))
+	if err != nil {
+		return failure(ctx, err, a)
+	}
+	if guilds == nil {
+		guilds = []uint64{}
+	}
+	return ctx.Response().Success().Json(contractshttp.Json{"agent": agentToJSON(a, true), "shared_with": guilds})
 }
 
 func (c *Controller) CreateAgent(ctx contractshttp.Context) contractshttp.Response {
@@ -271,6 +278,10 @@ func failure(ctx contractshttp.Context, err error, current domain.Agent) contrac
 		return ctx.Response().Json(contractshttp.StatusConflict, body)
 	case errors.Is(err, app.ErrAgentNotFound), errors.Is(err, domain.ErrDeleted):
 		return notFound(ctx)
+	case errors.Is(err, app.ErrNotMember):
+		return ctx.Response().Json(contractshttp.StatusForbidden, contractshttp.Json{"error": err.Error()})
+	case errors.Is(err, app.ErrNotShared):
+		return ctx.Response().Json(contractshttp.StatusNotFound, contractshttp.Json{"error": err.Error()})
 	case errors.As(err, &skillset):
 		return ctx.Response().Json(contractshttp.StatusUnprocessableEntity, contractshttp.Json{"error": err.Error(), "field": "files", "path": skillset.Path})
 	case errors.Is(err, app.ErrSlugTaken), errors.Is(err, domain.ErrInvalidSlug):

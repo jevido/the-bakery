@@ -140,3 +140,68 @@ func (s *AgentsTestSuite) TestDeleteLeavesATombstone() {
 	// The slug is free again.
 	s.post(ada, "/api/agents", agentBody("Vera", nil)).AssertCreated()
 }
+
+func (s *AgentsTestSuite) TestShareAndRecruit() {
+	_, ada := s.register()
+	guildID := s.foundGuild(ada, "Recruit Colony")
+	_, bram := s.register()
+	s.join(ada, guildID, bram)
+	_, cas := s.register()
+
+	res := s.post(ada, "/api/agents", agentBody("Vera", nil))
+	res.AssertCreated()
+	vera := uint64(s.jsonOf(res)["agent"].(map[string]any)["id"].(float64))
+	share := fmt.Sprintf("/api/agents/%d/shares/%d", vera, guildID)
+	s.send("PUT", ada, share, "").AssertNoContent()
+	s.send("PUT", ada, share, "").AssertNoContent() // twice is fine
+	s.Equal([]any{float64(guildID)}, s.jsonOf(s.get(ada, fmt.Sprintf("/api/agents/%d", vera)))["shared_with"])
+	s.send("PUT", bram, share, "").AssertNotFound() // not bram's to share
+
+	// Bram sees it in the guild and recruits it.
+	listed := s.jsonOf(s.get(bram, fmt.Sprintf("/api/guilds/%d/agents", guildID)))["agents"].([]any)
+	s.Require().Len(listed, 1)
+	s.Equal("Vera", listed[0].(map[string]any)["name"])
+	s.NotEmpty(listed[0].(map[string]any)["owner_name"])
+	s.Equal("go-tests", listed[0].(map[string]any)["skills"].([]any)[0].(map[string]any)["name"])
+	s.Nil(listed[0].(map[string]any)["files"], "a guild sees no file contents")
+
+	recruit := fmt.Sprintf(`{"agent_id":%d,"guild_id":%d}`, vera, guildID)
+	res = s.post(bram, "/api/agents/recruit", recruit)
+	res.AssertCreated()
+	copy := s.jsonOf(res)["agent"].(map[string]any)
+	copyID := uint64(copy["id"].(float64))
+	s.Equal(float64(vera), copy["origin_agent_id"])
+	s.Equal("vera", copy["slug"])
+	res = s.post(bram, "/api/agents/recruit", recruit)
+	res.AssertCreated()
+	s.Equal("vera-2", s.jsonOf(res)["agent"].(map[string]any)["slug"], "a second copy gets a new slug")
+
+	// Bram tunes his copy; Ada revises hers.
+	s.put(bram, copyID, 1, agentBody("Vera", map[string]any{"work_priorities": map[string]int{"review": 1}})).AssertOk()
+	s.put(ada, vera, 1, agentBody("Vera", map[string]any{"title": "Principal engineer"})).AssertOk()
+	origin := s.jsonOf(s.get(bram, fmt.Sprintf("/api/agents/%d/origin", copyID)))
+	s.Equal(true, origin["newer"])
+	s.Equal(float64(2), origin["current_revision"])
+
+	res, err := s.Http(s.T()).WithHeaders(map[string]string{"Authorization": "Bearer " + bram, "If-Match": "2"}).Post(fmt.Sprintf("/api/agents/%d/pull-origin", copyID), nil)
+	s.Require().NoError(err)
+	res.AssertOk()
+	pulled := s.jsonOf(res)["agent"].(map[string]any)
+	s.Equal("Principal engineer", pulled["title"])
+	s.Equal(map[string]any{"review": float64(1)}, pulled["work_priorities"], "his own priorities stay")
+	s.Equal(false, s.jsonOf(s.get(bram, fmt.Sprintf("/api/agents/%d/origin", copyID)))["newer"])
+	s.get(ada, fmt.Sprintf("/api/agents/%d", copyID)).AssertNotFound() // the copy is bram's
+
+	// Outsiders cannot see or recruit; unsharing stops new recruits.
+	s.get(cas, fmt.Sprintf("/api/guilds/%d/agents", guildID)).AssertForbidden()
+	s.post(cas, "/api/agents/recruit", recruit).AssertForbidden()
+	s.send("DELETE", ada, share, "").AssertNoContent()
+	s.post(bram, "/api/agents/recruit", recruit).AssertNotFound()
+	s.get(bram, fmt.Sprintf("/api/agents/%d", copyID)).AssertOk() // copies stay
+
+	// A deleted origin leaves the copy alone.
+	res, err = s.Http(s.T()).WithHeaders(map[string]string{"Authorization": "Bearer " + ada, "If-Match": "2"}).Delete(fmt.Sprintf("/api/agents/%d", vera), nil)
+	s.Require().NoError(err)
+	res.AssertNoContent()
+	s.Equal(true, s.jsonOf(s.get(bram, fmt.Sprintf("/api/agents/%d/origin", copyID)))["gone"])
+}

@@ -297,3 +297,38 @@ func (s *MCPTestSuite) TestTaskDetailTools() {
 		s.Equal("Not a member of this guild", out["error"], name)
 	}
 }
+
+func (s *MCPTestSuite) TestAgentTools() {
+	_, ada := s.register()
+	guildID := s.foundGuild(ada, "Agent Colony")
+	_, bram := s.register()
+	s.join(ada, guildID, bram)
+	res := s.post(ada, "/api/agents", `{"name":"Vera","title":"Backend engineer","traits":["careful"],"work_priorities":{"coding":1},"files":[{"path":"go-tests/SKILL.md","content":"---\nname: go-tests\ndescription: Go tests.\n---\n"}]}`)
+	res.AssertCreated()
+	vera := s.jsonOf(res)["agent"].(map[string]any)["id"].(float64)
+	s.send("PUT", ada, fmt.Sprintf("/api/agents/%d/shares/%d", int(vera), guildID), "").AssertNoContent()
+
+	cs := s.connect(ada)
+	out, ok := s.call(cs, "list_agents", nil)
+	s.Require().True(ok, out)
+	s.Equal("Vera", out["agents"].([]any)[0].(map[string]any)["name"])
+
+	other := s.connect(bram)
+	out, ok = s.call(other, "list_agents", nil)
+	s.Require().True(ok, out)
+	s.Empty(out["agents"], "bram has no agents of his own")
+	out, ok = s.call(other, "list_agents", map[string]any{"guild_id": guildID})
+	s.Require().True(ok, out)
+	shared := out["agents"].([]any)[0].(map[string]any)
+	s.Equal("Vera", shared["name"])
+	s.Equal("go-tests", shared["skills"].([]any)[0].(map[string]any)["name"])
+	out, ok = s.call(other, "get_agent", map[string]any{"agent_id": vera})
+	s.Require().True(ok, out)
+	s.Equal("manual", out["agent"].(map[string]any)["permission_mode"])
+
+	_, cas := s.register()
+	outsider := s.connect(cas)
+	out, ok = s.call(outsider, "get_agent", map[string]any{"agent_id": vera})
+	s.False(ok)
+	s.Equal("Agent not found", out["error"])
+}

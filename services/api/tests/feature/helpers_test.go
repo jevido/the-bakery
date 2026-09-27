@@ -104,6 +104,8 @@ func (s *featureSuite) send(method, token, uri, body string) response {
 		res, err = req.Post(uri, strings.NewReader(body))
 	case "PATCH":
 		res, err = req.Patch(uri, strings.NewReader(body))
+	case "PUT":
+		res, err = req.Put(uri, strings.NewReader(body))
 	case "DELETE":
 		res, err = req.Delete(uri, strings.NewReader(body))
 	default:
