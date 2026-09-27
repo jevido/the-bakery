@@ -4,10 +4,12 @@ import (
 	"github.com/goravel/framework/contracts/http"
 
 	"github.com/jevido/the-bakery/services/api/app/facades"
+	"github.com/jevido/the-bakery/services/api/contexts/identity"
 )
 
 func Api() {
 	facades.Route().Get("/api/health", health)
+	identity.Routes(facades.Route())
 }
 
 // health answers ok only when the database answers too, so a green health

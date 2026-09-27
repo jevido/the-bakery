@@ -11,9 +11,9 @@ document; list them here when people outside the context use them too.
 
 | Term | Context | Meaning | Not to be confused with |
 | ---- | ------- | ------- | ----------------------- |
-| Member | identity | A person with an account: email, display name and password. Storage may stay in Goravel's `users` table, but domain code says `Member`. | "User" (not used in domain code); Operator |
+| Member | identity | A person with an account: email, display name and password. Stored in `members`; domain code never says "user". | "User" (not used in domain code); Operator |
 | Member | guilds | A member of a particular guild, i.e. a Member (identity) who holds a Membership in it. | |
-| Token | identity | The JWT a Member receives on register or login and sends as `Authorization: Bearer ...` to prove who they are. | API key |
+| Token | identity | The JWT (valid 30 days) a Member receives on register or login and sends as `Authorization: Bearer ...` to prove who they are. | API key |
 | Operator | identity | The platform owner, and anyone they appoint, who uses the moderation console. Not a guild role and not a Member account. | Guild member, admin |
 | Clock out | identity | What the desktop app calls logging out: the token is forgotten on this machine. | |
 | Guild | guilds | The top-level group people work in together. A Member can belong to many guilds. | Workspace, org, organisation, team (never used) |

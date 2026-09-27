@@ -23,7 +23,9 @@ func init() {
 		// Some people may want this behaviour for e.g. a mobile app.
 		// This is not particularly recommended, so make sure you have appropriate
 		// systems in place to revoke the token if necessary.
-		"ttl": config.Env("JWT_TTL", 60),
+		// The Bakery: 30 days, because the desktop app keeps the token in the OS
+		// keyring so a member stays signed in between launches.
+		"ttl": config.Env("JWT_TTL", 43200),
 
 		// Refresh time to live
 		//

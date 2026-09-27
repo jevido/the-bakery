@@ -13,7 +13,7 @@ func init() {
 		// reset options for your application. You may change these defaults
 		// as required, but they're a perfect start for most applications.
 		"defaults": map[string]any{
-			"guard": "user",
+			"guard": "member",
 		},
 
 		// Authentication Guards
@@ -28,15 +28,15 @@ func init() {
 		//
 		// Supported drivers: "jwt", "session"
 		"guards": map[string]any{
-			"user": map[string]any{
+			"member": map[string]any{
 				"driver":   "jwt",
-				"provider": "user",
+				"provider": "member",
 			},
 		},
 
 		// Supported: "orm"
 		"providers": map[string]any{
-			"user": map[string]any{
+			"member": map[string]any{
 				"driver": "orm",
 			},
 		},

@@ -24,7 +24,7 @@ which guilds a Member belongs to or what they may do there; that is guilds.
 
 | Aggregate | Invariants |
 | --------- | ---------- |
-| Member (root) | Email is unique and stored lowercased. The password is only ever stored hashed. Display name is 1–60 characters. |
+| Member (root) | Email is a bare address, unique, stored trimmed and lowercased. The password is at least 8 characters and only ever stored hashed. Display name is 1–60 characters (trimmed). |
 
 ### Commands
 
@@ -38,16 +38,20 @@ None yet.
 
 ## Integration
 
-- **Publishes:** `identity.MemberID(ctx)`, the authenticated member id put on
-  the request by the `RequireMember` middleware; a lookup of a member id by
-  email for guilds.
+- **Publishes** (package `contexts/identity`, the only one other code may
+  import): `identity.RequireMember`, the middleware that refuses requests
+  without a valid token (401); `identity.MemberID(ctx)`, the id of the member
+  it let through; `identity.MemberIDByEmail(ctx, email)` for guilds.
 - **Consumes:** nothing.
 
 ## Why it's shaped this way
 
 - **Generic, so kept small.** Goravel's JWT guard and hashing do the work;
-  the context only adds the Member invariants on top. Goravel's `users` table
-  may stay as storage, but nothing outside `infra/` calls it a user.
+  the context only adds the Member invariants on top. Members are stored in a
+  `members` table; the token carries only the member id.
+- **Tokens last 30 days.** The desktop app keeps the token in the OS keyring
+  so a member stays signed in between launches. There is no refresh or
+  revocation list yet; changing `JWT_SECRET` signs everyone out.
 - **Other contexts get an id, not a Member.** Guilds and boards only need to
   know *who* is asking, so they receive a plain member id and never import
   identity's types. That keeps identity replaceable (e.g. by an external
