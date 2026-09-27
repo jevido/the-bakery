@@ -7,6 +7,10 @@ info:
     desktop app uses the same endpoints and the same token. Refusals are
     `{"error": "<sentence>"}`, with `field` added when one field is to blame.
 servers:
+  - url: https://api.bakery.jevido.app
+    description: Production
+  - url: https://api.next.bakery.jevido.app
+    description: Pre-production (next)
   - url: http://127.0.0.1:4810
     description: Local development (task dev)
 security:
