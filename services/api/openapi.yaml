@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: The Bakery API
-  version: 0.1.0
+  version: 1.0.0
   description: >-
     The JSON API behind The Bakery: members, guilds, invites, boards and
     tasks. The desktop app (bearer token) and the website (session cookie)

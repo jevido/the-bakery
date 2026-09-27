@@ -61,6 +61,13 @@ deploys production (see [`infra/README.md`](infra/README.md)). A tag
 `desktop-vX.Y.Z` builds and publishes a desktop release, which installed apps
 pick up and install themselves.
 
+Versions follow [semantic versioning](https://semver.org): `X` goes up for a
+breaking change, `Y` for a new feature, `Z` for a bug fix or a very small
+tweak. The biggest change since the last release decides, and the numbers
+after it go back to 0 (0.1.3 plus a feature is 0.2.0). The API description's
+version (`info.version` in `services/api/openapi.yaml`) follows the same
+rule, bumped in the change that alters the API.
+
 ## Where to ask
 
 Open an issue on [GitHub](https://github.com/jevido/the-bakery/issues).

@@ -82,6 +82,12 @@ New units take the next free decade; add them here and, for dev servers, to
 
 - **Commits:** conventional commits scoped by unit, e.g.
   `feat(web): ...`, `fix(api): ...`, `chore(infra): ...`, `docs: ...`.
+- **Versions:** semantic versioning, `MAJOR.MINOR.PATCH`. Bump MAJOR for a
+  breaking change, MINOR for a new feature, PATCH for a bug fix or a very
+  small tweak; the biggest change since the last version decides, and the
+  lower numbers go back to 0. It applies to desktop releases (tag
+  `desktop-vX.Y.Z`) and to the API description (`info.version` in
+  `services/api/openapi.yaml`, bumped in the change that alters the API).
 - **`.gitignore`:** anchor patterns (`/bin/`, not `bin`).
 - **Secrets:** never in the repo. Commit a `.env.example` when a unit needs
   config.
