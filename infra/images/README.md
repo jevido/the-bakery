@@ -24,8 +24,11 @@ Alpine as a non-root user (Coolify's health check needs `/bin/sh` and
 only from the environment (`APP_KEY`, `JWT_SECRET`, `DB_*`, ...); no `.env` is
 baked in. With `MIGRATE_ON_START=true` (the image default) the binary runs the
 migrations before it serves and exits non-zero if one fails, so a bad release
-never takes traffic. On SIGTERM it stops accepting and lets in-flight
-requests finish (bounded by the 3 s request timeout), then exits.
+never takes traffic. `entrypoint.sh` runs it as a child: on SIGTERM it sends
+SIGUSR1 (health turns 503, requests are still served), waits
+`DRAIN_SECONDS` (8) so the proxy stops routing here, then sends SIGTERM, on
+which the API finishes in-flight requests (bounded by the 3 s request
+timeout) and exits.
 `LOG_PRINT=true` sends log lines to stdout. `task image:api` builds it.
 
 ## web
@@ -35,4 +38,6 @@ workspace root, `bun run build` in `apps/web`, then Caddy serving `dist/` on
 port 8080. Every unknown path falls back to `index.html` (so `/desktop` works
 as a deep link); `/assets/*` are cached for a year, everything else is
 revalidated. `VITE_API_URL` is a build argument, compiled into the site, so
-next and prod each build their own. `task image:web` builds it.
+next and prod each build their own. `/healthz` is the container's health
+check; `entrypoint.sh` drains it the same way as the API before stopping
+Caddy. `task image:web` builds it.
