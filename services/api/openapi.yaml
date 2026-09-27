@@ -946,7 +946,11 @@ paths:
         `position`), `task.deleted` (`task_id`), `column.created`
         (`column_id`, `name`, `position`), `column.updated` (`column_id`,
         `name`), `column.moved` (`column_id`, `position`), `column.deleted`
-        (`column_id`).
+        (`column_id`), `presence` (who has the board open: `state` is
+        `snapshot`, first on every stream, with the `present` streams, or
+        `joined` / `left` with the stream's `conn_id`, `member_id` and, when
+        joining, `display_name`; a stream that stops pinging counts as left
+        after a minute).
       parameters:
         - name: board
           in: path
