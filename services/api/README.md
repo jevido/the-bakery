@@ -37,7 +37,14 @@ official Go SDK (`github.com/modelcontextprotocol/go-sdk`). Clients sign in
 with a personal token (`Authorization: Bearer bky_…`). The server lives in
 `mcp/`; it has no domain of its own: every tool calls a function that the
 guilds or boards context publishes from its root package, so it follows the
-same membership and archive rules as REST. Connect Claude Code with:
+same membership and archive rules as REST.
+
+- Read: `list_guilds`, `list_boards`, `get_board`.
+- Write: `create_board`, `create_task`, `update_task`, `move_task`,
+  `delete_task` (marked destructive, so clients ask first).
+
+A refused call (not a member, archived guild, bad column) comes back as a
+tool error with the same message REST gives. Connect Claude Code with:
 
 ```sh
 claude mcp add --transport http bakery-dev http://127.0.0.1:4810/mcp --header "Authorization: Bearer bky_…"

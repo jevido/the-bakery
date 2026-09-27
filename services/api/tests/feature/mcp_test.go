@@ -135,3 +135,84 @@ func (s *MCPTestSuite) TestNeedsAToken() {
 		s.Equal(http.StatusUnauthorized, res.StatusCode, header)
 	}
 }
+
+func (s *MCPTestSuite) TestWriteTools() {
+	_, session := s.register()
+	guildID := s.foundGuild(session, "MCP Writers")
+	cs := s.connect(session)
+
+	tools, err := cs.ListTools(s.T().Context(), nil)
+	s.Require().NoError(err)
+	for _, t := range tools.Tools {
+		if t.Name == "delete_task" {
+			s.Require().NotNil(t.Annotations.DestructiveHint)
+			s.True(*t.Annotations.DestructiveHint, "delete_task asks first")
+		}
+	}
+
+	out, ok := s.call(cs, "create_board", map[string]any{"guild_id": guildID, "name": "Getting settled"})
+	s.Require().True(ok, out)
+	boardID := out["board"].(map[string]any)["id"].(float64)
+
+	_, ok = s.call(cs, "create_board", map[string]any{"guild_id": guildID, "name": ""})
+	s.False(ok)
+
+	task := func(out map[string]any) map[string]any { return out["task"].(map[string]any) }
+	out, ok = s.call(cs, "create_task", map[string]any{"board_id": boardID, "title": "Gather wood"})
+	s.Require().True(ok, out)
+	s.Equal("backlog", task(out)["column"])
+	first := task(out)["id"].(float64)
+
+	out, ok = s.call(cs, "create_task", map[string]any{"board_id": boardID, "title": "Build a bed", "column": "todo"})
+	s.Require().True(ok, out)
+	s.Equal("todo", task(out)["column"])
+	second := task(out)["id"].(float64)
+
+	out, ok = s.call(cs, "create_task", map[string]any{"board_id": boardID, "title": "Nope", "column": "later"})
+	s.False(ok)
+	s.Equal("Column must be one of backlog, todo, doing, done", out["error"])
+
+	out, ok = s.call(cs, "update_task", map[string]any{"task_id": first, "description": "Twenty logs"})
+	s.Require().True(ok, out)
+	s.Equal("Gather wood", task(out)["title"])
+	s.Equal("Twenty logs", task(out)["description"])
+
+	// Above the other task in To do.
+	out, ok = s.call(cs, "move_task", map[string]any{"task_id": first, "column": "todo", "before_task_id": second})
+	s.Require().True(ok, out)
+	out, _ = s.call(cs, "get_board", map[string]any{"board_id": boardID})
+	todo := out["columns"].([]any)[1].(map[string]any)["tasks"].([]any)
+	s.Require().Len(todo, 2)
+	s.Equal(first, todo[0].(map[string]any)["id"])
+
+	out, ok = s.call(cs, "move_task", map[string]any{"task_id": first, "column": "sideways"})
+	s.False(ok)
+	s.Equal("Column must be one of backlog, todo, doing, done", out["error"])
+
+	// Someone else's guild is out of reach.
+	_, stranger := s.register()
+	other := s.connect(stranger)
+	for name, args := range map[string]map[string]any{
+		"create_board": {"guild_id": guildID, "name": "Mine now"},
+		"create_task":  {"board_id": boardID, "title": "Mine now"},
+		"update_task":  {"task_id": first, "title": "Mine now"},
+		"move_task":    {"task_id": first, "column": "done"},
+		"delete_task":  {"task_id": first},
+	} {
+		out, ok := s.call(other, name, args)
+		s.False(ok, name)
+		s.Equal("Not a member of this guild", out["error"], name)
+	}
+
+	out, ok = s.call(cs, "delete_task", map[string]any{"task_id": second})
+	s.Require().True(ok, out)
+	s.Equal(second, out["deleted"])
+	_, ok = s.call(cs, "delete_task", map[string]any{"task_id": second})
+	s.False(ok)
+
+	// An archived guild's boards are read-only.
+	s.post(session, fmt.Sprintf("/api/guilds/%d/archive", guildID), "").AssertSuccessful()
+	out, ok = s.call(cs, "create_task", map[string]any{"board_id": boardID, "title": "Too late"})
+	s.False(ok)
+	s.Equal("This guild is archived; its boards are read-only", out["error"])
+}

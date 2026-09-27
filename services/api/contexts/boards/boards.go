@@ -125,3 +125,47 @@ func GetBoard(ctx context.Context, boardID, memberID uint64) (BoardView, error) 
 	}
 	return view, nil
 }
+
+// CreateBoard makes a board in a guild the member is in.
+func CreateBoard(ctx context.Context, guildID, memberID uint64, name string) (Board, error) {
+	b, err := service.CreateBoard(ctx, guildID, memberID, name)
+	return boardOf(b), err
+}
+
+// CreateTask adds a task at the bottom of column ("" means backlog).
+func CreateTask(ctx context.Context, boardID, memberID uint64, title, description, column string) (Task, error) {
+	if column != "" && column != string(domain.Backlog) {
+		// Refuse a bad column before anything is created.
+		if _, err := domain.ParseColumn(column); err != nil {
+			return Task{}, err
+		}
+	}
+	t, err := service.CreateTask(ctx, boardID, memberID, title, description)
+	if err != nil {
+		return Task{}, err
+	}
+	if column != "" && column != string(domain.Backlog) {
+		if t, err = service.MoveTask(ctx, t.ID, memberID, column, nil, nil); err != nil {
+			return Task{}, err
+		}
+	}
+	return taskOf(t), nil
+}
+
+// UpdateTask changes a task's title and/or description (nil keeps it).
+func UpdateTask(ctx context.Context, taskID, memberID uint64, title, description *string) (Task, error) {
+	t, err := service.UpdateTask(ctx, taskID, memberID, title, description)
+	return taskOf(t), err
+}
+
+// MoveTask puts a task in column right after afterID and/or right before
+// beforeID; with neither, at the bottom.
+func MoveTask(ctx context.Context, taskID, memberID uint64, column string, afterID, beforeID *uint64) (Task, error) {
+	t, err := service.MoveTask(ctx, taskID, memberID, column, afterID, beforeID)
+	return taskOf(t), err
+}
+
+// DeleteTask removes a task.
+func DeleteTask(ctx context.Context, taskID, memberID uint64) error {
+	return service.DeleteTask(ctx, taskID, memberID)
+}
