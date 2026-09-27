@@ -63,7 +63,7 @@ func (s *Service) CommentOnTask(ctx context.Context, taskID, memberID uint64, bo
 }
 
 func (s *Service) EditComment(ctx context.Context, commentID, memberID uint64, body string) (AuthoredComment, error) {
-	c, err := s.comment(ctx, commentID, memberID)
+	c, t, err := s.comment(ctx, commentID, memberID)
 	if err != nil {
 		return AuthoredComment{}, err
 	}
@@ -73,6 +73,7 @@ func (s *Service) EditComment(ctx context.Context, commentID, memberID uint64, b
 	if err := s.comments.Save(ctx, c); err != nil {
 		return AuthoredComment{}, err
 	}
+	s.events.Publish(ctx, domain.CommentChanged{TaskID: c.TaskID, BoardID: t.BoardID, ActorID: memberID, CommentID: c.ID})
 	out, err := s.authored(ctx, c)
 	if err != nil {
 		return AuthoredComment{}, err
@@ -81,31 +82,36 @@ func (s *Service) EditComment(ctx context.Context, commentID, memberID uint64, b
 }
 
 func (s *Service) DeleteComment(ctx context.Context, commentID, memberID uint64) error {
-	c, err := s.comment(ctx, commentID, memberID)
+	c, t, err := s.comment(ctx, commentID, memberID)
 	if err != nil {
 		return err
 	}
 	if err := c.MayChange(memberID); err != nil {
 		return err
 	}
-	return s.comments.Delete(ctx, c.ID)
+	if err := s.comments.Delete(ctx, c.ID); err != nil {
+		return err
+	}
+	s.events.Publish(ctx, domain.CommentChanged{TaskID: c.TaskID, BoardID: t.BoardID, ActorID: memberID, CommentID: c.ID, Deleted: true})
+	return nil
 }
 
-// comment is a comment for changes: the member must be in the task's guild
-// and the guild must not be archived. Whether they wrote it is the
-// aggregate's call.
-func (s *Service) comment(ctx context.Context, commentID, memberID uint64) (domain.Comment, error) {
+// comment is a comment, and its task, for changes: the member must be in
+// the task's guild and the guild must not be archived. Whether they wrote it
+// is the aggregate's call.
+func (s *Service) comment(ctx context.Context, commentID, memberID uint64) (domain.Comment, domain.Task, error) {
 	c, found, err := s.comments.ByID(ctx, commentID)
 	if err != nil {
-		return domain.Comment{}, err
+		return domain.Comment{}, domain.Task{}, err
 	}
 	if !found {
-		return domain.Comment{}, ErrCommentNotFound
+		return domain.Comment{}, domain.Task{}, ErrCommentNotFound
 	}
-	if _, err := s.task(ctx, c.TaskID, memberID); err != nil {
-		return domain.Comment{}, err
+	t, err := s.task(ctx, c.TaskID, memberID)
+	if err != nil {
+		return domain.Comment{}, domain.Task{}, err
 	}
-	return c, nil
+	return c, t, nil
 }
 
 func (s *Service) authored(ctx context.Context, cs ...domain.Comment) ([]AuthoredComment, error) {

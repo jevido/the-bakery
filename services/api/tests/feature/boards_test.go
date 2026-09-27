@@ -1,12 +1,15 @@
 package feature
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/suite"
 
 	"github.com/jevido/the-bakery/services/api/app/facades"
+	"github.com/jevido/the-bakery/services/api/contexts/boards"
 	"github.com/jevido/the-bakery/services/api/tests"
 )
 
@@ -329,4 +332,51 @@ func (s *BoardsTestSuite) TestActivity() {
 	s.get(stranger, fmt.Sprintf("/api/tasks/%d/activity", taskID)).AssertForbidden()
 	s.move(ada, taskID, `{"column":"sideways"}`).AssertUnprocessableEntity()
 	s.Len(activity(""), len(all))
+}
+
+func (s *BoardsTestSuite) TestBoardEvents() {
+	email, ada := s.register()
+	guildID := s.foundGuild(ada, "Live Colony")
+	boardID := s.createBoard(ada, guildID, "Getting settled")
+	var adaID uint64
+	s.Require().NoError(facades.Orm().Query().Table("members").Where("email", email).Pluck("id", &adaID))
+
+	events, stop, err := boards.WatchBoard(s.T().Context(), boardID, adaID)
+	s.Require().NoError(err)
+	defer stop()
+	next := func() map[string]any {
+		select {
+		case b, open := <-events:
+			s.Require().True(open, "stream dropped")
+			var ev map[string]any
+			s.Require().NoError(json.Unmarshal(b, &ev))
+			return ev
+		case <-time.After(5 * time.Second):
+			s.FailNow("no board event within 5 s")
+			return nil
+		}
+	}
+
+	taskID := s.createTask(ada, boardID, "Build a freezer")
+	created := next()
+	s.Equal("task.created", created["type"])
+	s.Equal(float64(boardID), created["board_id"])
+	s.Equal(float64(adaID), created["actor_id"])
+
+	s.move(ada, taskID, `{"column":"doing"}`).AssertOk()
+	moved := next()
+	s.Equal("task.moved", moved["type"])
+	s.Equal(map[string]any{"task_id": float64(taskID), "from": "backlog", "to": "doing", "position": moved["data"].(map[string]any)["position"]}, moved["data"])
+
+	s.post(ada, fmt.Sprintf("/api/tasks/%d/subtasks", taskID), `{"title":"Dig"}`).AssertCreated()
+	sub := next()
+	s.Equal("task.updated", sub["type"])
+	s.Equal(float64(taskID), sub["data"].(map[string]any)["task_id"], "a subtask change is its parent's")
+
+	s.send("DELETE", ada, fmt.Sprintf("/api/tasks/%d", taskID), "").AssertNoContent()
+	s.Equal("task.deleted", next()["type"])
+
+	// Outsiders cannot watch.
+	_, _, err = boards.WatchBoard(s.T().Context(), boardID, adaID+100000)
+	s.Error(err)
 }

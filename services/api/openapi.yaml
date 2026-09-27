@@ -819,6 +819,48 @@ paths:
         "403": { $ref: "#/components/responses/NotMember" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /api/boards/{board}/events:
+    get:
+      tags: [Boards]
+      summary: Watch a board's events
+      description: >-
+        A server-sent event stream of every change on the board, for members
+        of its guild. Each event is `event: <type>` followed by
+        `data: <json>` with `{type, board_id, at, actor_id, data}`; `data`
+        holds ids and the changed fields only, so refetch the board or task
+        when you need more. A `: ping` comment arrives every 20 seconds. The
+        stream can end at any time (a deploy, a dropped connection, falling
+        too far behind); reconnect after the `retry` delay and refetch the
+        board, since missed events are not replayed.
+
+
+        Types: `task.created` (`task_id`, `column`, `position`),
+        `task.updated` (`task_id`; `title`/`description` flags for an edit,
+        `subtask_id` or `comment_id` when a subtask or comment of the task
+        changed), `task.moved` (`task_id`, `from`, `to`, `position`),
+        `task.deleted` (`task_id`).
+      parameters:
+        - name: board
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The stream.
+          content:
+            text/event-stream:
+              schema: { type: string }
+              example: |
+                retry: 3000
+
+                event: task.moved
+                data: {"type":"task.moved","board_id":1,"at":"2026-09-27T20:31:10Z","actor_id":2,"data":{"task_id":6,"from":"todo","to":"doing","position":"a1"}}
+
+                : ping
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   /api/boards/{board}/tasks:
     post:
       tags: [Tasks]

@@ -27,8 +27,11 @@ func (memberNames) DisplayNames(ctx context.Context, ids []uint64) (map[uint64]s
 
 var service = app.NewService(
 	guilds.NewMemberships(), infra.Boards{}, infra.Tasks{}, infra.Comments{}, infra.ActivityLog{}, memberNames{},
-	app.NewDispatcher(infra.LogEvents{}.Handle, infra.ActivityProjector{}.Handle),
+	app.NewDispatcher(infra.LogEvents{}.Handle, infra.ActivityProjector{}.Handle, infra.BoardEventPublisher{}.Handle),
 )
+
+// hub hands board events from Postgres to this process's open streams.
+var hub = infra.NewBoardHub()
 
 // Routes registers the board and task routes, all behind
 // identity.RequireMember.
@@ -51,6 +54,24 @@ func Routes(r route.Router) {
 		r.Delete("/api/comments/{comment}", c.DeleteComment)
 		r.Get("/api/tasks/{task}/activity", c.ListActivity)
 	})
+}
+
+// StreamRoutes registers the board event stream. It must not sit behind
+// the request timeout, which buffers the whole response.
+func StreamRoutes(r route.Router) {
+	c := boardshttp.NewEventsController(service, hub, identity.MemberID)
+	r.Middleware(identity.RequireMember).Get("/api/boards/{board}/events", c.Stream)
+}
+
+// WatchBoard returns the board's events as JSON board events, for a member
+// of its guild, and a function that stops watching. The channel closes if
+// the events may have been interrupted; watch again and refetch the board.
+func WatchBoard(ctx context.Context, boardID, memberID uint64) (<-chan []byte, func(), error) {
+	if err := service.WatchBoard(ctx, boardID, memberID); err != nil {
+		return nil, nil, err
+	}
+	events, stop := hub.Subscribe(boardID)
+	return events, stop, nil
 }
 
 // SeedTask is a task for SeedBoard.

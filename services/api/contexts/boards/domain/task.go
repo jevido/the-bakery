@@ -48,12 +48,23 @@ type TaskCreated struct {
 }
 
 // TaskEdited is announced when a task's title and/or description changes.
+// ParentID is set when the task is a subtask.
 type TaskEdited struct {
 	TaskID      uint64
 	BoardID     uint64
 	ActorID     uint64
+	ParentID    *uint64
 	Title       bool
 	Description bool
+}
+
+// TaskDeleted is announced when a task (with its subtasks) or a subtask is
+// deleted. ParentID is set for a subtask.
+type TaskDeleted struct {
+	TaskID   uint64
+	BoardID  uint64
+	ActorID  uint64
+	ParentID *uint64
 }
 
 // TaskMoved is announced when a task changes column or position.
@@ -73,6 +84,22 @@ type SubtaskAdded struct {
 	BoardID   uint64
 	ActorID   uint64
 	Title     string
+}
+
+// SubtaskMoved is announced when a subtask moves among its siblings.
+type SubtaskMoved struct {
+	SubtaskID uint64
+	ParentID  uint64
+	BoardID   uint64
+	ActorID   uint64
+}
+
+// SubtaskReopened is announced when a ticked-off subtask is opened again.
+type SubtaskReopened struct {
+	SubtaskID uint64
+	ParentID  uint64
+	BoardID   uint64
+	ActorID   uint64
 }
 
 // SubtaskCompleted is announced when a subtask is ticked off.
@@ -134,7 +161,7 @@ func (t Task) Added() SubtaskAdded {
 // Edit changes the title and/or description (nil leaves one as it is). The
 // event is announced only when something actually changed.
 func (t *Task) Edit(title, description *string) (*TaskEdited, error) {
-	ev := TaskEdited{TaskID: t.ID, BoardID: t.BoardID}
+	ev := TaskEdited{TaskID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID}
 	if title != nil {
 		before := t.Title
 		if err := t.Rename(*title); err != nil {
@@ -178,13 +205,21 @@ func (t *Task) Complete() (*SubtaskCompleted, error) {
 	return &SubtaskCompleted{SubtaskID: t.ID, ParentID: *t.ParentID, BoardID: t.BoardID, Title: t.Title}, nil
 }
 
-// Reopen unticks a subtask.
-func (t *Task) Reopen() error {
+// Reopen unticks a subtask. The event is announced only when it was done.
+func (t *Task) Reopen() (*SubtaskReopened, error) {
 	if !t.IsSubtask() {
-		return ErrNotSubtask
+		return nil, ErrNotSubtask
+	}
+	if !t.Done {
+		return nil, nil
 	}
 	t.Done = false
-	return nil
+	return &SubtaskReopened{SubtaskID: t.ID, ParentID: *t.ParentID, BoardID: t.BoardID}, nil
+}
+
+// Deleted is the event for deleting this task.
+func (t Task) Deleted() TaskDeleted {
+	return TaskDeleted{TaskID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID}
 }
 
 // Move puts the task in column between the tasks at positions above and
@@ -207,16 +242,16 @@ func (t *Task) Move(column Column, above, below string) (TaskMoved, error) {
 
 // Reposition puts a subtask between its siblings at positions above and
 // below ("" for the first or last place).
-func (t *Task) Reposition(above, below string) error {
+func (t *Task) Reposition(above, below string) (SubtaskMoved, error) {
 	if !t.IsSubtask() {
-		return ErrNotSubtask
+		return SubtaskMoved{}, ErrNotSubtask
 	}
 	pos, err := KeyBetween(above, below)
 	if err != nil {
-		return err
+		return SubtaskMoved{}, err
 	}
 	t.Position = pos
-	return nil
+	return SubtaskMoved{SubtaskID: t.ID, ParentID: *t.ParentID, BoardID: t.BoardID}, nil
 }
 
 func cleanTitle(title string) (string, error) {

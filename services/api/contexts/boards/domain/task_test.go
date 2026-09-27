@@ -73,15 +73,18 @@ func TestCompleteAndReopen(t *testing.T) {
 	if ev, _ := st.Complete(); ev != nil {
 		t.Error("completing twice announces twice")
 	}
-	if err := st.Reopen(); err != nil || st.Done {
-		t.Fatalf("Reopen() = %v; done = %v", err, st.Done)
+	if ev, err := st.Reopen(); err != nil || ev == nil || st.Done {
+		t.Fatalf("Reopen() = %v, %v; done = %v", ev, err, st.Done)
+	}
+	if ev, _ := st.Reopen(); ev != nil {
+		t.Error("reopening an open subtask announces")
 	}
 
 	top := Task{ID: 1, BoardID: 1, Column: Backlog}
 	if _, err := top.Complete(); !errors.Is(err, ErrNotSubtask) {
 		t.Errorf("Complete() on a task error = %v, want ErrNotSubtask", err)
 	}
-	if err := top.Reopen(); !errors.Is(err, ErrNotSubtask) {
+	if _, err := top.Reopen(); !errors.Is(err, ErrNotSubtask) {
 		t.Errorf("Reopen() on a task error = %v, want ErrNotSubtask", err)
 	}
 }
@@ -92,11 +95,11 @@ func TestSubtaskHasNoColumn(t *testing.T) {
 	if _, err := st.Move(Doing, "", ""); !errors.Is(err, ErrSubtaskNoColumn) {
 		t.Errorf("Move() on a subtask error = %v, want ErrSubtaskNoColumn", err)
 	}
-	if err := st.Reposition("", "a0"); err != nil || st.Position >= "a0" {
+	if _, err := st.Reposition("", "a0"); err != nil || st.Position >= "a0" {
 		t.Errorf("Reposition() = %v, position %q", err, st.Position)
 	}
 	top := Task{ID: 1, Column: Backlog, Position: "a0"}
-	if err := top.Reposition("", ""); !errors.Is(err, ErrNotSubtask) {
+	if _, err := top.Reposition("", ""); !errors.Is(err, ErrNotSubtask) {
 		t.Errorf("Reposition() on a task error = %v, want ErrNotSubtask", err)
 	}
 }

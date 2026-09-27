@@ -33,6 +33,15 @@ type TaskCommented struct {
 	CommentID uint64
 }
 
+// CommentChanged is announced when a comment is edited or deleted.
+type CommentChanged struct {
+	TaskID    uint64
+	BoardID   uint64
+	ActorID   uint64
+	CommentID uint64
+	Deleted   bool
+}
+
 // WriteComment makes a comment by authorID on the task, written at now.
 func WriteComment(taskID, authorID uint64, body string, now time.Time) (Comment, error) {
 	body, err := cleanBody(body)

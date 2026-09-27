@@ -201,6 +201,13 @@ func (s *Service) GetBoard(ctx context.Context, boardID, memberID uint64) (domai
 	return b, tasks, counts, err
 }
 
+// WatchBoard checks that the member may watch the board's events: the same
+// rule as reading it.
+func (s *Service) WatchBoard(ctx context.Context, boardID, memberID uint64) error {
+	_, err := s.board(ctx, boardID, memberID)
+	return err
+}
+
 // GetTask returns a task and, for a top-level task, its subtasks in order.
 func (s *Service) GetTask(ctx context.Context, taskID, memberID uint64) (domain.Task, []domain.Task, error) {
 	t, err := s.readableTask(ctx, taskID, memberID)
@@ -304,11 +311,12 @@ func (s *Service) UpdateTask(ctx context.Context, taskID, memberID uint64, title
 		return domain.Task{}, err
 	}
 	var completed *domain.SubtaskCompleted
+	var reopened *domain.SubtaskReopened
 	if done != nil {
 		if *done {
 			completed, err = t.Complete()
 		} else {
-			err = t.Reopen()
+			reopened, err = t.Reopen()
 		}
 		if err != nil {
 			return domain.Task{}, err
@@ -325,6 +333,10 @@ func (s *Service) UpdateTask(ctx context.Context, taskID, memberID uint64, title
 		completed.ActorID = memberID
 		s.events.Publish(ctx, *completed)
 	}
+	if reopened != nil {
+		reopened.ActorID = memberID
+		s.events.Publish(ctx, *reopened)
+	}
 	return t, nil
 }
 
@@ -338,7 +350,7 @@ func (s *Service) MoveTask(ctx context.Context, taskID, memberID uint64, column 
 		return domain.Task{}, err
 	}
 	if t.IsSubtask() {
-		return s.moveSubtask(ctx, t, afterID, beforeID)
+		return s.moveSubtask(ctx, t, memberID, afterID, beforeID)
 	}
 	col, err := domain.ParseColumn(column)
 	if err != nil {
@@ -376,7 +388,7 @@ func (s *Service) MoveTask(ctx context.Context, taskID, memberID uint64, column 
 	return domain.Task{}, ErrPositionTaken
 }
 
-func (s *Service) moveSubtask(ctx context.Context, t domain.Task, afterID, beforeID *uint64) (domain.Task, error) {
+func (s *Service) moveSubtask(ctx context.Context, t domain.Task, memberID uint64, afterID, beforeID *uint64) (domain.Task, error) {
 	for range positionAttempts {
 		siblings, err := s.tasks.SubtasksOf(ctx, *t.ParentID)
 		if err != nil {
@@ -390,7 +402,7 @@ func (s *Service) moveSubtask(ctx context.Context, t domain.Task, afterID, befor
 			return domain.Task{}, err
 		}
 		moved := t
-		err = moved.Reposition(above, below)
+		ev, err := moved.Reposition(above, below)
 		if errors.Is(err, domain.ErrInvalidPosition) {
 			return domain.Task{}, ErrInvalidSibling
 		}
@@ -404,6 +416,8 @@ func (s *Service) moveSubtask(ctx context.Context, t domain.Task, afterID, befor
 		if err != nil {
 			return domain.Task{}, err
 		}
+		ev.ActorID = memberID
+		s.events.Publish(ctx, ev)
 		return moved, nil
 	}
 	return domain.Task{}, ErrPositionTaken
@@ -464,5 +478,11 @@ func (s *Service) DeleteTask(ctx context.Context, taskID, memberID uint64) error
 	if err != nil {
 		return err
 	}
-	return s.tasks.Delete(ctx, t.ID)
+	if err := s.tasks.Delete(ctx, t.ID); err != nil {
+		return err
+	}
+	ev := t.Deleted()
+	ev.ActorID = memberID
+	s.events.Publish(ctx, ev)
+	return nil
 }

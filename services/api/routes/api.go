@@ -5,8 +5,11 @@ import (
 	"os/signal"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/goravel/framework/contracts/http"
+	"github.com/goravel/framework/contracts/route"
+	goravelgin "github.com/goravel/gin"
 
 	"github.com/jevido/the-bakery/services/api/app/facades"
 	"github.com/jevido/the-bakery/services/api/contexts/boards"
@@ -30,19 +33,28 @@ func init() {
 	}()
 }
 
-func Api() {
-	facades.Route().Get("/api/health", health)
-	identity.Routes(facades.Route())
-	guilds.Routes(facades.Route())
-	boards.Routes(facades.Route())
+// requestTimeout bounds every request except the board event stream.
+// config/http.go turns Goravel's global timeout off (request_timeout 0)
+// because that middleware buffers the whole response, which a stream
+// cannot live with; it is applied here per group instead.
+const requestTimeout = 3 * time.Second
 
-	// MCP over streamable HTTP. The SDK handler does its own auth (personal
-	// tokens) and writes the response itself.
-	mcpHandler := mcp.Handler()
-	facades.Route().Any("/mcp", func(ctx http.Context) http.Response {
-		mcpHandler.ServeHTTP(ctx.Response().Writer(), ctx.Request().Origin())
-		return nil
+func Api() {
+	facades.Route().Middleware(goravelgin.Timeout(requestTimeout)).Group(func(r route.Router) {
+		r.Get("/api/health", health)
+		identity.Routes(r)
+		guilds.Routes(r)
+		boards.Routes(r)
+
+		// MCP over streamable HTTP. The SDK handler does its own auth (personal
+		// tokens) and writes the response itself.
+		mcpHandler := mcp.Handler()
+		r.Any("/mcp", func(ctx http.Context) http.Response {
+			mcpHandler.ServeHTTP(ctx.Response().Writer(), ctx.Request().Origin())
+			return nil
+		})
 	})
+	boards.StreamRoutes(facades.Route())
 }
 
 // health answers ok only when the database answers too, so a green health
