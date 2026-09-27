@@ -28,10 +28,12 @@ document; list them here when people outside the context use them too.
 | Membership | guilds | That a Member belongs to a guild. Everyone in a guild can do everything; there are no roles yet. | Role, permission |
 | Board | boards | A kanban board inside one guild. A guild has many boards. | Project |
 | Task | boards | A unit of work on a board: title, description, column and position. | Ticket, issue, card (a card is only how a task is drawn) |
-| Column | boards | Where a task stands on its board: one of `backlog`, `todo`, `doing`, `done` (shown as Backlog, To do, Doing, Done). Fixed for now. | Status, lane |
+| Column | boards | A named, ordered lane that belongs to one board; every task on the board stands in exactly one. A new board starts with Backlog, To do, Doing and Done; members add, rename, reorder and delete columns. A column can be deleted only when it holds no tasks, and a board keeps at least one. | Status, lane |
 | Position | boards | A sortable key that orders tasks within one column of a board. Moving a task changes only its own position. | Index, rank number |
 | Subtask | boards | A task whose parent is another task on the same board. One level deep: a subtask cannot have subtasks. It has a `done` flag and is ordered under its parent; it is not placed in a column. Expanding a task adds several subtasks at once. | Checklist item, child ticket |
 | Comment | boards | Text a member writes on a task. Only its author can edit or delete it. | Description, note |
+| Board event | boards (published language) | A change on a board announced to everyone watching it, over the board's event stream: `task.created`, `task.updated`, `task.moved`, `task.deleted`, `column.created`, `column.updated`, `column.moved`, `column.deleted`, `presence`. | Domain event (inside the context), activity (a task's history) |
+| Presence | boards | Which members have a board open right now. Short-lived: kept while their stream is open and gone a minute after it goes quiet; never history. | Online status, activity |
 | Activity | boards | What happened to a task, in order: created, edited, moved, commented, subtask added, subtask done. Written by the system from domain events, never by a member. | Comment, audit log (the Operator's, in the console) |
 | Release | platform | A tagged desktop build, `desktop-vX.Y.Z`, published as a GitHub release with signed artifacts and an update manifest. | Deploy (that is the API and website going out) |
 | Environment | platform | Where The Bakery runs: `dev` (local), `next` (pre-production) or `prod`. | Stage, instance |
