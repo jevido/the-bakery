@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: The Bakery API
-  version: 1.3.0
+  version: 1.3.1
   description: >-
-    The JSON API behind The Bakery: members, guilds, invites, boards and
-    tasks. The desktop app (bearer token) and the website (session cookie)
+    The JSON API behind The Bakery: members, guilds, invites, boards, tasks,
+    work types and agents. The desktop app (bearer token) and the website (session cookie)
     use the same endpoints. Refusals are
     `{"error": "<sentence>"}`, with `field` added when one field is to blame.
 servers:
