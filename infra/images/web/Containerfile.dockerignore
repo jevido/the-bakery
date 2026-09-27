@@ -6,5 +6,6 @@
 !apps/web/
 !apps/desktop/frontend/package.json
 !infra/images/web/Caddyfile
+!infra/images/web/entrypoint.sh
 **/node_modules/
 **/dist/

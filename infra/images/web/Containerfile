@@ -20,4 +20,7 @@ RUN cd apps/web && bun run build
 FROM docker.io/library/caddy:2-alpine
 COPY infra/images/web/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /src/apps/web/dist /srv
+COPY --chmod=0755 infra/images/web/entrypoint.sh /entrypoint.sh
 EXPOSE 8080
+HEALTHCHECK --interval=2s --timeout=2s --retries=2 CMD wget -qO- http://127.0.0.1:8080/healthz || exit 1
+ENTRYPOINT ["/entrypoint.sh"]
