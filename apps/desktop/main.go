@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"github.com/jevido/the-bakery/apps/desktop/internal/api"
 	"github.com/jevido/the-bakery/apps/desktop/internal/session"
@@ -37,6 +38,7 @@ func main() {
 
 	updates := &UpdateService{logger: logger, version: version}
 	live := NewLiveService(client, sess, logger)
+	agentsSvc := NewAgentsService(client, sess, logger)
 	website := &WebsiteService{client: client, session: sess, logger: logger, baseURL: cmp.Or(os.Getenv("BAKERY_WEB_URL"), defaultWebURL)}
 
 	app := application.New(application.Options{
@@ -48,6 +50,7 @@ func main() {
 			application.NewService(NewBoardsService(client, sess)),
 			application.NewService(NewTaskService(client, sess)),
 			application.NewService(live),
+			application.NewService(agentsSvc),
 			application.NewService(updates),
 			application.NewService(website),
 		},
@@ -61,9 +64,10 @@ func main() {
 
 	updates.app = app
 	live.app = app
+	agentsSvc.app = app
 	website.app = app
 
-	app.Window.NewWithOptions(application.WebviewWindowOptions{
+	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:     "The Bakery",
 		Width:     1280,
 		Height:    800,
@@ -73,6 +77,9 @@ func main() {
 		BackgroundColour: application.NewRGB(0x1c, 0x1d, 0x1a),
 		URL:              "/",
 	})
+	// Coming back to the app is a good moment to pick up agent edits made
+	// on another device.
+	window.OnWindowEvent(events.Common.WindowFocus, func(*application.WindowEvent) { agentsSvc.Trigger() })
 
 	if err := app.Run(); err != nil {
 		log.Fatal(err)

@@ -2,6 +2,8 @@
   import { Panel, Button, TextField } from '@bakery/ui'
   import BoardView from '../components/BoardView.svelte'
   import TaskPanel from '../components/TaskPanel.svelte'
+  import ConflictDialog from '../components/ConflictDialog.svelte'
+  import { AgentSync } from '../lib/agentsync.svelte'
   import { Colony } from '../lib/colony.svelte'
   import { WebsiteService, messageOf, type Member } from '../lib/bindings'
 
@@ -15,6 +17,19 @@
   colony.load()
   // Follow the open board's live events while this screen is up.
   $effect(() => colony.listen())
+
+  // Agent folders sync in the background; the sidebar shows how it goes.
+  const agentSync = new AgentSync()
+  $effect(() => agentSync.listen())
+  let showConflicts = $state(false)
+
+  const SYNC_LABEL: Record<string, string> = {
+    idle: 'Agents in sync',
+    syncing: 'Syncing agents…',
+    offline: 'Offline: agent edits wait',
+    error: 'Agent sync failed',
+    'signed-out': 'Agents not synced',
+  }
 
   let openColumn = $derived(
     colony.view?.columns.find((c) => c.id === colony.task.task?.column_id)?.name ?? '',
@@ -72,6 +87,23 @@
       </Panel>
     {/if}
 
+    <div class="sync">
+      {#if agentSync.status.conflicts > 0}
+        <button class="sync-conflicts" onclick={() => (showConflicts = true)}>
+          {agentSync.status.conflicts === 1 ? '1 agent' : `${agentSync.status.conflicts} agents`} changed in two places
+        </button>
+      {:else}
+        <span
+          class={['sync-state', agentSync.status.state]}
+          title={agentSync.status.error || agentSync.status.problems.join('\n') || ''}
+        >
+          {SYNC_LABEL[agentSync.status.state] ?? agentSync.status.state}{agentSync.status.problems.length
+            ? ` · ${agentSync.status.problems.length} not sent`
+            : ''}
+        </span>
+      {/if}
+    </div>
+
     <div class="who">
       <span>{member.display_name}</span>
       <Button onclick={onclockout}>Clock out</Button>
@@ -105,6 +137,10 @@
     {/if}
   </main>
 </div>
+
+{#if showConflicts}
+  <ConflictDialog sync={agentSync} onclose={() => (showConflicts = false)} />
+{/if}
 
 <style>
   .colony {
@@ -184,8 +220,35 @@
     flex: 1;
   }
 
-  .who {
+  .sync {
     margin-top: auto;
+    font-size: 12px;
+  }
+
+  .sync-state {
+    color: var(--text-faint);
+  }
+
+  .sync-state.syncing {
+    color: var(--text-dim);
+  }
+
+  .sync-state.offline,
+  .sync-state.error {
+    color: var(--rust-bright);
+  }
+
+  .sync-conflicts {
+    font: inherit;
+    padding: 2px 6px;
+    color: var(--text);
+    background: color-mix(in srgb, var(--rust) 35%, transparent);
+    border: 1px solid var(--rust);
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+
+  .who {
     display: flex;
     align-items: center;
     justify-content: space-between;

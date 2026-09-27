@@ -36,6 +36,11 @@ directory and logs a warning.
   made with the member's token. A refused token ends the session.
 - `taskservice.go` — `TaskService`: one task in full for the task panel
   (title, description, subtasks, comments, activity), the same way.
+- `agentsservice.go` — `AgentsService`: runs the agents sync on its own (at
+  start, when a folder changes, when the window gets focus, every 5 minutes;
+  one at a time, retrying with backoff while offline), reports it with the
+  Wails events `agents:status` and `agents:changed`, and resolves conflicts
+  (`local`, `server` or `both`).
 - `liveservice.go` — `LiveService`: keeps the open board's event stream
   (`internal/api/events.go`) open from Go and passes each event to the
   frontend as the Wails event `board:event`, with `board:status` for the
