@@ -141,6 +141,7 @@ type Trait struct {
 	Key           string   `json:"key"`
 	Label         string   `json:"label"`
 	Description   string   `json:"description"`
+	Instruction   string   `json:"instruction"`
 	ConflictsWith []string `json:"conflicts_with"`
 }
 

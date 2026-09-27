@@ -53,7 +53,7 @@ func TestLoginRestoreLogout(t *testing.T) {
 		t.Fatalf("restored member = %+v", m)
 	}
 
-	if err := s.Logout(); err != nil {
+	if err := s.Logout(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if s.Member() != nil || store.token != "" {

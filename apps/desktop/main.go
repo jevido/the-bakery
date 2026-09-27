@@ -35,11 +35,12 @@ func main() {
 	logger.Info("starting The Bakery", "version", version)
 	client := api.New(cmp.Or(os.Getenv("BAKERY_API_URL"), defaultAPIURL))
 	sess := session.New(client, session.NewStore(client.BaseURL(), logger))
+	sess.UseRunnerStore(session.NewStore(client.BaseURL()+"#runner", logger))
 
 	updates := &UpdateService{logger: logger, version: version}
 	live := NewLiveService(client, sess, logger)
 	agentsSvc := NewAgentsService(client, sess, logger)
-	workshopSvc := NewWorkshopService(client)
+	workshopSvc := NewWorkshopService(client, sess, agentsSvc.engine)
 	website := &WebsiteService{client: client, session: sess, logger: logger, baseURL: cmp.Or(os.Getenv("BAKERY_WEB_URL"), defaultWebURL)}
 
 	app := application.New(application.Options{

@@ -42,8 +42,8 @@ func (s *SessionService) Login(ctx context.Context, email, password string) (api
 }
 
 // Logout is "Clock out": the token is forgotten on this machine.
-func (s *SessionService) Logout() error {
-	return s.session.Logout()
+func (s *SessionService) Logout(ctx context.Context) error {
+	return s.session.Logout(ctx)
 }
 
 // Me returns the signed-in member, or null when nobody is signed in.

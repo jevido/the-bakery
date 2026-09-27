@@ -32,7 +32,7 @@ func call[T any](sess *session.Session, f func(token string) (T, error)) (T, err
 	}
 	v, err := f(token)
 	if errors.Is(err, api.ErrUnauthorized) {
-		_ = sess.Logout()
+		_ = sess.Logout(context.Background())
 		return v, ErrSignedOut
 	}
 	return v, err

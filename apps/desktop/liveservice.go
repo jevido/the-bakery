@@ -107,7 +107,7 @@ func (s *LiveService) follow(ctx context.Context, boardID uint64) {
 			return
 		}
 		if errors.Is(err, api.ErrUnauthorized) {
-			_ = s.session.Logout()
+			_ = s.session.Logout(context.WithoutCancel(ctx))
 			s.emit(ctx, eventStatus, liveStatus{boardID, "signed-out"})
 			return
 		}

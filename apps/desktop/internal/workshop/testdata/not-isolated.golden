@@ -1,0 +1,80 @@
+## dir
+/home/ada/Projects/.bakery-worktrees/colony-site/12-wall-in-the-freezer
+
+## args
+-p
+--output-format
+stream-json
+--verbose
+--model
+sonnet
+--permission-mode
+acceptEdits
+--append-system-prompt
+You are Vera, Principal engineer.
+
+Now leads the workshop.
+
+- Check your work twice before you call it done.
+
+# Instructions for this board
+
+Use tabs, never spaces.
+
+--mcp-config
+/home/ada/.config/the-bakery/boards/1/runs/5f0c6f7e-3b1a-4a52-9d7e-2f3c4d5e6a7b/mcp.json
+--max-budget-usd
+2.00
+--session-id
+5f0c6f7e-3b1a-4a52-9d7e-2f3c4d5e6a7b
+--allowedTools
+Bash(go test:*)
+Read
+mcp__bakery__get_task
+mcp__bakery__get_board
+mcp__bakery__list_work_types
+mcp__bakery__set_subtask_done
+mcp__bakery__expand_task
+mcp__bakery__add_comment
+mcp__bakery__update_task
+
+## file /home/ada/.config/the-bakery/boards/1/runs/5f0c6f7e-3b1a-4a52-9d7e-2f3c4d5e6a7b/mcp.json
+{
+  "mcpServers": {
+    "bakery": {
+      "headers": {
+        "Authorization": "Bearer <token>"
+      },
+      "type": "http",
+      "url": "https://api.bakery.jevido.app/mcp"
+    }
+  }
+}
+
+## stdin
+# Task 12: Wall in the freezer
+
+On the board "Getting settled", in To do.
+
+## Description
+
+The freezer needs **walls** before the heat wave.
+
+## Subtasks
+
+- [x] Dig the room
+- [ ] Place the cooler
+
+## Latest comments
+
+**Bram:**
+Steel is in the stockpile.
+
+## How to work
+
+- You are in a git worktree on branch bakery/12-wall-in-the-freezer, made from main. Work only here.
+- Commit your work on this branch with clear messages. Do not push.
+- Keep the task up to date with the bakery MCP tools: tick off subtasks as
+  you finish them (task 12's subtasks, from get_task), and add a comment when
+  you are blocked or need a decision.
+- End with a short summary of what you did and what is left.

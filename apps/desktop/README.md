@@ -54,6 +54,15 @@ directory and logs a warning.
   worktree as `.claude/skills/bakery-<agent>-<name>` and `bakery-board-<name>`
   (`skills.go`), kept out of git by one line in the repo's common
   `info/exclude`.
+  `runspec.go` builds one run's `claude` command line, prompt and MCP config
+  from the task, the agent and the board config without any I/O (golden
+  files in `testdata/`; `go test ./internal/workshop -update` rewrites them).
+  `WorkshopService.PrintRunCommand` prepares a run without starting it and
+  returns the command to paste into a terminal, for checking a board's setup.
+- `internal/session/runner.go` — the runner token: a personal token the app
+  makes for itself (`desktop runner (<host>)`) so Claude can use the Bakery
+  MCP server as the member during a run. Kept in its own keyring entry,
+  remade when the API refuses it, revoked on clock out.
 - `liveservice.go` — `LiveService`: keeps the open board's event stream
   (`internal/api/events.go`) open from Go and passes each event to the
   frontend as the Wails event `board:event`, with `board:status` for the

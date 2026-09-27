@@ -13,6 +13,7 @@ import (
 type Session struct {
 	client *api.Client
 	store  Store
+	runner Store
 
 	mu     sync.Mutex
 	token  string
@@ -57,10 +58,12 @@ func (s *Session) Login(ctx context.Context, email, password string) (api.Member
 	return m, s.keep(token, m)
 }
 
-// Logout forgets the token on this machine.
-func (s *Session) Logout() error {
+// Logout forgets the token on this machine, and revokes and forgets the
+// runner token.
+func (s *Session) Logout(ctx context.Context) error {
+	err := s.forgetRunner(ctx, s.Token())
 	s.set("", nil)
-	return s.store.Delete()
+	return errors.Join(err, s.store.Delete())
 }
 
 // Member is the signed-in member, or nil.

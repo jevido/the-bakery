@@ -249,6 +249,7 @@ type traitJSON struct {
 	Key         string   `json:"key"`
 	Label       string   `json:"label"`
 	Description string   `json:"description"`
+	Instruction string   `json:"instruction"`
 	Conflicts   []string `json:"conflicts_with"`
 }
 
@@ -260,7 +261,7 @@ func (c *Controller) ListTraits(ctx contractshttp.Context) contractshttp.Respons
 		if conflicts == nil {
 			conflicts = []string{}
 		}
-		out[i] = traitJSON{Key: t.Key, Label: t.Label, Description: t.Description, Conflicts: conflicts}
+		out[i] = traitJSON{Key: t.Key, Label: t.Label, Description: t.Description, Instruction: t.Instruction, Conflicts: conflicts}
 	}
 	return ctx.Response().Success().Json(contractshttp.Json{"traits": out, "permission_modes": domain.PermissionModes})
 }

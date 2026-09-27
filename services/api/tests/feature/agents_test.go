@@ -116,6 +116,7 @@ func (s *AgentsTestSuite) TestRules() {
 
 	traits := s.jsonOf(s.get(ada, "/api/agent-traits"))
 	s.Len(traits["traits"], 7)
+	s.NotEmpty(traits["traits"].([]any)[0].(map[string]any)["instruction"])
 	s.NotContains(traits["permission_modes"], "bypassPermissions")
 }
 

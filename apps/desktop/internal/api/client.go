@@ -174,3 +174,25 @@ func (c *Client) Handoff(ctx context.Context, token string) (string, error) {
 	}
 	return res.Code, nil
 }
+
+// PersonalToken is a personal token as the API lists it; never its secret.
+type PersonalToken struct {
+	ID   uint64 `json:"id"`
+	Name string `json:"name"`
+}
+
+// CreatePersonalToken makes a personal token for the member. The secret
+// comes back this once.
+func (c *Client) CreatePersonalToken(ctx context.Context, token, name string) (PersonalToken, string, error) {
+	var res struct {
+		Token         string        `json:"token"`
+		PersonalToken PersonalToken `json:"personal_token"`
+	}
+	err := c.do(ctx, http.MethodPost, "/api/tokens", token, map[string]string{"name": name}, &res)
+	return res.PersonalToken, res.Token, err
+}
+
+// RevokePersonalToken stops one of the member's personal tokens.
+func (c *Client) RevokePersonalToken(ctx context.Context, token string, id uint64) error {
+	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/api/tokens/%d", id), token, nil, nil)
+}
