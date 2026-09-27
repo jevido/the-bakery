@@ -22,6 +22,7 @@ env:
   WAILS_VERSION: v3.0.0-beta.18
   TAG: ${{ inputs.tag || github.ref_name }}
   API_URL: https://api.bakery.jevido.app
+  WEB_URL: https://bakery.jevido.app
 
 jobs:
   build:
@@ -71,7 +72,7 @@ jobs:
         working-directory: apps/desktop
         run: |
           wails3 task common:update:build-assets
-          LDFLAGS="-X main.version=$VERSION -X main.defaultAPIURL=$API_URL"
+          LDFLAGS="-X main.version=$VERSION -X main.defaultAPIURL=$API_URL -X main.defaultWebURL=$WEB_URL"
           case "${{ matrix.platform }}" in
             linux)   wails3 task linux:package EXTRA_LDFLAGS="$LDFLAGS" ;;
           esac

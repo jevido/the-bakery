@@ -2,7 +2,7 @@
   import { Panel, Button, TextField } from '@bakery/ui'
   import BoardView from '../components/BoardView.svelte'
   import { Colony } from '../lib/colony.svelte'
-  import type { Member } from '../lib/bindings'
+  import { WebsiteService, messageOf, type Member } from '../lib/bindings'
 
   let {
     member,
@@ -14,6 +14,14 @@
   colony.load()
 
   let newBoard = $state('')
+
+  async function openAdmin() {
+    try {
+      await WebsiteService.OpenAdmin()
+    } catch (err) {
+      colony.error = messageOf(err)
+    }
+  }
 
   async function addBoard(event: SubmitEvent) {
     event.preventDefault()
@@ -72,12 +80,9 @@
       <p class="dim">Waking the colonists…</p>
     {:else if colony.guilds.length === 0}
       <Panel title="No guild yet">
-        <p>Guilds are founded on the website, which is coming later.</p>
-        <p class="dim">
-          For now, in development, seed one: <code>task api:seed</code> creates “First Colony” with
-          ada@, bram@ and cas@bakery.test (password <code>password</code>). Or found one through the
-          API with <code>POST /api/guilds</code>.
-        </p>
+        <p>Guilds are founded and joined on the website. Found one there, or ask a guild member for an invite.</p>
+        <Button variant="confirm" onclick={openAdmin}>Found a guild on the website</Button>
+        <p class="dim small">Once you are in a guild, it shows up here. {#if colony.loaded}<button class="link" onclick={() => colony.load()}>Check again</button>{/if}</p>
       </Panel>
     {:else if colony.view}
       <BoardView {colony} />
@@ -172,13 +177,20 @@
     color: var(--text-dim);
   }
 
-  code {
+  .small {
+    margin-top: 10px;
     font-size: 12px;
-    padding: 0 3px;
-    background: var(--panel-inset);
-    border-radius: var(--radius);
-    user-select: text;
   }
+
+  .link {
+    font: inherit;
+    padding: 0;
+    color: var(--steel-bright);
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+
 
   .error {
     margin: 0;

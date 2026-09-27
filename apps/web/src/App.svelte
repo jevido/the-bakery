@@ -6,6 +6,7 @@
   import SignIn from './pages/SignIn.svelte'
   import SignUp from './pages/SignUp.svelte'
   import Admin from './pages/Admin.svelte'
+  import AdminGuild from './pages/AdminGuild.svelte'
   import NotFound from './pages/NotFound.svelte'
   import { router } from './lib/router.svelte'
   import { session } from './lib/session.svelte'
@@ -23,6 +24,8 @@
   let path = $derived(router.path.replace(/\/+$/, '') || '/')
   let needsMember = $derived(path === '/admin' || path.startsWith('/admin/'))
   let Page = $derived(routes[path] ?? NotFound)
+  // /admin/guilds/{id}
+  let guildId = $derived(Number(path.match(/^\/admin\/guilds\/(\d+)$/)?.[1] ?? 0))
 
   // Signed-out visitors of /admin go to sign in and come back afterwards.
   $effect(() => {
@@ -37,6 +40,8 @@
 <Layout>
   {#if needsMember && !session.member}
     <p class="dim">Checking your papers…</p>
+  {:else if guildId}
+    {#key guildId}<AdminGuild id={guildId} />{/key}
   {:else}
     <Page />
   {/if}

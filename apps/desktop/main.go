@@ -20,11 +20,13 @@ import (
 var assets embed.FS
 
 // Release builds set these with -ldflags "-X main.version=... -X
-// main.defaultAPIURL=..." (see .github/workflows/desktop-release.yml).
-// BAKERY_API_URL still overrides the API URL at run time.
+// main.defaultAPIURL=... -X main.defaultWebURL=..." (see
+// .github/workflows/desktop-release.yml). BAKERY_API_URL and BAKERY_WEB_URL
+// still override them at run time.
 var (
 	version       = "dev"
 	defaultAPIURL = api.DefaultURL
+	defaultWebURL = "http://127.0.0.1:4840"
 )
 
 func main() {
@@ -34,6 +36,7 @@ func main() {
 	sess := session.New(client, session.NewStore(client.BaseURL(), logger))
 
 	updates := &UpdateService{logger: logger, version: version}
+	website := &WebsiteService{baseURL: cmp.Or(os.Getenv("BAKERY_WEB_URL"), defaultWebURL)}
 
 	app := application.New(application.Options{
 		Name:        "The Bakery",
@@ -43,6 +46,7 @@ func main() {
 			application.NewService(NewSessionService(sess, logger)),
 			application.NewService(NewBoardsService(client, sess)),
 			application.NewService(updates),
+			application.NewService(website),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -53,6 +57,7 @@ func main() {
 	})
 
 	updates.app = app
+	website.app = app
 
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:     "The Bakery",
