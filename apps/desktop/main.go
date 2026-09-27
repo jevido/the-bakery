@@ -30,6 +30,7 @@ func main() {
 		Logger:      logger,
 		Services: []application.Service{
 			application.NewService(NewSessionService(sess, logger)),
+			application.NewService(NewBoardsService(client, sess)),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),

@@ -15,6 +15,7 @@
 
 <style>
   .field {
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 3px;
@@ -26,6 +27,8 @@
   }
 
   input {
+    width: 100%;
+    min-width: 0;
     font: inherit;
     color: var(--text);
     padding: 5px 8px;

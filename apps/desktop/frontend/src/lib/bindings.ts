@@ -1,7 +1,14 @@
 // One import point for the generated Wails bindings (`wails3 generate
 // bindings`, run by `task desktop:dev` and `task desktop:check`).
-export { SessionService } from '../../bindings/github.com/jevido/the-bakery/apps/desktop'
-export type { Member } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/internal/api/models'
+export { SessionService, BoardsService } from '../../bindings/github.com/jevido/the-bakery/apps/desktop'
+export type {
+  Member,
+  Guild,
+  Board,
+  Task,
+  Column,
+  BoardView,
+} from '../../bindings/github.com/jevido/the-bakery/apps/desktop/internal/api/models'
 
 // Go errors reach the frontend as rejected promises; this pulls out the
 // message to show, as a sentence.
@@ -11,4 +18,9 @@ export function messageOf(err: unknown): string {
   else if (typeof err === 'object' && err !== null && 'message' in err) message = String(err.message)
   else message = String(err)
   return message.charAt(0).toUpperCase() + message.slice(1)
+}
+
+// BoardsService rejects with this when the API no longer accepts the token.
+export function isSignedOut(err: unknown): boolean {
+  return messageOf(err).toLowerCase().startsWith('signed out')
 }

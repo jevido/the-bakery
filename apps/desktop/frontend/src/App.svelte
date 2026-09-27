@@ -1,7 +1,6 @@
 <script lang="ts">
-  import Panel from './components/Panel.svelte'
-  import Button from './components/Button.svelte'
   import Login from './screens/Login.svelte'
+  import Colony from './screens/Colony.svelte'
   import { SessionService, messageOf, type Member } from './lib/bindings'
 
   // undefined while the saved session is being checked.
@@ -19,10 +18,10 @@
   async function clockOut() {
     try {
       await SessionService.Logout()
-      member = null
     } catch (err) {
       error = messageOf(err)
     }
+    member = null
   }
 </script>
 
@@ -31,34 +30,14 @@
 {:else if member === null}
   <Login onsignedin={(m) => (member = m)} />
 {:else}
-  <main>
-    <Panel title="First Colony — Colony log">
-      {#snippet actions()}
-        <Button onclick={clockOut}>Clock out</Button>
-      {/snippet}
-      <p>Day 1 of Aprimay. {member.display_name} wakes beside the crashed pod, with little more than a plan.</p>
-      {#if error}<p class="error">{error}</p>{/if}
-    </Panel>
-  </main>
+  {#key member.id}
+    <Colony {member} onclockout={clockOut} onsignedout={() => (member = null)} />
+  {/key}
 {/if}
 
+{#if error}<p class="error">{error}</p>{/if}
+
 <style>
-  main {
-    height: 100%;
-    padding: 16px;
-    display: grid;
-    place-items: start center;
-  }
-
-  main :global(.panel) {
-    width: min(640px, 100%);
-  }
-
-  p {
-    margin: 0;
-    color: var(--text-dim);
-  }
-
   .loading {
     height: 100%;
     display: grid;
@@ -68,7 +47,11 @@
   }
 
   .error {
-    margin-top: 8px;
+    position: fixed;
+    bottom: 8px;
+    left: 50%;
+    translate: -50% 0;
+    margin: 0;
     color: var(--rust-bright);
   }
 </style>

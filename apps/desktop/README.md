@@ -30,10 +30,23 @@ directory and logs a warning.
 - `main.go` — the application, its services and its window.
 - `sessionservice.go` — `SessionService`, the Wails service the frontend signs
   in and out with (`Register`, `Login`, `Logout`, `Me`).
+- `boardsservice.go` — `BoardsService`: guilds, boards and tasks, each call
+  made with the member's token. A refused token ends the session.
 - `internal/api/` — typed client for the API. `internal/session/` — the
   signed-in member and token storage.
 - `frontend/src/lib/bindings.ts` — the one import point for generated bindings.
-- `frontend/src/screens/` — full screens (`Login`).
+- `frontend/src/lib/colony.svelte.ts` — the open guild and board; moves are
+  shown right away and undone by reloading the board if the API refuses.
+- `frontend/src/screens/` — full screens (`Login`, `Colony`).
+- `frontend/src/components/BoardView.svelte` — the four columns and HTML5
+  drag and drop; `TaskCard.svelte` — rename (double-click) and delete.
+
+## Driving the app from an agent
+
+`EXTRA_TAGS=mcp task desktop:dev` compiles in Wails' MCP server on
+`127.0.0.1:9099` (`WAILS_MCP_PORT` to change it). Its tools (`js_eval`,
+`mouse_drag`, `keyboard_type`, ...) let an agent click, type and drag in the
+running window.
 - `frontend/src/theme.css` — the base theme as CSS custom properties. Use its
   tokens, not raw colours.
 - `frontend/src/components/` — `Panel` (framed box with a title bar),
