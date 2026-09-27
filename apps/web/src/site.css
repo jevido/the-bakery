@@ -1,0 +1,16 @@
+/* The website reads as a page, not an app: text is selectable and the page
+   scrolls. The desktop's theme sets the opposite for its window. */
+html,
+body {
+  height: auto;
+  min-height: 100%;
+  user-select: text;
+}
+
+a {
+  color: var(--steel-bright);
+}
+
+a:hover {
+  color: var(--text);
+}

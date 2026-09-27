@@ -11,8 +11,8 @@ depend on each other.
 | [guilds](contexts/guilds/README.md) | supporting | `services/api` (`contexts/guilds`) | guilds, memberships |
 | [identity](contexts/identity/README.md) | generic | `services/api` (`contexts/identity`) | members, credentials, tokens |
 
-`apps/desktop` hosts no context: it is a client of the API and holds no domain
-data of its own.
+`apps/desktop` and `apps/web` host no context: they are clients of the API
+and hold no domain data of their own.
 
 - **Core:** where the project competes. Gets the most care and the richest model.
 - **Supporting:** needed and specific to this project, but not the differentiator.

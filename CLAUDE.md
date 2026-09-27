@@ -72,6 +72,7 @@ binding so a clash fails loudly instead of silently moving.
 | 4810 | `services/api`                     |
 | 4820 | Postgres (`infra/dev/compose.yml`) |
 | 4830 | `apps/desktop` Vite dev server     |
+| 4840 | `apps/web`                         |
 
 New units take the next free decade; add them here and, for dev servers, to
 `DEV_PORTS` in the root `Taskfile.yml` so `task down` stops them. Containers

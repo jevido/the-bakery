@@ -10,6 +10,9 @@ includes:
   desktop:
     taskfile: apps/desktop/Taskfile.yml
     dir: apps/desktop
+  web:
+    taskfile: apps/web/Taskfile.yml
+    dir: apps/web
   ui:
     taskfile: packages/ui/Taskfile.yml
     dir: packages/ui
@@ -18,7 +21,7 @@ vars:
   # Every port a dev server listens on, for `task down`. Keep in sync with the
   # table in CLAUDE.md. Postgres (4820) is left out on purpose: it is a
   # container, stopped with `task db:down`.
-  DEV_PORTS: "4810 4830"
+  DEV_PORTS: "4810 4830 4840"
 
 tasks:
   default:
@@ -34,7 +37,7 @@ tasks:
       - ./infra/dev/down.sh {{.DEV_PORTS}}
 
   dev:
-    desc: Start Postgres, migrate, then run the API and the desktop app (Ctrl+C stops both)
+    desc: Start Postgres, migrate, then run the API, the desktop app and the website (Ctrl+C stops all)
     cmds:
       - task: db:up
       - task: db:wait
@@ -44,7 +47,7 @@ tasks:
   dev:servers:
     internal: true
     # Add each unit's dev task here; they run in parallel.
-    deps: [api:dev, desktop:dev]
+    deps: [api:dev, desktop:dev, web:dev]
 
   seed:
     desc: Seed the dev database (First Colony with ada, bram and cas @bakery.test, password "password")
@@ -85,3 +88,4 @@ tasks:
       - task: api:check
       - task: ui:check
       - task: desktop:check
+      - task: web:check

@@ -35,7 +35,7 @@ Requirements:
 Then:
 
 ```sh
-task dev    # Postgres, migrations, the API on :4810 and the desktop app
+task dev    # Postgres, migrations, the API on :4810, the desktop app and the website on :4840
 task seed   # in a second terminal: the "First Colony" guild and its board
 ```
 

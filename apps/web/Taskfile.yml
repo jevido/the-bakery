@@ -1,0 +1,16 @@
+version: "3"
+
+tasks:
+  dev:
+    desc: Run the website on 127.0.0.1:4840 (proxies /api to the API)
+    cmds:
+      - bun install
+      - bun run dev
+
+  check:
+    desc: svelte-check, tsc, unit tests and a production build
+    cmds:
+      - bun install
+      - bun run check
+      - bun test
+      - bun run build
