@@ -17,3 +17,8 @@ tasks:
     desc: Run database migrations
     cmds:
       - go run . artisan migrate
+
+  seed:
+    desc: Seed the dev database (First Colony with ada, bram, cas)
+    cmds:
+      - go run . artisan db:seed

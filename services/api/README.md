@@ -14,7 +14,9 @@ task api:dev                         # go run .
 curl -s 127.0.0.1:4810/api/health    # {"ok":true}
 ```
 
-Other tasks: `task api:check` (gofmt, go vet, go test), `task api:migrate`.
+Other tasks: `task api:check` (gofmt, go vet, go test), `task api:migrate`,
+`task api:seed` (members ada, bram and cas `@bakery.test`, password
+`password`, in the guild First Colony; safe to run again).
 The feature tests in `tests/feature` run against the dev database and skip
 when it is not reachable; run `task db:up` and `task api:migrate` first.
 Artisan runs as `go run . artisan ...`.

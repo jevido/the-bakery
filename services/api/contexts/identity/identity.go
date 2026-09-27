@@ -39,3 +39,13 @@ func MemberID(ctx contractshttp.Context) (uint64, bool) {
 func MemberIDByEmail(ctx context.Context, email string) (uint64, bool, error) {
 	return service.MemberIDByEmail(ctx, email)
 }
+
+// SeedMember makes sure a member with this email exists and returns its id.
+// An existing member is left as it is. For the dev seeder only.
+func SeedMember(ctx context.Context, email, displayName, password string) (uint64, error) {
+	if id, found, err := service.MemberIDByEmail(ctx, email); err != nil || found {
+		return id, err
+	}
+	m, err := service.Register(ctx, email, displayName, password)
+	return m.ID, err
+}

@@ -30,7 +30,9 @@ question for the rest of the system: is this member in this guild? It is
 
 - **Found a guild** — by a member, with a name; the founder becomes its first member.
 - **List guilds of a member.**
-- **Add a member** — by an existing member of the guild, using the new member's email.
+- **Add a member** — by an existing member of the guild, using the new
+  member's email. To someone outside the guild, a guild that does not exist
+  and one they are not in look the same (refused).
 
 ### Domain events
 
@@ -40,8 +42,9 @@ question for the rest of the system: is this member in this guild? It is
 ## Integration
 
 - **Publishes:** the `guilds.Memberships` interface,
-  `IsMember(ctx, guildID, memberID) (bool, error)`. This is the only thing
-  other contexts may import from guilds.
+  `IsMember(ctx, guildID, memberID) (bool, error)` (`guilds.NewMemberships()`).
+  This is the only thing other contexts may import from guilds. The events are
+  only logged for now; nothing subscribes to them.
 - **Consumes:** identity's authenticated member id and its member lookup by
   email, translated into a plain member id here.
 
@@ -50,5 +53,7 @@ question for the rest of the system: is this member in this guild? It is
 - **Memberships live inside the Guild aggregate.** "A member cannot be added
   twice" is a rule about the whole guild, so the guild guards it. Guilds are
   small enough that this does not create contention.
+- **Member ids, not members.** A membership holds identity's member id and
+  nothing else; there is no foreign key from guilds' tables to identity's.
 - **No roles yet.** Everyone in a guild can do everything. Roles are easy to
   add inside this context later without changing `IsMember` callers.
