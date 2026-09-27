@@ -32,11 +32,12 @@ responsible for who is in a guild (guilds) or who a person is (identity).
 - **Create a board** in a guild; **list boards** of a guild; **get a board** with its tasks by column and position.
 - **Create a task** — lands at the bottom of `backlog`.
 - **Edit a task** — title, description.
-- **Move a task** — to a column, between two neighbours (or at either end).
+- **Move a task** — to a column, right after one task and/or right before
+  another; with neither, to the bottom of the column.
 - **Delete a task.**
 
 Every command is refused unless the calling member is a member of the board's
-guild.
+guild. A board or task that does not exist is reported as not found.
 
 ### Domain events
 
@@ -60,4 +61,7 @@ guild.
   column); such rules would need a different design.
 - **Positions are fractional keys.** A task's position is a lexicographically
   sortable string, so a new key can always be made between two neighbours.
-  Moving a task updates that one row, never its neighbours.
+  Moving a task updates that one row, never its neighbours. Keys compare by
+  byte, so the database column uses the `C` collation. If two moves pick the
+  same key at once, the unique (board, column, position) index rejects one and
+  it is recomputed and retried.

@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jevido/the-bakery/services/api/contexts/boards"
 	"github.com/jevido/the-bakery/services/api/contexts/guilds"
 	"github.com/jevido/the-bakery/services/api/contexts/identity"
 )
@@ -28,8 +29,19 @@ func (DatabaseSeeder) Run() error {
 		}
 		ids = append(ids, id)
 	}
-	if _, err := guilds.SeedGuild(ctx, "First Colony", ids...); err != nil {
+	guildID, err := guilds.SeedGuild(ctx, "First Colony", ids...)
+	if err != nil {
 		return fmt.Errorf("seeding First Colony: %w", err)
+	}
+	err = boards.SeedBoard(ctx, guildID, ids[0], "Getting settled", []boards.SeedTask{
+		{Title: "Build a research bench", Column: "backlog"},
+		{Title: "Hunt the boomalope before it explodes", Column: "backlog"},
+		{Title: "Plant rice by the river", Column: "todo"},
+		{Title: "Wall in the freezer", Column: "doing"},
+		{Title: "Bury the raider in the graveyard", Column: "done"},
+	})
+	if err != nil {
+		return fmt.Errorf("seeding board Getting settled: %w", err)
 	}
 	return nil
 }
