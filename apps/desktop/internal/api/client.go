@@ -150,3 +150,15 @@ func (c *Client) do(ctx context.Context, method, path, token string, in, out any
 	}
 	return nil
 }
+
+// Handoff returns a one-time code that signs the token's member in on the
+// website.
+func (c *Client) Handoff(ctx context.Context, token string) (string, error) {
+	var res struct {
+		Code string `json:"code"`
+	}
+	if err := c.do(ctx, http.MethodPost, "/api/web/handoff", token, nil, &res); err != nil {
+		return "", err
+	}
+	return res.Code, nil
+}

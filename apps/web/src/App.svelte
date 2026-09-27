@@ -8,6 +8,7 @@
   import Admin from './pages/Admin.svelte'
   import AdminGuild from './pages/AdminGuild.svelte'
   import NotFound from './pages/NotFound.svelte'
+  import Handoff from './pages/Handoff.svelte'
   import { router } from './lib/router.svelte'
   import { session } from './lib/session.svelte'
 
@@ -17,6 +18,7 @@
     '/signin': SignIn,
     '/signup': SignUp,
     '/admin': Admin,
+    '/handoff': Handoff,
   }
 
   session.load()

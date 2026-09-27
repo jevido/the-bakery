@@ -17,6 +17,7 @@ which guilds a Member belongs to or what they may do there; that is guilds.
 | Credentials | A Member's email and hashed password. |
 | Token | The JWT a Member receives on register or login. |
 | Web session | A sign-in from the website: the same JWT, carried in an httpOnly cookie instead of a bearer header. |
+| Handoff code | A one-time code (60 s, single use, stored only as a hash) that turns the desktop's sign-in into a web session. |
 | Operator | The platform owner (and appointees) using the moderation console. Not a Member account; not modelled yet. |
 
 ## Model
@@ -32,6 +33,8 @@ which guilds a Member belongs to or what they may do there; that is guilds.
 - **Register** — create a Member from email, display name and password; returns a token.
 - **Log in** — check credentials; returns a token. A failure never says whether the email exists.
 - **Current member** — the Member behind a token.
+- **Hand off to the website** — for a signed-in member, a handoff code;
+  **redeem** it on the website for a web session.
 
 ### Domain events
 
@@ -50,6 +53,10 @@ None yet.
 - **Generic, so kept small.** Goravel's JWT guard and hashing do the work;
   the context only adds the Member invariants on top. Members are stored in a
   `members` table; the token carries only the member id.
+- **Handoff codes instead of tokens in URLs.** The desktop opens the
+  website signed in by passing a code in the URL, not its token: URLs end up
+  in browser history and logs. A code works once, within 60 seconds, and only
+  its hash is stored.
 - **Tokens last 30 days.** The desktop app keeps the token in the OS keyring
   so a member stays signed in between launches. There is no refresh or
   revocation list yet; changing `JWT_SECRET` signs everyone out.

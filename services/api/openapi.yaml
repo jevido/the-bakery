@@ -229,6 +229,62 @@ paths:
           description: The session cookie is expired.
         "403": { $ref: "#/components/responses/MissingWebHeader" }
 
+  /api/web/handoff:
+    post:
+      tags: [Web sessions]
+      summary: Get a handoff code
+      description: >-
+        For the desktop app: a one-time code that signs its member in on the
+        website. Open `<website>/handoff?code=<code>&next=/admin`; the website
+        redeems it. Valid for 60 seconds, once.
+      security:
+        - bearer: []
+      responses:
+        "201":
+          description: The code.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, expires_in]
+                properties:
+                  code: { type: string }
+                  expires_in: { type: integer, description: "Seconds." }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/web/handoff/redeem:
+    post:
+      tags: [Web sessions]
+      summary: Redeem a handoff code
+      description: Trades a handoff code for a web session.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/WebHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string }
+      responses:
+        "200":
+          description: Signed in; the session cookie is set.
+          headers:
+            Set-Cookie: { $ref: "#/components/headers/SessionCookie" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MemberResponse" }
+        "401":
+          description: The code is unknown, expired or already used.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: "this sign-in link has expired or was already used; sign in on the website" }
+        "403": { $ref: "#/components/responses/MissingWebHeader" }
+
   /api/guilds:
     get:
       tags: [Guilds]

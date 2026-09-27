@@ -44,6 +44,8 @@ func (s *featureSuite) TearDownTest() {
 		for _, id := range ids {
 			_, err := facades.DB().Table("guild_memberships").Where("member_id", id).Delete()
 			s.NoError(err)
+			_, err = facades.DB().Table("web_handoffs").Where("member_id", id).Delete()
+			s.NoError(err)
 		}
 		_, err := facades.DB().Table("members").Where("email", email).Delete()
 		s.NoError(err)

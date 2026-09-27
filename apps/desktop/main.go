@@ -36,7 +36,7 @@ func main() {
 	sess := session.New(client, session.NewStore(client.BaseURL(), logger))
 
 	updates := &UpdateService{logger: logger, version: version}
-	website := &WebsiteService{baseURL: cmp.Or(os.Getenv("BAKERY_WEB_URL"), defaultWebURL)}
+	website := &WebsiteService{client: client, session: sess, logger: logger, baseURL: cmp.Or(os.Getenv("BAKERY_WEB_URL"), defaultWebURL)}
 
 	app := application.New(application.Options{
 		Name:        "The Bakery",

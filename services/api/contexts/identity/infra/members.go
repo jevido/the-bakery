@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	contractsorm "github.com/goravel/framework/contracts/database/orm"
 	"github.com/goravel/framework/database/orm"
@@ -91,3 +92,39 @@ type Hasher struct{}
 
 func (Hasher) Hash(password string) (string, error) { return facades.Hash().Make(password) }
 func (Hasher) Check(password, hash string) bool     { return facades.Hash().Check(password, hash) }
+
+type handoffRecord struct {
+	ID        uint64 `gorm:"primaryKey"`
+	CodeHash  string
+	MemberID  uint64
+	ExpiresAt time.Time
+	UsedAt    *time.Time
+	CreatedAt time.Time
+}
+
+func (handoffRecord) TableName() string { return "web_handoffs" }
+
+type Handoffs struct{}
+
+func (Handoffs) Add(ctx context.Context, codeHash string, memberID uint64, expiresAt time.Time) error {
+	return facades.Orm().WithContext(ctx).Query().Create(&handoffRecord{CodeHash: codeHash, MemberID: memberID, ExpiresAt: expiresAt, CreatedAt: time.Now()})
+}
+
+// Take marks the code used in one conditional update, so two redeems of the
+// same code cannot both succeed.
+func (Handoffs) Take(ctx context.Context, codeHash string, now time.Time) (uint64, bool, error) {
+	q := facades.Orm().WithContext(ctx).Query()
+	res, err := q.Model(&handoffRecord{}).
+		Where("code_hash", codeHash).WhereNull("used_at").Where("expires_at > ?", now).
+		Update("used_at", now)
+	if err != nil || res.RowsAffected != 1 {
+		return 0, false, err
+	}
+	var rec handoffRecord
+	if err := facades.Orm().WithContext(ctx).Query().Where("code_hash", codeHash).FirstOrFail(&rec); err != nil {
+		return 0, false, err
+	}
+	// Old codes are of no use to anyone; clear them out while we are here.
+	_, _ = facades.Orm().WithContext(ctx).Query().Where("expires_at < ?", now.Add(-time.Hour)).Delete(&handoffRecord{})
+	return rec.MemberID, true, nil
+}

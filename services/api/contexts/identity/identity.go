@@ -15,7 +15,7 @@ import (
 	"github.com/jevido/the-bakery/services/api/contexts/identity/infra"
 )
 
-var service = app.NewService(infra.Members{}, infra.Hasher{})
+var service = app.NewService(infra.Members{}, infra.Hasher{}, infra.Handoffs{})
 
 // RequireMember is the middleware that refuses requests without a valid
 // member token (401).
@@ -30,6 +30,8 @@ func Routes(r route.Router) {
 	r.Post("/api/web/register", c.WebRegister)
 	r.Post("/api/web/login", c.WebLogin)
 	r.Post("/api/web/logout", c.WebLogout)
+	r.Middleware(RequireMember).Post("/api/web/handoff", c.CreateHandoff)
+	r.Post("/api/web/handoff/redeem", c.RedeemHandoff)
 }
 
 // MemberID returns the id of the signed-in member. Only valid behind

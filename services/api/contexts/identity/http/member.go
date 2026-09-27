@@ -157,6 +157,44 @@ func (c *Controller) WebLogout(ctx contractshttp.Context) contractshttp.Response
 	return ctx.Response().NoContent()
 }
 
+// CreateHandoff gives the signed-in member (the desktop app, by bearer
+// token) a one-time code to open the website signed in.
+func (c *Controller) CreateHandoff(ctx contractshttp.Context) contractshttp.Response {
+	id, _ := MemberID(ctx)
+	code, err := c.service.CreateHandoff(ctx.Context(), id)
+	if err != nil {
+		return serverError(ctx, err)
+	}
+	return ctx.Response().Json(contractshttp.StatusCreated, contractshttp.Json{"code": code, "expires_in": int(app.HandoffTTL.Seconds())})
+}
+
+type redeemRequest struct {
+	Code string `json:"code"`
+}
+
+// RedeemHandoff trades a handoff code for a web session.
+func (c *Controller) RedeemHandoff(ctx contractshttp.Context) contractshttp.Response {
+	if !fromWebsite(ctx) {
+		return missingWebHeader(ctx)
+	}
+	var req redeemRequest
+	if err := ctx.Request().Bind(&req); err != nil {
+		return ctx.Response().Json(contractshttp.StatusBadRequest, contractshttp.Json{"error": "request body must be JSON"})
+	}
+	id, err := c.service.RedeemHandoff(ctx.Context(), req.Code)
+	if errors.Is(err, app.ErrHandoffInvalid) {
+		return unauthorized(ctx, err.Error())
+	}
+	if err != nil {
+		return serverError(ctx, err)
+	}
+	m, err := c.service.CurrentMember(ctx.Context(), id)
+	if err != nil {
+		return unauthorized(ctx, app.ErrHandoffInvalid.Error())
+	}
+	return c.withSession(ctx, contractshttp.StatusOK, m)
+}
+
 func (c *Controller) withSession(ctx contractshttp.Context, status int, m domain.Member) contractshttp.Response {
 	token, err := facades.Auth(ctx).Guard(Guard).LoginUsingID(m.ID)
 	if err != nil {

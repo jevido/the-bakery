@@ -7,19 +7,31 @@ class Session {
   // undefined until the first check has answered.
   member = $state<Member | null | undefined>(undefined)
 
+  // Bumped on every sign-in or sign-out, so a /api/me answer that was already
+  // under way cannot undo it.
+  #version = 0
+
   async load() {
+    const version = this.#version
+    let member: Member | null
     try {
-      const res = await api<{ member: Member }>('GET', '/api/me')
-      this.member = res.member
+      member = (await api<{ member: Member }>('GET', '/api/me')).member
     } catch (err) {
       if (!(err instanceof ApiError) || err.status !== 401) console.warn(err)
-      this.member = null
+      member = null
     }
+    if (version === this.#version) this.member = member
+  }
+
+  // adopt records a sign-in that happened elsewhere (the desktop handoff).
+  adopt(member: Member | null) {
+    this.#version++
+    this.member = member
   }
 
   async signIn(email: string, password: string) {
     const res = await api<{ member: Member }>('POST', '/api/web/login', { email, password })
-    this.member = res.member
+    this.adopt(res.member)
   }
 
   async signUp(email: string, displayName: string, password: string) {
@@ -28,12 +40,12 @@ class Session {
       display_name: displayName,
       password,
     })
-    this.member = res.member
+    this.adopt(res.member)
   }
 
   async signOut() {
     await api('POST', '/api/web/logout')
-    this.member = null
+    this.adopt(null)
   }
 }
 

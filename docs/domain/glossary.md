@@ -16,6 +16,7 @@ document; list them here when people outside the context use them too.
 | Token | identity | The JWT (valid 30 days) a Member receives on register or login and sends as `Authorization: Bearer ...` to prove who they are. | API key |
 | Operator | identity | The platform owner, and anyone they appoint, who uses the moderation console. Not a guild role and not a Member account. | Guild member, admin |
 | Web session | identity | A sign-in from the website, carried in an httpOnly cookie that page scripts cannot read. The desktop app keeps its bearer token instead. | Token (the desktop's) |
+| Handoff code | identity | A one-time code the desktop app gets for its signed-in member and opens the website with, so the website signs them in too. Valid for 60 seconds, usable once; the website trades it for a web session. | Token (never put in a URL) |
 | Clock out | identity | What the desktop app calls logging out: the token is forgotten on this machine. | |
 | Guild | guilds | The top-level group people work in together. A Member can belong to many guilds. | Workspace, org, organisation, team (never used) |
 | Founder | guilds | The Member who founded a guild; they become its first member. No extra rights beyond that. | Owner, admin |
