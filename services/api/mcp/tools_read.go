@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -21,12 +22,18 @@ type boardOut struct {
 	Name    string `json:"name"`
 }
 
+// taskOut is a task or a subtask. A subtask has parent_id and done, and no
+// column; a task on the board has its subtask counts.
 type taskOut struct {
-	ID          uint64 `json:"id" jsonschema:"the task id, for update_task, move_task and delete_task"`
-	BoardID     uint64 `json:"board_id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Column      string `json:"column" jsonschema:"backlog, todo, doing or done"`
+	ID            uint64  `json:"id" jsonschema:"the task id, for get_task, update_task, move_task, expand_task and delete_task"`
+	BoardID       uint64  `json:"board_id"`
+	ParentID      *uint64 `json:"parent_id,omitempty" jsonschema:"set on a subtask: the task it belongs to"`
+	Title         string  `json:"title"`
+	Description   string  `json:"description"`
+	Column        string  `json:"column,omitempty" jsonschema:"backlog, todo, doing or done; a subtask has none"`
+	Done          *bool   `json:"done,omitempty" jsonschema:"set on a subtask: whether it is ticked off"`
+	SubtasksTotal *int    `json:"subtasks_total,omitempty" jsonschema:"how many subtasks this task has"`
+	SubtasksDone  *int    `json:"subtasks_done,omitempty" jsonschema:"how many of them are done"`
 }
 
 type columnOut struct {
@@ -35,7 +42,47 @@ type columnOut struct {
 }
 
 func taskOutOf(t boards.Task) taskOut {
-	return taskOut{ID: t.ID, BoardID: t.BoardID, Title: t.Title, Description: t.Description, Column: t.Column}
+	out := taskOut{ID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID, Title: t.Title, Description: t.Description, Column: t.Column}
+	if t.ParentID != nil {
+		out.Done = &t.Done
+	} else {
+		out.SubtasksTotal, out.SubtasksDone = &t.SubtasksTotal, &t.SubtasksDone
+	}
+	return out
+}
+
+func tasksOutOf(ts []boards.Task) []taskOut {
+	out := make([]taskOut, len(ts))
+	for i, t := range ts {
+		out[i] = taskOutOf(t)
+	}
+	return out
+}
+
+type commentOut struct {
+	ID         uint64     `json:"id"`
+	AuthorName string     `json:"author_name"`
+	Body       string     `json:"body" jsonschema:"markdown"`
+	CreatedAt  time.Time  `json:"created_at"`
+	EditedAt   *time.Time `json:"edited_at,omitempty"`
+}
+
+func commentOutOf(c boards.Comment) commentOut {
+	return commentOut{ID: c.ID, AuthorName: c.AuthorName, Body: c.Body, CreatedAt: c.CreatedAt, EditedAt: c.EditedAt}
+}
+
+type getTaskIn struct {
+	TaskID uint64 `json:"task_id" jsonschema:"a task id from get_board"`
+}
+
+// recentComments is how many comments get_task returns: the last ones.
+const recentComments = 20
+
+type getTaskOut struct {
+	Task          taskOut      `json:"task"`
+	Subtasks      []taskOut    `json:"subtasks" jsonschema:"in order"`
+	Comments      []commentOut `json:"comments" jsonschema:"the last 20 comments, oldest first"`
+	CommentsTotal int          `json:"comments_total"`
 }
 
 type listGuildsIn struct {
@@ -114,7 +161,9 @@ func addReadTools(s *sdk.Server) {
 		Name:  "get_board",
 		Title: "Get a board",
 		Description: "Returns one board with its four columns in order (backlog, todo, doing, done), each with its tasks " +
-			"from top to bottom: id, title, description. Use the task ids with update_task, move_task and delete_task.",
+			"from top to bottom: id, title, description, and how many subtasks each has and how many are done. Subtasks " +
+			"are not listed here; get_task shows them. Use the task ids with get_task, update_task, move_task, " +
+			"expand_task and delete_task.",
 		Annotations: readOnly,
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in getBoardIn) (*sdk.CallToolResult, getBoardOut, error) {
 		me, err := memberID(ctx)
@@ -133,6 +182,34 @@ func addReadTools(s *sdk.Server) {
 				col.Tasks = append(col.Tasks, taskOutOf(t))
 			}
 			out.Columns = append(out.Columns, col)
+		}
+		return nil, out, nil
+	})
+
+	sdk.AddTool(s, &sdk.Tool{
+		Name:  "get_task",
+		Title: "Get a task",
+		Description: "Returns one task in full: its description, its subtasks in order (with whether each is done), " +
+			"and its last 20 comments, oldest first. Read this before working on a task.",
+		Annotations: readOnly,
+	}, func(ctx context.Context, _ *sdk.CallToolRequest, in getTaskIn) (*sdk.CallToolResult, getTaskOut, error) {
+		me, err := memberID(ctx)
+		if err != nil {
+			return nil, getTaskOut{}, err
+		}
+		t, subtasks, err := boards.GetTask(ctx, in.TaskID, me)
+		if err != nil {
+			r, _ := failed(err)
+			return r, getTaskOut{}, nil
+		}
+		cs, err := boards.ListComments(ctx, in.TaskID, me)
+		if err != nil {
+			r, _ := failed(err)
+			return r, getTaskOut{}, nil
+		}
+		out := getTaskOut{Task: taskOutOf(t), Subtasks: tasksOutOf(subtasks), Comments: []commentOut{}, CommentsTotal: len(cs)}
+		for _, c := range cs[max(0, len(cs)-recentComments):] {
+			out.Comments = append(out.Comments, commentOutOf(c))
 		}
 		return nil, out, nil
 	})

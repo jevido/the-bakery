@@ -39,9 +39,11 @@ with a personal token (`Authorization: Bearer bky_…`). The server lives in
 guilds or boards context publishes from its root package, so it follows the
 same membership and archive rules as REST.
 
-- Read: `list_guilds`, `list_boards`, `get_board`.
+- Read: `list_guilds`, `list_boards`, `get_board`, `get_task` (subtasks and
+  the last 20 comments).
 - Write: `create_board`, `create_task`, `update_task`, `move_task`,
-  `delete_task` (marked destructive, so clients ask first).
+  `expand_task`, `set_subtask_done`, `add_comment`, `delete_task` (marked
+  destructive, so clients ask first).
 
 A refused call (not a member, archived guild, bad column) comes back as a
 tool error with the same message REST gives. Connect Claude Code with:

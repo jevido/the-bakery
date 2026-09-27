@@ -216,3 +216,64 @@ func (s *MCPTestSuite) TestWriteTools() {
 	s.False(ok)
 	s.Equal("This guild is archived; its boards are read-only", out["error"])
 }
+
+func (s *MCPTestSuite) TestTaskDetailTools() {
+	_, session := s.register()
+	guildID := s.foundGuild(session, "MCP Planners")
+	cs := s.connect(session)
+
+	out, ok := s.call(cs, "create_board", map[string]any{"guild_id": guildID, "name": "Getting settled"})
+	s.Require().True(ok, out)
+	boardID := out["board"].(map[string]any)["id"].(float64)
+	out, ok = s.call(cs, "create_task", map[string]any{"board_id": boardID, "title": "Build a freezer"})
+	s.Require().True(ok, out)
+	taskID := out["task"].(map[string]any)["id"].(float64)
+
+	out, ok = s.call(cs, "expand_task", map[string]any{"task_id": taskID, "subtasks": []string{"Dig the room", "Wall it in", "Add a cooler"}})
+	s.Require().True(ok, out)
+	subs := out["subtasks"].([]any)
+	s.Require().Len(subs, 3)
+	first := subs[0].(map[string]any)
+	s.Equal(taskID, first["parent_id"])
+	s.Equal(false, first["done"])
+
+	out, ok = s.call(cs, "set_subtask_done", map[string]any{"task_id": first["id"], "done": true})
+	s.Require().True(ok, out)
+	s.Equal(true, out["task"].(map[string]any)["done"])
+	out, ok = s.call(cs, "set_subtask_done", map[string]any{"task_id": taskID, "done": true})
+	s.False(ok)
+	s.Equal("Only a subtask can be ticked off", out["error"])
+
+	out, ok = s.call(cs, "expand_task", map[string]any{"task_id": first["id"], "subtasks": []string{"Too deep"}})
+	s.False(ok)
+	s.Equal("A subtask cannot have subtasks", out["error"])
+
+	out, ok = s.call(cs, "add_comment", map[string]any{"task_id": taskID, "body": "Planned the freezer."})
+	s.Require().True(ok, out)
+	s.Equal("Planned the freezer.", out["comment"].(map[string]any)["body"])
+
+	out, ok = s.call(cs, "get_task", map[string]any{"task_id": taskID})
+	s.Require().True(ok, out)
+	s.Equal(float64(3), out["task"].(map[string]any)["subtasks_total"])
+	s.Equal(float64(1), out["task"].(map[string]any)["subtasks_done"])
+	s.Len(out["subtasks"], 3)
+	s.Len(out["comments"], 1)
+
+	out, _ = s.call(cs, "get_board", map[string]any{"board_id": boardID})
+	card := out["columns"].([]any)[0].(map[string]any)["tasks"].([]any)
+	s.Require().Len(card, 1, "subtasks are not on the board")
+	s.Equal(float64(3), card[0].(map[string]any)["subtasks_total"])
+
+	_, stranger := s.register()
+	other := s.connect(stranger)
+	for name, args := range map[string]map[string]any{
+		"get_task":         {"task_id": taskID},
+		"expand_task":      {"task_id": taskID, "subtasks": []string{"Mine"}},
+		"set_subtask_done": {"task_id": first["id"], "done": false},
+		"add_comment":      {"task_id": taskID, "body": "Mine"},
+	} {
+		out, ok := s.call(other, name, args)
+		s.False(ok, name)
+		s.Equal("Not a member of this guild", out["error"], name)
+	}
+}

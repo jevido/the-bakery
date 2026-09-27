@@ -28,7 +28,8 @@ const Version = "0.1.0"
 func Handler() http.Handler {
 	server := sdk.NewServer(&sdk.Implementation{Name: "the-bakery", Title: "The Bakery", Version: Version}, &sdk.ServerOptions{
 		Instructions: "The Bakery keeps a guild's work as tasks on boards. Start with list_guilds, then list_boards " +
-			"and get_board to see tasks by column (backlog, todo, doing, done). Use the ids these return in later calls.",
+			"and get_board to see tasks by column (backlog, todo, doing, done), and get_task to read one task in full " +
+			"with its subtasks and comments. Use the ids these return in later calls.",
 	})
 	addReadTools(server)
 	addWriteTools(server)
