@@ -91,7 +91,8 @@
               dragging={draggedId === task.id}
               ondragstart={(e) => dragStart(e, task.id)}
               ondragend={dragEnd}
-              onrename={(title) => colony.renameTask(task.id, title)}
+              selected={colony.openTaskId === task.id}
+              onopen={() => colony.openTask(task.id)}
               ondelete={() => colony.deleteTask(task.id)}
             />
           {/each}

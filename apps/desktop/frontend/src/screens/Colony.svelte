@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Panel, Button, TextField } from '@bakery/ui'
   import BoardView from '../components/BoardView.svelte'
+  import TaskPanel from '../components/TaskPanel.svelte'
   import { Colony } from '../lib/colony.svelte'
   import { WebsiteService, messageOf, type Member } from '../lib/bindings'
 
@@ -85,7 +86,12 @@
         <p class="dim small">Once you are in a guild, it shows up here. {#if colony.loaded}<button class="link" onclick={() => colony.load()}>Check again</button>{/if}</p>
       </Panel>
     {:else if colony.view}
-      <BoardView {colony} />
+      <div class={['work', { 'with-panel': colony.openTaskId !== null }]}>
+        <BoardView {colony} />
+        {#if colony.openTaskId !== null}
+          <TaskPanel open={colony.task} onclose={() => colony.closeTask()} />
+        {/if}
+      </div>
     {:else if colony.guild}
       <Panel title={colony.guild.name}>
         <p class="dim">No boards yet. Add one on the left.</p>
@@ -116,6 +122,18 @@
     gap: var(--gap);
     min-width: 0;
     min-height: 0;
+  }
+
+  .work {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--gap);
+    flex: 1;
+    min-height: 0;
+  }
+
+  .work.with-panel {
+    grid-template-columns: 1fr minmax(300px, 380px);
   }
 
   .list {

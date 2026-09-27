@@ -1,6 +1,6 @@
 // One import point for the generated Wails bindings (`wails3 generate
 // bindings`, run by `task desktop:dev` and `task desktop:check`).
-export { SessionService, BoardsService, UpdateService, WebsiteService } from '../../bindings/github.com/jevido/the-bakery/apps/desktop'
+export { SessionService, BoardsService, TaskService, UpdateService, WebsiteService } from '../../bindings/github.com/jevido/the-bakery/apps/desktop'
 export type {
   Member,
   Guild,
@@ -8,6 +8,7 @@ export type {
   Task,
   Column,
   BoardView,
+  TaskDetail,
 } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/internal/api/models'
 
 // Go errors reach the frontend as rejected promises; this pulls out the

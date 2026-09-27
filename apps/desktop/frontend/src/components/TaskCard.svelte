@@ -5,64 +5,33 @@
   let {
     task,
     dragging = false,
+    selected = false,
     ondragstart,
     ondragend,
-    onrename,
+    onopen,
     ondelete,
   }: {
     task: Task
     dragging?: boolean
+    selected?: boolean
     ondragstart: (event: DragEvent) => void
     ondragend: () => void
-    onrename: (title: string) => void
+    onopen: () => void
     ondelete: () => void
   } = $props()
 
-  let editing = $state(false)
   let confirming = $state(false)
-  let draft = $state('')
-
-  function startEdit() {
-    draft = task.title
-    editing = true
-  }
-
-  function finishEdit(save: boolean) {
-    if (!editing) return
-    editing = false
-    const title = draft.trim()
-    if (save && title && title !== task.title) onrename(title)
-  }
-
-  function onkeydown(event: KeyboardEvent) {
-    if (event.key === 'Enter') finishEdit(true)
-    if (event.key === 'Escape') finishEdit(false)
-  }
-
-  // Focus and select the title field as soon as it appears.
-  function focusSelect(node: HTMLInputElement) {
-    node.focus()
-    node.select()
-  }
+  let allDone = $derived(task.subtasks_total > 0 && task.subtasks_done === task.subtasks_total)
 </script>
 
 <li
-  class={['card', { dragging }]}
-  draggable={!editing && !confirming}
+  class={['card', { dragging, selected }]}
+  draggable={!confirming}
   data-task-id={task.id}
   {ondragstart}
   {ondragend}
 >
-  {#if editing}
-    <input
-      class="title-input"
-      maxlength={200}
-      bind:value={draft}
-      {onkeydown}
-      onblur={() => finishEdit(true)}
-      {@attach focusSelect}
-    />
-  {:else if confirming}
+  {#if confirming}
     <div class="confirm">
       <span>Delete “{task.title}”?</span>
       <div class="confirm-actions">
@@ -72,7 +41,10 @@
     </div>
   {:else}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <span class="title" ondblclick={startEdit} title="Double-click to rename">{task.title}</span>
+    <span class="title" ondblclick={onopen} title="Double-click to open">{task.title}</span>
+    {#if task.subtasks_total > 0}
+      <span class={['badge', { full: allDone }]} title="Subtasks done">{task.subtasks_done}/{task.subtasks_total}</span>
+    {/if}
     <button class="delete" aria-label="Delete task" onclick={() => (confirming = true)}>×</button>
   {/if}
 </li>
@@ -98,6 +70,26 @@
     opacity: 0.4;
   }
 
+  .selected {
+    border-color: var(--steel-bright);
+  }
+
+  .badge {
+    padding: 0 5px;
+    font-size: 11px;
+    line-height: 16px;
+    color: var(--text-dim);
+    background: var(--panel-inset);
+    border: 1px solid var(--frame-dim);
+    border-radius: var(--radius);
+  }
+
+  .badge.full {
+    color: var(--bg-deep);
+    background: var(--olive);
+    border-color: var(--olive-bright);
+  }
+
   .title {
     flex: 1;
     overflow-wrap: anywhere;
@@ -121,17 +113,6 @@
 
   .delete:hover {
     color: var(--rust-bright);
-  }
-
-  .title-input {
-    flex: 1;
-    font: inherit;
-    color: var(--text);
-    padding: 2px 4px;
-    background: var(--panel-inset);
-    border: 1px solid var(--frame);
-    border-radius: var(--radius);
-    user-select: text;
   }
 
   .confirm {

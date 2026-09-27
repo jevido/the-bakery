@@ -2,6 +2,7 @@
 // board's tasks. Talks to the API only through BoardsService.
 
 import { BoardsService, isSignedOut, messageOf, type Board, type BoardView, type Guild, type Task } from './bindings'
+import { OpenTask } from './task.svelte'
 
 // The open board, with Go's nil slices turned into empty arrays.
 export type BoardState = {
@@ -53,6 +54,9 @@ export class Colony {
   view = $state<BoardState | null>(null)
   loaded = $state(false)
   error = $state('')
+  // The task open in the side panel.
+  openTaskId = $state<number | null>(null)
+  task: OpenTask
 
   guild = $derived(this.guilds.find((g) => g.id === this.guildId) ?? null)
 
@@ -60,6 +64,20 @@ export class Colony {
 
   constructor(onSignedOut: () => void) {
     this.#onSignedOut = onSignedOut
+    this.task = new OpenTask(
+      () => this.reloadBoard(),
+      () => this.#onSignedOut(),
+    )
+  }
+
+  openTask(id: number) {
+    this.openTaskId = id
+    this.task.open(id)
+  }
+
+  closeTask() {
+    this.openTaskId = null
+    this.task.close()
   }
 
   // run shows failures as the colony's error line; a lost session goes back
@@ -99,6 +117,7 @@ export class Colony {
   }
 
   async openBoard(id: number) {
+    if (id !== this.boardId) this.closeTask()
     this.boardId = id
     remember(LAST_BOARD, id)
     await this.reloadBoard()
@@ -127,16 +146,8 @@ export class Colony {
     return true
   }
 
-  async renameTask(id: number, title: string) {
-    const task = await this.#run(() => BoardsService.UpdateTask(id, title, null))
-    if (!task) return this.reloadBoard()
-    for (const col of this.view?.columns ?? []) {
-      const t = col.tasks.find((t) => t.id === id)
-      if (t) t.title = task.title
-    }
-  }
-
   async deleteTask(id: number) {
+    if (this.openTaskId === id) this.closeTask()
     for (const col of this.view?.columns ?? []) {
       const i = col.tasks.findIndex((t) => t.id === id)
       if (i >= 0) col.tasks.splice(i, 1)

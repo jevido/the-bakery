@@ -17,13 +17,26 @@ type Board struct {
 	Name    string `json:"name"`
 }
 
+// Task is a task or a subtask. A subtask has a ParentID and no Column.
+// SubtasksTotal and SubtasksDone are filled in on a board's tasks and in
+// GetTask.
 type Task struct {
-	ID          uint64 `json:"id"`
-	BoardID     uint64 `json:"board_id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Column      string `json:"column"`
-	Position    string `json:"position"`
+	ID            uint64  `json:"id"`
+	BoardID       uint64  `json:"board_id"`
+	ParentID      *uint64 `json:"parent_id"`
+	Title         string  `json:"title"`
+	Description   string  `json:"description"`
+	Column        string  `json:"column"`
+	Position      string  `json:"position"`
+	Done          bool    `json:"done"`
+	SubtasksTotal int     `json:"subtasks_total"`
+	SubtasksDone  int     `json:"subtasks_done"`
+}
+
+// TaskDetail is one task with its subtasks in order.
+type TaskDetail struct {
+	Task     Task   `json:"task"`
+	Subtasks []Task `json:"subtasks"`
 }
 
 // Column is one board column with its tasks in order.
@@ -105,4 +118,38 @@ func (c *Client) MoveTask(ctx context.Context, token string, taskID uint64, colu
 
 func (c *Client) DeleteTask(ctx context.Context, token string, taskID uint64) error {
 	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/api/tasks/%d", taskID), token, nil, nil)
+}
+
+func (c *Client) GetTask(ctx context.Context, token string, taskID uint64) (TaskDetail, error) {
+	var res TaskDetail
+	err := c.do(ctx, http.MethodGet, fmt.Sprintf("/api/tasks/%d", taskID), token, nil, &res)
+	return res, err
+}
+
+func (c *Client) AddSubtask(ctx context.Context, token string, taskID uint64, title string) (Task, error) {
+	var res struct {
+		Subtask Task `json:"subtask"`
+	}
+	err := c.do(ctx, http.MethodPost, fmt.Sprintf("/api/tasks/%d/subtasks", taskID), token, map[string]string{"title": title}, &res)
+	return res.Subtask, err
+}
+
+// SetSubtaskDone ticks a subtask off or opens it again.
+func (c *Client) SetSubtaskDone(ctx context.Context, token string, taskID uint64, done bool) (Task, error) {
+	var res struct {
+		Task Task `json:"task"`
+	}
+	err := c.do(ctx, http.MethodPatch, fmt.Sprintf("/api/tasks/%d", taskID), token, map[string]bool{"done": done}, &res)
+	return res.Task, err
+}
+
+// MoveSubtask puts a subtask right after afterID and/or right before
+// beforeID among its siblings (nil for either end).
+func (c *Client) MoveSubtask(ctx context.Context, token string, taskID uint64, afterID, beforeID *uint64) (Task, error) {
+	body := map[string]any{"after_id": afterID, "before_id": beforeID}
+	var res struct {
+		Task Task `json:"task"`
+	}
+	err := c.do(ctx, http.MethodPost, fmt.Sprintf("/api/tasks/%d/move", taskID), token, body, &res)
+	return res.Task, err
 }

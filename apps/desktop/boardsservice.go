@@ -24,53 +24,53 @@ func NewBoardsService(client *api.Client, s *session.Session) *BoardsService {
 
 // call runs f with the member's token. A token the API refuses ends the
 // session.
-func call[T any](s *BoardsService, f func(token string) (T, error)) (T, error) {
-	token := s.session.Token()
+func call[T any](sess *session.Session, f func(token string) (T, error)) (T, error) {
+	token := sess.Token()
 	if token == "" {
 		var zero T
 		return zero, ErrSignedOut
 	}
 	v, err := f(token)
 	if errors.Is(err, api.ErrUnauthorized) {
-		_ = s.session.Logout()
+		_ = sess.Logout()
 		return v, ErrSignedOut
 	}
 	return v, err
 }
 
 func (s *BoardsService) ListGuilds(ctx context.Context) ([]api.Guild, error) {
-	return call(s, func(t string) ([]api.Guild, error) { return s.client.ListGuilds(ctx, t) })
+	return call(s.session, func(t string) ([]api.Guild, error) { return s.client.ListGuilds(ctx, t) })
 }
 
 func (s *BoardsService) ListBoards(ctx context.Context, guildID uint64) ([]api.Board, error) {
-	return call(s, func(t string) ([]api.Board, error) { return s.client.ListBoards(ctx, t, guildID) })
+	return call(s.session, func(t string) ([]api.Board, error) { return s.client.ListBoards(ctx, t, guildID) })
 }
 
 func (s *BoardsService) CreateBoard(ctx context.Context, guildID uint64, name string) (api.Board, error) {
-	return call(s, func(t string) (api.Board, error) { return s.client.CreateBoard(ctx, t, guildID, name) })
+	return call(s.session, func(t string) (api.Board, error) { return s.client.CreateBoard(ctx, t, guildID, name) })
 }
 
 func (s *BoardsService) GetBoard(ctx context.Context, boardID uint64) (api.BoardView, error) {
-	return call(s, func(t string) (api.BoardView, error) { return s.client.GetBoard(ctx, t, boardID) })
+	return call(s.session, func(t string) (api.BoardView, error) { return s.client.GetBoard(ctx, t, boardID) })
 }
 
 func (s *BoardsService) CreateTask(ctx context.Context, boardID uint64, title string) (api.Task, error) {
-	return call(s, func(t string) (api.Task, error) { return s.client.CreateTask(ctx, t, boardID, title) })
+	return call(s.session, func(t string) (api.Task, error) { return s.client.CreateTask(ctx, t, boardID, title) })
 }
 
 func (s *BoardsService) UpdateTask(ctx context.Context, taskID uint64, title, description *string) (api.Task, error) {
-	return call(s, func(t string) (api.Task, error) { return s.client.UpdateTask(ctx, t, taskID, title, description) })
+	return call(s.session, func(t string) (api.Task, error) { return s.client.UpdateTask(ctx, t, taskID, title, description) })
 }
 
 // MoveTask puts a task in column right after afterID and/or right before
 // beforeID; null for either means that end of the column.
 func (s *BoardsService) MoveTask(ctx context.Context, taskID uint64, column string, afterID, beforeID *uint64) (api.Task, error) {
-	return call(s, func(t string) (api.Task, error) {
+	return call(s.session, func(t string) (api.Task, error) {
 		return s.client.MoveTask(ctx, t, taskID, column, afterID, beforeID)
 	})
 }
 
 func (s *BoardsService) DeleteTask(ctx context.Context, taskID uint64) error {
-	_, err := call(s, func(t string) (struct{}, error) { return struct{}{}, s.client.DeleteTask(ctx, t, taskID) })
+	_, err := call(s.session, func(t string) (struct{}, error) { return struct{}{}, s.client.DeleteTask(ctx, t, taskID) })
 	return err
 }

@@ -45,6 +45,7 @@ func main() {
 		Services: []application.Service{
 			application.NewService(NewSessionService(sess, logger)),
 			application.NewService(NewBoardsService(client, sess)),
+			application.NewService(NewTaskService(client, sess)),
 			application.NewService(updates),
 			application.NewService(website),
 		},
