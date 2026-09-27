@@ -151,6 +151,9 @@
 </script>
 
 {#if colony.view}
+  <!-- One element, so the screen's grid (board beside the task panel) sees
+       one cell, not the header and the columns separately. -->
+  <section class="board-view">
   <header class="board-head">
     <h1>{colony.view.board.name}</h1>
     {#if colony.live !== 'off'}
@@ -228,9 +231,17 @@
       {/if}
     </div>
   </div>
+  </section>
 {/if}
 
 <style>
+  .board-view {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+
   .board-head {
     display: flex;
     align-items: center;
@@ -269,9 +280,9 @@
      sideways. */
   .board {
     display: grid;
-    grid-template-columns: repeat(var(--columns), minmax(200px, 1fr)) 150px;
+    grid-template-columns: repeat(var(--columns), minmax(160px, 1fr)) 100px;
     gap: var(--gap);
-    height: 100%;
+    flex: 1;
     min-height: 0;
     overflow-x: auto;
   }
