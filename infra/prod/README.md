@@ -2,9 +2,15 @@
 
 Production.
 
-Document here, per resource: domain, port, health check path, what triggers a
-deploy, and which environment variables it needs (names only, never values).
-Also note backups, how to roll back, and how to redeploy by hand.
+| | |
+| --- | --- |
+| Coolify | https://coolify.jevido.app, project "the bakery", environment `production` |
+| Deploys from | branch `main` |
+| Web | https://bakery.jevido.app |
+| API | https://api.bakery.jevido.app, health check `/api/health` |
+| Database | Postgres 17, its own Coolify resource, daily backups |
+| Desktop releases | GitHub releases tagged `desktop-vX.Y.Z`; release builds default to the prod API |
 
-Commit an `.env.example` or equivalent for the variables; real values live in
-the deploy platform, never in the repo.
+Per resource (port, environment variable names, deploy steps, backups, how to
+roll back, redeploying by hand) is filled in when the resources exist. Real
+values live in Coolify, never in the repo.

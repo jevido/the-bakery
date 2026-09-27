@@ -23,3 +23,5 @@ document; list them here when people outside the context use them too.
 | Task | boards | A unit of work on a board: title, description, column and position. | Ticket, issue, card (a card is only how a task is drawn) |
 | Column | boards | Where a task stands on its board: one of `backlog`, `todo`, `doing`, `done` (shown as Backlog, To do, Doing, Done). Fixed for now. | Status, lane |
 | Position | boards | A sortable key that orders tasks within one column of a board. Moving a task changes only its own position. | Index, rank number |
+| Release | platform | A tagged desktop build, `desktop-vX.Y.Z`, published as a GitHub release with signed artifacts and an update manifest. | Deploy (that is the API and website going out) |
+| Environment | platform | Where The Bakery runs: `dev` (local), `next` (pre-production) or `prod`. | Stage, instance |
