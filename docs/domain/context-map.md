@@ -10,6 +10,7 @@ depend on each other.
 | [boards](contexts/boards/README.md) | core | `services/api` (`contexts/boards`) | boards and their columns, tasks and subtasks, comments, activity, work types, board events and presence |
 | [agents](contexts/agents/README.md) | supporting | `services/api` (`contexts/agents`); mirrored as folders by `apps/desktop` | agents, their skillsets and work priorities, shares |
 | [guilds](contexts/guilds/README.md) | supporting | `services/api` (`contexts/guilds`) | guilds, memberships, invites |
+| [workshop](contexts/workshop/README.md) | supporting | `apps/desktop` (`internal/workshop`), per machine | board configs, worktrees, running Claude CLI for a run |
 | [identity](contexts/identity/README.md) | generic | `services/api` (`contexts/identity`) | members, credentials, tokens, personal tokens, web sessions, handoff codes |
 
 `services/api` also hosts the **MCP server** (module `mcp/`): an *open host
@@ -17,9 +18,10 @@ service* over guilds, boards and agents for Claude and other MCP clients. It has
 domain of its own; each MCP tool calls a use case those contexts publish, with
 the same rules as REST.
 
-`apps/desktop` and `apps/web` host no context: they are clients of the API
-and hold no domain data of their own. The desktop app's agent folders are a
-synced copy of the member's agents, not a model of their own.
+`apps/web` hosts no context: it is a client of the API. `apps/desktop` is a
+client of the API too and holds no guild, board or agent data of its own (its
+agent folders are a synced copy of the member's agents), but it hosts the
+**workshop**, which only exists on a member's machine.
 
 - **Core:** where the project competes. Gets the most care and the richest model.
 - **Supporting:** needed and specific to this project, but not the differentiator.
@@ -39,6 +41,9 @@ adapt to.
 | guilds | boards | customer/supplier | The `guilds.Memberships` Go interface: `IsMember(ctx, guildID, memberID)` and `IsArchived(ctx, guildID)`. Boards never read the guild tables. |
 | guilds | agents | customer/supplier | `guilds.Memberships.IsMember`, to check sharing, listing a guild's agents and recruiting. Agents never read the guild tables. |
 | boards | agents | published language | Work type keys (`coding`, `research`, …) as plain strings in an agent's work priorities. Agents never read boards' tables, and a key a guild lacks just counts as off. |
+| boards | workshop | customer/supplier | The REST API: tasks with subtasks and comments, columns, runs (start, finish), comments and moves. Translated into the workshop's `RunSpec`. |
+| agents | workshop | customer/supplier | The member's synced agent folders (`agent.toml`, `skills/`) and `GET /api/agent-traits` for the trait instructions |
+| identity | workshop | customer/supplier | A personal token the desktop makes for the runner (`POST /api/tokens`) |
 | guilds, boards, agents | MCP server (`mcp/`) | open host service | The contexts' published Go functions (the same use cases REST calls); identity's `VerifyPersonalToken` for sign-in |
 
 Patterns: *customer/supplier*, *conformist*, *anticorruption layer*,
@@ -60,4 +65,7 @@ flowchart LR
   guilds -->|Memberships| boards
   guilds -->|Memberships.IsMember| agents
   boards -->|work type keys| agents
+  boards -->|REST: tasks, runs| workshop
+  agents -->|agent folders, traits| workshop
+  identity -->|runner token| workshop
 ```

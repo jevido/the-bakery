@@ -44,6 +44,12 @@ document; list them here when people outside the context use them too.
 | Share | agents | An owner makes an agent available to one guild they are in, for its members to recruit. | Publish, transfer |
 | Recruit | agents | Copy an agent shared with a guild into your own roster. The copy is yours; the original stays its owner's. | Clone, fork, hire |
 | Revision | agents | A number that goes up by one with every change to an agent; a change based on an older revision is refused as a conflict. | Version (that is a release) |
+| Run | boards | One attempt by an Agent to work a Task on a member's machine: `running`, then once `succeeded`, `failed` or `stopped` (read as `lost` when still running after 24 hours), with cost, turns, summary and diff stats. | Job, session (Claude's own) |
+| Board config | workshop | The per-machine folder `~/.config/the-bakery/boards/<board-id>/` saying how this machine works a board (linked repo, base branch, worktree root, run limit, budget, finish column, `CLAUDE.md`, `skills/`, `mcp.json`). Never synced. | Board settings on the server (there are none) |
+| Worktree | workshop | The git worktree a Run happens in, on branch `bakery/<task-id>-<slug>`. | Checkout, clone |
+| Workshop | workshop | The desktop-local part that prepares and runs Claude CLI for a Run and reports it back. | Runner service, executor |
+| Run spec | workshop | The exact `claude` arguments, working directory, prompt and files for one Run. | Command |
+| Runner token | workshop | A personal token the desktop app makes for itself so Claude can use the Bakery MCP server as the member during a Run. | Token (the desktop's session) |
 | Activity | boards | What happened to a task, in order: created, edited, moved, commented, subtask added, subtask done. Written by the system from domain events, never by a member. | Comment, audit log (the Operator's, in the console) |
 | Release | platform | A tagged desktop build, `desktop-vX.Y.Z` (semantic versioning: X breaking, Y features, Z fixes), published as a GitHub release with signed artifacts and an update manifest. | Deploy (that is the API and website going out) |
 | Environment | platform | Where The Bakery runs: `dev` (local), `next` (pre-production) or `prod`. | Stage, instance |
