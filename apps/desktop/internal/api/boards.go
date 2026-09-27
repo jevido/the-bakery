@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 )
 
 type Guild struct {
@@ -152,4 +153,67 @@ func (c *Client) MoveSubtask(ctx context.Context, token string, taskID uint64, a
 	}
 	err := c.do(ctx, http.MethodPost, fmt.Sprintf("/api/tasks/%d/move", taskID), token, body, &res)
 	return res.Task, err
+}
+
+// Comment is a comment on a task, with its author's display name.
+type Comment struct {
+	ID         uint64     `json:"id"`
+	TaskID     uint64     `json:"task_id"`
+	AuthorID   uint64     `json:"author_id"`
+	AuthorName string     `json:"author_name"`
+	Body       string     `json:"body"`
+	CreatedAt  time.Time  `json:"created_at"`
+	EditedAt   *time.Time `json:"edited_at"`
+}
+
+// Activity is one entry of a task's history. Data depends on Kind.
+type Activity struct {
+	ID        uint64         `json:"id"`
+	Kind      string         `json:"kind"`
+	ActorID   uint64         `json:"actor_id"`
+	ActorName string         `json:"actor_name"`
+	At        time.Time      `json:"at"`
+	Data      map[string]any `json:"data"`
+}
+
+func (c *Client) ListComments(ctx context.Context, token string, taskID uint64) ([]Comment, error) {
+	var res struct {
+		Comments []Comment `json:"comments"`
+	}
+	err := c.do(ctx, http.MethodGet, fmt.Sprintf("/api/tasks/%d/comments", taskID), token, nil, &res)
+	return res.Comments, err
+}
+
+func (c *Client) AddComment(ctx context.Context, token string, taskID uint64, body string) (Comment, error) {
+	var res struct {
+		Comment Comment `json:"comment"`
+	}
+	err := c.do(ctx, http.MethodPost, fmt.Sprintf("/api/tasks/%d/comments", taskID), token, map[string]string{"body": body}, &res)
+	return res.Comment, err
+}
+
+func (c *Client) EditComment(ctx context.Context, token string, commentID uint64, body string) (Comment, error) {
+	var res struct {
+		Comment Comment `json:"comment"`
+	}
+	err := c.do(ctx, http.MethodPatch, fmt.Sprintf("/api/comments/%d", commentID), token, map[string]string{"body": body}, &res)
+	return res.Comment, err
+}
+
+func (c *Client) DeleteComment(ctx context.Context, token string, commentID uint64) error {
+	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/api/comments/%d", commentID), token, nil, nil)
+}
+
+// ListActivity returns up to limit entries, newest first, older than the
+// entry before (0: from the newest).
+func (c *Client) ListActivity(ctx context.Context, token string, taskID, before uint64, limit int) ([]Activity, error) {
+	var res struct {
+		Activity []Activity `json:"activity"`
+	}
+	path := fmt.Sprintf("/api/tasks/%d/activity?limit=%d", taskID, limit)
+	if before > 0 {
+		path += fmt.Sprintf("&before=%d", before)
+	}
+	err := c.do(ctx, http.MethodGet, path, token, nil, &res)
+	return res.Activity, err
 }

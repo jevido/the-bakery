@@ -49,3 +49,29 @@ func (s *TaskService) DeleteTask(ctx context.Context, taskID uint64) error {
 	_, err := call(s.session, func(t string) (struct{}, error) { return struct{}{}, s.client.DeleteTask(ctx, t, taskID) })
 	return err
 }
+
+func (s *TaskService) ListComments(ctx context.Context, taskID uint64) ([]api.Comment, error) {
+	return call(s.session, func(t string) ([]api.Comment, error) { return s.client.ListComments(ctx, t, taskID) })
+}
+
+func (s *TaskService) AddComment(ctx context.Context, taskID uint64, body string) (api.Comment, error) {
+	return call(s.session, func(t string) (api.Comment, error) { return s.client.AddComment(ctx, t, taskID, body) })
+}
+
+// EditComment and DeleteComment work on the member's own comments only; the
+// API refuses anyone else's.
+func (s *TaskService) EditComment(ctx context.Context, commentID uint64, body string) (api.Comment, error) {
+	return call(s.session, func(t string) (api.Comment, error) { return s.client.EditComment(ctx, t, commentID, body) })
+}
+
+func (s *TaskService) DeleteComment(ctx context.Context, commentID uint64) error {
+	_, err := call(s.session, func(t string) (struct{}, error) { return struct{}{}, s.client.DeleteComment(ctx, t, commentID) })
+	return err
+}
+
+// ListActivity returns a page of the task's history, newest first.
+func (s *TaskService) ListActivity(ctx context.Context, taskID, before uint64, limit int) ([]api.Activity, error) {
+	return call(s.session, func(t string) ([]api.Activity, error) {
+		return s.client.ListActivity(ctx, t, taskID, before, limit)
+	})
+}

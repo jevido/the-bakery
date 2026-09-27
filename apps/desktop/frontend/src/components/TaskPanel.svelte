@@ -1,10 +1,64 @@
 <script lang="ts">
-  import { Panel, Button, TextField } from '@bakery/ui'
+  import { Panel, Button, TextField, Tabs } from '@bakery/ui'
   import type { OpenTask } from '../lib/task.svelte'
   import { COLUMN_TITLES } from '../lib/colony.svelte'
   import { renderMarkdown, openLinksOutside } from '../lib/markdown'
+  import { activityLine, timeAgo, fullTime } from '../lib/activity'
 
-  let { open, onclose }: { open: OpenTask; onclose: () => void } = $props()
+  // me is the signed-in member's id: only their own comments can be changed.
+  let { open, me, onclose }: { open: OpenTask; me: number; onclose: () => void } = $props()
+
+  const TABS = [
+    { id: 'comments', label: 'Comments' },
+    { id: 'activity', label: 'Activity' },
+  ]
+  let tab = $state('comments')
+
+  let newComment = $state('')
+  let sending = $state(false)
+  let editingComment = $state<number | null>(null)
+  let commentDraft = $state('')
+  let deletingComment = $state<number | null>(null)
+  // Re-render relative times now and then.
+  let now = $state(Date.now())
+  $effect(() => {
+    const timer = setInterval(() => (now = Date.now()), 30_000)
+    return () => clearInterval(timer)
+  })
+
+  async function sendComment() {
+    const body = newComment.trim()
+    if (!body || sending) return
+    sending = true
+    if (await open.addComment(body)) newComment = ''
+    sending = false
+  }
+
+  function commentKeys(event: KeyboardEvent) {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      event.preventDefault()
+      sendComment()
+    }
+  }
+
+  function startEditComment(id: number, body: string) {
+    deletingComment = null
+    editingComment = id
+    commentDraft = body
+  }
+
+  async function saveComment() {
+    const body = commentDraft.trim()
+    if (editingComment === null || !body) return
+    if (await open.editComment(editingComment, body)) editingComment = null
+  }
+
+  function editKeys(event: KeyboardEvent) {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      event.preventDefault()
+      saveComment()
+    }
+  }
 
   let task = $derived(open.task)
 
@@ -126,7 +180,13 @@
   }
 
   function closeOnEscape(event: KeyboardEvent) {
-    if (event.key === 'Escape' && task) onclose()
+    if (event.key !== 'Escape' || !task) return
+    // Esc first leaves an open comment edit or delete question.
+    if (editingComment !== null || deletingComment !== null) {
+      editingComment = deletingComment = null
+      return
+    }
+    onclose()
   }
 </script>
 
@@ -219,6 +279,77 @@
         {/if}
         <TextField placeholder="Add a subtask, then Enter" maxlength={200} bind:value={newSubtask} onkeydown={addSubtask} />
       </section>
+
+      <Tabs label="Talk and history" tabs={TABS} bind:active={tab}>
+        {#snippet children(active)}
+          {#if active === 'comments'}
+            {#if open.comments.length === 0}
+              <p class="dim">No comments yet.</p>
+            {/if}
+            <ul class="comments">
+              {#each open.comments as c (c.id)}
+                <li class="comment">
+                  <div class="meta">
+                    <strong>{c.author_name}</strong>
+                    <span title={fullTime(c.created_at)}>{timeAgo(c.created_at, now)}</span>
+                    {#if c.edited_at}<span class="dim" title={fullTime(c.edited_at)}>edited</span>{/if}
+                    {#if c.author_id === me && editingComment !== c.id}
+                      <span class="own">
+                        <button class="link" onclick={() => startEditComment(c.id, c.body)}>Edit</button>
+                        <button class="link danger" onclick={() => ((deletingComment = c.id), (editingComment = null))}>Delete</button>
+                      </span>
+                    {/if}
+                  </div>
+                  {#if editingComment === c.id}
+                    <textarea aria-label="Edit comment" bind:value={commentDraft} onkeydown={editKeys}></textarea>
+                    <span class="row">
+                      <Button variant="confirm" onclick={saveComment} disabled={!commentDraft.trim()}>Save</Button>
+                      <Button onclick={() => (editingComment = null)}>Cancel</Button>
+                    </span>
+                  {:else}
+                    <!-- Rendered like the description: raw HTML escaped, then sanitised. -->
+                    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+                    <div class="markdown" onclick={openLinksOutside}>{@html renderMarkdown(c.body)}</div>
+                  {/if}
+                  {#if deletingComment === c.id}
+                    <div class="confirm" role="alertdialog" aria-label="Delete this comment?">
+                      <span>Delete this comment?</span>
+                      <span class="row">
+                        <Button variant="danger" onclick={() => open.deleteComment(c.id)}>Delete</Button>
+                        <Button onclick={() => (deletingComment = null)}>Keep</Button>
+                      </span>
+                    </div>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+            <div class="write">
+              <textarea
+                aria-label="New comment"
+                placeholder="Write a comment, in markdown. Ctrl+Enter sends."
+                bind:value={newComment}
+                onkeydown={commentKeys}
+              ></textarea>
+              <Button variant="confirm" onclick={sendComment} disabled={sending || !newComment.trim()}>Comment</Button>
+            </div>
+          {:else}
+            {#if open.activity.length === 0}
+              <p class="dim">Nothing has happened yet.</p>
+            {/if}
+            <ul class="activity">
+              {#each open.activity as e (e.id)}
+                <li>
+                  <span>{activityLine(e)}</span>
+                  <span class="dim when" title={fullTime(e.at)}>{timeAgo(e.at, now)}</span>
+                </li>
+              {/each}
+            </ul>
+            {#if open.moreActivity}
+              <Button onclick={() => open.loadMoreActivity()}>Load more</Button>
+            {/if}
+          {/if}
+        {/snippet}
+      </Tabs>
     {/if}
   </Panel>
 </aside>
@@ -367,6 +498,95 @@
     overflow-x: auto;
     background: var(--panel-inset);
     border-radius: var(--radius);
+  }
+
+  .comments,
+  .activity {
+    list-style: none;
+    margin: 0 0 8px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .comment {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .meta {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .meta strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .own {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+  }
+
+  .link {
+    font: inherit;
+    padding: 0;
+    color: var(--steel-bright);
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+
+  .link.danger {
+    color: var(--rust-bright);
+  }
+
+  .confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 6px;
+    background: var(--panel-inset);
+    border: 1px solid var(--rust);
+    border-radius: var(--radius);
+  }
+
+  .write {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+  }
+
+  .write textarea,
+  .comment textarea {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 64px;
+  }
+
+  .activity {
+    gap: 6px;
+  }
+
+  .activity li {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .when {
+    flex-shrink: 0;
+    font-size: 12px;
   }
 
   .subtasks {

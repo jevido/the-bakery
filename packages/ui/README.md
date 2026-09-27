@@ -6,7 +6,7 @@ build step: consumers compile the Svelte source with their own Vite config.
 
 ```ts
 import '@bakery/ui/theme.css' // once, at the app's entry
-import { Panel, Button, TextField } from '@bakery/ui'
+import { Panel, Button, TextField, Tabs } from '@bakery/ui'
 ```
 
 **Only presentational components.** No API calls, no bindings, no domain
@@ -18,6 +18,17 @@ types. A component that knows about tasks or guilds stays in its app.
 - `Button` — `variant` `plain` (default), `confirm` or `danger`; takes every
   `<button>` attribute.
 - `TextField` — labelled input with `bind:value`; takes every `<input>` attribute.
+- `Tabs` — tabs over one area (`tabs: {id, label}[]`, `bind:active`, a
+  `label` for the tab list); the `children` snippet gets the active tab's id.
+  Arrow keys move between tabs.
+
+  ```svelte
+  <Tabs label="Task" tabs={[{ id: 'comments', label: 'Comments' }, { id: 'activity', label: 'Activity' }]}>
+    {#snippet children(active)}
+      {#if active === 'comments'}…{:else}…{/if}
+    {/snippet}
+  </Tabs>
+  ```
 
 ## Tokens (`src/theme.css`)
 

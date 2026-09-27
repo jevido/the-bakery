@@ -35,7 +35,7 @@ directory and logs a warning.
 - `boardsservice.go` — `BoardsService`: guilds, boards and tasks, each call
   made with the member's token. A refused token ends the session.
 - `taskservice.go` — `TaskService`: one task in full for the task panel
-  (title, description, subtasks), the same way.
+  (title, description, subtasks, comments, activity), the same way.
 - `internal/api/` — typed client for the API. `internal/session/` — the
   signed-in member and token storage.
 - `frontend/src/lib/bindings.ts` — the one import point for generated bindings.
@@ -43,14 +43,18 @@ directory and logs a warning.
   shown right away and undone by reloading the board if the API refuses.
 - `frontend/src/lib/task.svelte.ts` — the task open in the panel; ticks and
   subtask moves are shown right away and undone if the API refuses.
-- `frontend/src/lib/markdown.ts` — markdown for descriptions: raw HTML is shown
-  as text, the result is sanitised with DOMPurify, links open in the browser.
+- `frontend/src/lib/markdown.ts` — markdown for descriptions and comments: raw
+  HTML is shown as text, the result is sanitised with DOMPurify, links open in
+  the browser.
+- `frontend/src/lib/activity.ts` — how activity reads: `activityLine(entry)`
+  builds every sentence, `timeAgo` the relative times.
 - `frontend/src/screens/` — full screens (`Login`, `Colony`).
 - `frontend/src/components/BoardView.svelte` — the four columns and HTML5
   drag and drop; `TaskCard.svelte` — a card: double-click opens the task
   panel, a badge counts done subtasks, delete after confirming;
   `TaskPanel.svelte` — the side panel: title, markdown description with
-  edit and preview, and the subtask checklist.
+  edit and preview, the subtask checklist, and Comments and Activity tabs
+  (only your own comments can be edited or deleted).
 
 ## Driving the app from an agent
 

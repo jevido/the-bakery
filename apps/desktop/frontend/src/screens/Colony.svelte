@@ -89,7 +89,7 @@
       <div class={['work', { 'with-panel': colony.openTaskId !== null }]}>
         <BoardView {colony} />
         {#if colony.openTaskId !== null}
-          <TaskPanel open={colony.task} onclose={() => colony.closeTask()} />
+          <TaskPanel open={colony.task} me={member.id} onclose={() => colony.closeTask()} />
         {/if}
       </div>
     {:else if colony.guild}

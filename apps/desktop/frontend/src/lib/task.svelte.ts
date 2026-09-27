@@ -2,12 +2,18 @@
 // only through TaskService. After every change it tells the board, so a
 // card's subtask badge and title follow.
 
-import { TaskService, isSignedOut, messageOf, type Task } from './bindings'
+import { TaskService, isSignedOut, messageOf, type Activity, type Comment, type Task } from './bindings'
+
+const ACTIVITY_PAGE = 50
 
 export class OpenTask {
   task = $state<Task | null>(null)
   // Deep state: ticking and reordering edit it in place before the API answers.
   subtasks = $state<Task[]>([])
+  comments = $state.raw<Comment[]>([])
+  activity = $state.raw<Activity[]>([])
+  // Whether older activity is left to load.
+  moreActivity = $state(false)
   error = $state('')
 
   #onChanged: () => void
@@ -34,16 +40,58 @@ export class OpenTask {
 
   async open(id: number) {
     const n = ++this.#loading
-    const detail = await this.#run(() => TaskService.GetTask(id))
+    const [detail, comments, activity] = await Promise.all([
+      this.#run(() => TaskService.GetTask(id)),
+      this.#run(() => TaskService.ListComments(id)),
+      this.#run(() => TaskService.ListActivity(id, 0, ACTIVITY_PAGE)),
+    ])
     if (n !== this.#loading || !detail) return
     this.task = detail.task
     this.subtasks = detail.subtasks ?? []
+    this.comments = comments ?? []
+    this.activity = activity ?? []
+    this.moreActivity = this.activity.length === ACTIVITY_PAGE
+  }
+
+  async loadMoreActivity() {
+    const last = this.activity[this.activity.length - 1]
+    if (!this.task || !last) return
+    const older = await this.#run(() => TaskService.ListActivity(this.task!.id, last.id, ACTIVITY_PAGE))
+    if (!older) return
+    this.activity = [...this.activity, ...older]
+    this.moreActivity = older.length === ACTIVITY_PAGE
+  }
+
+  async addComment(body: string): Promise<boolean> {
+    if (!this.task) return false
+    const c = await this.#run(() => TaskService.AddComment(this.task!.id, body))
+    if (!c) return false
+    await this.reload()
+    return true
+  }
+
+  async editComment(id: number, body: string): Promise<boolean> {
+    const c = await this.#run(() => TaskService.EditComment(id, body))
+    if (!c) return false
+    this.comments = this.comments.map((x) => (x.id === id ? c : x))
+    return true
+  }
+
+  async deleteComment(id: number) {
+    const ok = await this.#run(async () => {
+      await TaskService.DeleteComment(id)
+      return true
+    })
+    if (ok) this.comments = this.comments.filter((c) => c.id !== id)
   }
 
   close() {
     this.#loading++
     this.task = null
     this.subtasks = []
+    this.comments = []
+    this.activity = []
+    this.moreActivity = false
     this.error = ''
   }
 
@@ -68,7 +116,7 @@ export class OpenTask {
     if (!this.task) return false
     const t = await this.#run(() => TaskService.UpdateTask(this.task!.id, null, description))
     if (!t) return false
-    this.task.description = t.description
+    await this.reload()
     return true
   }
 
@@ -92,7 +140,7 @@ export class OpenTask {
     st.done = !st.done
     const saved = await this.#run(() => TaskService.SetSubtaskDone(id, st.done))
     if (!saved) st.done = !st.done
-    else this.#onChanged()
+    else await this.#changed()
   }
 
   async deleteSubtask(id: number) {
