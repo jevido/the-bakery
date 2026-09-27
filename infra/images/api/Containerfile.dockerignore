@@ -1,6 +1,7 @@
 # Only services/api goes into the API image.
 *
 !services/api/
+!infra/images/api/entrypoint.sh
 services/api/.env
 services/api/.env.*
 !services/api/.env.example
