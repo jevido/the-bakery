@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=the-bakery
+Exec=the-bakery
+Icon=the-bakery
+Categories=Development;
+Terminal=false
+Keywords=wails
+Version=1.0
+StartupNotify=false

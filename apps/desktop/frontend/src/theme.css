@@ -1,0 +1,78 @@
+/*
+ * The Bakery base theme: a colony-sim look. Dark, desaturated ground;
+ * beige/brown framed panels with a thin light border and an inner shadow;
+ * muted accents. Components use these tokens, never raw colours.
+ */
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/Inter-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-display: block;
+}
+
+:root {
+  --bg: #1c1d1a;
+  --bg-deep: #141512;
+
+  --panel: #36312a;
+  --panel-raised: #423b31;
+  --panel-title: #4b4336;
+  --panel-inset: #282520;
+  --frame: #9c8f76;
+  --frame-dim: #5f574a;
+  --shadow-inner: inset 0 0 0 1px #00000066, inset 0 2px 6px #00000080;
+  --shadow-outer: 0 2px 0 #0000008c;
+
+  --text: #e4dac4;
+  --text-dim: #a89e8a;
+  --text-faint: #7a7264;
+
+  --olive: #7c8a42;
+  --olive-bright: #98a856;
+  --rust: #a55a36;
+  --rust-bright: #c06c43;
+  --steel: #53708c;
+  --steel-bright: #6a8cab;
+
+  --font-display: 'Pixelify Sans', 'Inter', sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+
+  --radius: 2px;
+  --gap: 8px;
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+#app {
+  height: 100%;
+}
+
+::selection {
+  background: var(--steel);
+  color: var(--text);
+}
+
+:focus-visible {
+  outline: 1px solid var(--steel-bright);
+  outline-offset: 1px;
+}

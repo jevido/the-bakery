@@ -7,6 +7,9 @@ includes:
   api:
     taskfile: services/api/Taskfile.yml
     dir: services/api
+  desktop:
+    taskfile: apps/desktop/Taskfile.yml
+    dir: apps/desktop
 
 vars:
   # Every port a dev task listens on. Keep in sync with the table in CLAUDE.md.
@@ -28,7 +31,7 @@ tasks:
   dev:
     desc: Run every unit's dev server together (Ctrl+C stops all)
     # Add each unit's dev task here, e.g. deps: [api:dev, web:dev]
-    deps: [db:up, api:dev]
+    deps: [db:up, api:dev, desktop:dev]
 
   db:up:
     desc: Start the dev Postgres (Podman)
@@ -45,3 +48,4 @@ tasks:
     # Add each unit's checks here as units appear.
     cmds:
       - task: api:check
+      - task: desktop:check
