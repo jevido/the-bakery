@@ -62,7 +62,7 @@ release with:
 
 | File | For |
 | ---- | --- |
-| `the-bakery-X.Y.Z-linux-x86_64.AppImage` | Linux install and updates |
+| `the-bakery-X.Y.Z-linux-x86_64.AppImage` | Linux install and updates; needs the system's GTK 4 and WebKitGTK 6.0 (`webkitgtk-6.0` on Arch and Fedora, `libwebkitgtk-6.0-4` on Debian and Ubuntu) |
 | `the-bakery_X.Y.Z_amd64.deb` | Linux install via apt/dpkg |
 | `the-bakery-X.Y.Z-windows-amd64-installer.exe` | Windows install (NSIS) |
 | `the-bakery-X.Y.Z-windows-amd64.zip` | Windows updates (the exe) |

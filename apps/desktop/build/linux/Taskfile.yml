@@ -110,21 +110,14 @@ tasks:
       - task: create:aur
 
   create:appimage:
-    summary: Creates an AppImage
-    dir: build/linux/appimage
+    summary: Creates an AppImage that uses the system's GTK 4 and WebKitGTK 6.0
+    # The Bakery: not `wails3 generate appimage`, which bundles WebKit; see
+    # appimage/system-libs.sh for why.
     deps:
       - task: build
       - task: generate:dotdesktop
     cmds:
-      - cp "{{.APP_BINARY}}" "{{.APP_NAME}}"
-      - cp ../../appicon.png "{{.APP_NAME}}.png"
-      - wails3 generate appimage -binary "{{.APP_NAME}}" -icon {{.ICON}} -desktopfile {{.DESKTOP_FILE}} -outputdir {{.OUTPUT_DIR}} -builddir {{.APP_ROOT}}/build/linux/appimage/build
-    vars:
-      APP_NAME: '{{.APP_NAME}}'
-      APP_BINARY: '../../../bin/{{.APP_NAME}}'
-      ICON: '{{.APP_NAME}}.png'
-      DESKTOP_FILE: '../{{.APP_NAME}}.desktop'
-      OUTPUT_DIR: '../../../bin'
+      - build/linux/appimage/system-libs.sh "{{.BIN_DIR}}/{{.APP_NAME}}" build/appicon.png "build/linux/{{.APP_NAME}}.desktop" "{{.BIN_DIR}}/{{.APP_NAME}}-x86_64.AppImage"
 
   create:deb:
     summary: Creates a deb package
@@ -170,7 +163,7 @@ tasks:
     dir: build
     cmds:
       - mkdir -p {{.APP_ROOT}}/build/linux/appimage
-      - wails3 generate .desktop -name "{{.APP_NAME}}" -exec "{{.EXEC}}" -icon "{{.ICON}}" -outputfile "{{.APP_ROOT}}/build/linux/{{.APP_NAME}}.desktop" -categories "{{.CATEGORIES}}"
+      - wails3 generate .desktop -name "The Bakery" -exec "{{.EXEC}}" -icon "{{.ICON}}" -outputfile "{{.APP_ROOT}}/build/linux/{{.APP_NAME}}.desktop" -categories "{{.CATEGORIES}}"
     vars:
       APP_NAME: '{{.APP_NAME}}'
       EXEC: '{{.APP_NAME}}'
