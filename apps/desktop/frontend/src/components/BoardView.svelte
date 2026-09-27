@@ -166,6 +166,10 @@
     {#if colony.live !== 'off'}
       <span class={['live', colony.live]} title="Changes by others show up here as they happen">{LIVE[colony.live]}</span>
     {/if}
+    <span class="spacer"></span>
+    {#if colony.settings && !colony.settings.linked}
+      <button class="linked" title="Agents cannot run on this board on this machine until it is linked to a repository" onclick={() => colony.openSettings()}>Not linked</button>
+    {/if}
     {#if colony.present.length}
       <ul class="faces" aria-label="Who has this board open">
         {#each colony.present.slice(0, MAX_FACES) as m (m.id)}
@@ -184,6 +188,7 @@
         {/if}
       </ul>
     {/if}
+    <button class="gear" aria-label="Board settings" title="Board settings (this machine)" onclick={() => colony.openSettings()}>⚙</button>
   </header>
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
@@ -282,10 +287,43 @@
     font-weight: 600;
   }
 
+  .spacer {
+    flex: 1;
+  }
+
+  .gear {
+    font: inherit;
+    font-size: 15px;
+    line-height: 1;
+    padding: 2px 5px;
+    color: var(--text-dim);
+    background: none;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+
+  .gear:hover {
+    color: var(--text);
+    border-color: var(--frame-dim);
+  }
+
+  .linked {
+    padding: 0 6px;
+    font: inherit;
+    font-size: 11px;
+    line-height: 16px;
+    color: var(--text-dim);
+    background: none;
+    border: 1px dashed var(--frame-dim);
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+
   .faces {
     display: flex;
     gap: 3px;
-    margin: 0 0 0 auto;
+    margin: 0;
     padding: 0;
     list-style: none;
   }

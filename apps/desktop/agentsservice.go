@@ -58,8 +58,9 @@ type AgentsService struct {
 	cancel  context.CancelFunc
 }
 
-// agentsBase is where agent folders live: ~/.config/the-bakery on Linux.
-func agentsBase() string {
+// configBase is where the app keeps its folders (agents, board configs):
+// ~/.config/the-bakery on Linux.
+func configBase() string {
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		dir = os.TempDir()
@@ -67,13 +68,19 @@ func agentsBase() string {
 	return filepath.Join(dir, "the-bakery")
 }
 
-func NewAgentsService(client *api.Client, s *session.Session, logger *slog.Logger) *AgentsService {
-	svc := &AgentsService{client: client, session: s, logger: logger, trigger: make(chan struct{}, 1)}
+// apiHost names the API the app talks to (host and port), to keep one API's
+// folders apart from another's.
+func apiHost(client *api.Client) string {
 	host := client.BaseURL()
 	if u, err := url.Parse(host); err == nil && u.Host != "" {
 		host = u.Host
 	}
-	svc.engine = agents.NewEngine(agentsBase(), host, remote{svc})
+	return host
+}
+
+func NewAgentsService(client *api.Client, s *session.Session, logger *slog.Logger) *AgentsService {
+	svc := &AgentsService{client: client, session: s, logger: logger, trigger: make(chan struct{}, 1)}
+	svc.engine = agents.NewEngine(configBase(), apiHost(client), remote{svc})
 	svc.status = AgentSyncStatus{State: "idle", Problems: []string{}}
 	return svc
 }

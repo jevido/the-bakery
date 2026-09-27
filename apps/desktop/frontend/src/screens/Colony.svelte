@@ -5,6 +5,7 @@
   import ConflictDialog from '../components/ConflictDialog.svelte'
   import AgentsScreen from '../components/AgentsScreen.svelte'
   import WorkTab from '../components/WorkTab.svelte'
+  import BoardSettings from '../components/BoardSettings.svelte'
   import { AgentSync } from '../lib/agentsync.svelte'
   import { Colony } from '../lib/colony.svelte'
   import { WebsiteService, messageOf, type Member } from '../lib/bindings'
@@ -139,9 +140,11 @@
     {:else if view === 'work'}
       <WorkTab {colony} sync={agentSync} />
     {:else if colony.view}
-      <div class={['work', { 'with-panel': colony.openTaskId !== null }]}>
+      <div class={['work', { 'with-panel': colony.openTaskId !== null || colony.settingsOpen }]}>
         <BoardView {colony} />
-        {#if colony.openTaskId !== null}
+        {#if colony.settingsOpen}
+          <BoardSettings {colony} onclose={() => (colony.settingsOpen = false)} />
+        {:else if colony.openTaskId !== null}
           <TaskPanel open={colony.task} me={member.id} column={openColumn} workTypes={colony.workTypes} onclose={() => colony.closeTask()} />
         {/if}
       </div>

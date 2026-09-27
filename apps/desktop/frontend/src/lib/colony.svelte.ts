@@ -3,7 +3,7 @@
 // Talks to the API only through BoardsService and LiveService.
 
 import { Events } from '@wailsio/runtime'
-import { BoardsService, LiveService, isSignedOut, messageOf, type Board, type BoardView, type Guild, type Task, type WorkType } from './bindings'
+import { BoardsService, LiveService, WorkshopService, isSignedOut, messageOf, type Board, type BoardSettings, type BoardView, type Guild, type Task, type WorkType } from './bindings'
 import { OpenTask } from './task.svelte'
 
 export type ColumnState = { id: number; name: string; tasks: Task[] }
@@ -69,6 +69,10 @@ export class Colony {
   live = $state<LiveState>('off')
   // The open guild's work types, in its order.
   workTypes = $state.raw<WorkType[]>([])
+  // How this machine works the open board (never sent to the API), and
+  // whether its settings panel is open in place of the task panel.
+  settings = $state.raw<BoardSettings | null>(null)
+  settingsOpen = $state(false)
   // Open streams on the board, by stream id: who has it open right now.
   #streams = $state<Record<string, { id: number; name: string }>>({})
   // One entry per member, however many windows they have open.
@@ -193,6 +197,7 @@ export class Colony {
   }
 
   openTask(id: number) {
+    this.settingsOpen = false
     this.openTaskId = id
     this.task.open(id)
   }
@@ -255,13 +260,30 @@ export class Colony {
   }
 
   async openBoard(id: number) {
-    if (id !== this.boardId) this.closeTask()
+    if (id !== this.boardId) {
+      this.closeTask()
+      this.settingsOpen = false
+      this.settings = null
+    }
     this.boardId = id
+    this.reloadSettings()
     remember(LAST_BOARD, id)
     this.live = 'connecting'
     this.#streams = {}
     LiveService.Watch(id)
     await this.reloadBoard()
+  }
+
+  async reloadSettings() {
+    if (this.boardId === null) return
+    const id = this.boardId
+    const s = await this.#run(() => WorkshopService.GetBoardConfig(id))
+    if (s && this.boardId === id) this.settings = s
+  }
+
+  openSettings() {
+    this.closeTask()
+    this.settingsOpen = true
   }
 
   async reloadBoard() {

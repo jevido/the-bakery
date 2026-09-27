@@ -41,6 +41,13 @@ directory and logs a warning.
   one at a time, retrying with backoff while offline), reports it with the
   Wails events `agents:status` and `agents:changed`, and resolves conflicts
   (`local`, `server` or `both`).
+- `workshopservice.go` — `WorkshopService`: this machine's board configs
+  (`internal/workshop`): read, check and save `board.toml` in
+  `~/.config/the-bakery/boards/<board-id>/` (`boards-<host>/` for an API other
+  than the release one), open the folder, pick the repository. Nothing about
+  a board config reaches the API. `components/BoardSettings.svelte` is its
+  panel, opened from the gear in the board's header; the header says
+  **Not linked** until a valid repository is saved.
 - `liveservice.go` — `LiveService`: keeps the open board's event stream
   (`internal/api/events.go`) open from Go and passes each event to the
   frontend as the Wails event `board:event`, with `board:status` for the

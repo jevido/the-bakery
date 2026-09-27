@@ -64,6 +64,9 @@ and its result (status, cost, turns, duration).
 
 ## Why it's shaped this way
 
+- **Board configs are kept per API.** Board ids are the API's, so board 1 on
+  a dev API and board 1 on bakery.jevido.app are different boards: the release
+  API's configs live in `boards/`, any other API's in `boards-<host>/`.
 - **Board config is per machine and never synced.** Where a repo is checked
   out, where worktrees go, how much a run may cost and which MCP servers are
   at hand differ from one machine to the next, even for one member. Syncing
