@@ -21,6 +21,11 @@ The feature tests in `tests/feature` run against the dev database and skip
 when it is not reachable; run `task db:up` and `task api:migrate` first.
 Artisan runs as `go run . artisan ...`.
 
+## API description
+
+`openapi.yaml` describes every endpoint as built. It is also the body of the
+jevidocs page `api/reference`; update both when an endpoint changes.
+
 ## Layout
 
 Everything Goravel generates (`app/`, `bootstrap/`, `config/`, `database/`,
