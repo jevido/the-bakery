@@ -81,6 +81,16 @@ tasks:
     cmds:
       - podman compose -f infra/dev/compose.yml down
 
+  image:api:
+    desc: Build the API container image (bakery-api)
+    cmds:
+      - podman build -f infra/images/api/Containerfile -t bakery-api .
+
+  image:web:
+    desc: Build the website container image (bakery-web); VITE_API_URL=... to set the API
+    cmds:
+      - podman build -f infra/images/web/Containerfile --build-arg VITE_API_URL={{.VITE_API_URL}} -t bakery-web .
+
   check:
     desc: Format check, lint, test and type-check every unit
     # Add each unit's checks here as units appear.

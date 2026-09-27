@@ -1,0 +1,8 @@
+# Only services/api goes into the API image.
+*
+!services/api/
+services/api/.env
+services/api/.env.*
+!services/api/.env.example
+services/api/storage/
+services/api/tmp/

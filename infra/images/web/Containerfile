@@ -1,0 +1,23 @@
+# The Bakery website. Build from the repository root:
+#   podman build -f infra/images/web/Containerfile --build-arg VITE_API_URL=https://api.bakery.jevido.app .
+# The site is static; VITE_API_URL is compiled in, so next and prod each
+# build with their own value.
+
+FROM docker.io/oven/bun:1 AS build
+WORKDIR /src
+# The web app is a bun workspace member: install from the root lockfile.
+COPY package.json bun.lock ./
+COPY packages/ui/package.json packages/ui/
+COPY apps/web/package.json apps/web/
+COPY apps/desktop/frontend/package.json apps/desktop/frontend/
+RUN bun install --frozen-lockfile --filter web
+COPY packages/ui/ packages/ui/
+COPY apps/web/ apps/web/
+ARG VITE_API_URL=""
+ENV VITE_API_URL=$VITE_API_URL
+RUN cd apps/web && bun run build
+
+FROM docker.io/library/caddy:2-alpine
+COPY infra/images/web/Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /src/apps/web/dist /srv
+EXPOSE 8080

@@ -1,0 +1,10 @@
+# Only what the website build needs.
+*
+!package.json
+!bun.lock
+!packages/ui/
+!apps/web/
+!apps/desktop/frontend/package.json
+!infra/images/web/Caddyfile
+**/node_modules/
+**/dist/

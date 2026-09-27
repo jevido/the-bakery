@@ -1,0 +1,28 @@
+# The Bakery API. Build from the repository root:
+#   podman build -f infra/images/api/Containerfile .
+# Configuration comes from the environment only (see infra/*/env.example);
+# no .env is baked in.
+
+FROM docker.io/library/golang:1.27 AS build
+WORKDIR /src/services/api
+COPY services/api/go.mod services/api/go.sum ./
+RUN go mod download
+COPY services/api/ ./
+# pgx is pure Go, so the binary needs no libc.
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/api . \
+ && mkdir -p /out/storage
+
+FROM gcr.io/distroless/static-debian12:nonroot
+WORKDIR /app
+COPY --from=build --chown=nonroot:nonroot /out/api /app/api
+# Goravel writes logs and file sessions under storage/.
+COPY --from=build --chown=nonroot:nonroot /out/storage /app/storage
+ENV APP_ENV=production \
+    APP_DEBUG=false \
+    APP_HOST=0.0.0.0 \
+    APP_PORT=4810 \
+    LOG_PRINT=true \
+    MIGRATE_ON_START=true
+EXPOSE 4810
+USER nonroot
+ENTRYPOINT ["/app/api"]
