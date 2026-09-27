@@ -28,10 +28,12 @@ type Service struct {
 	members  Members
 	hasher   domain.PasswordHasher
 	handoffs Handoffs
+	tokens   Tokens
+	secrets  Secrets
 }
 
-func NewService(members Members, hasher domain.PasswordHasher, handoffs Handoffs) *Service {
-	return &Service{members: members, hasher: hasher, handoffs: handoffs}
+func NewService(members Members, hasher domain.PasswordHasher, handoffs Handoffs, tokens Tokens, secrets Secrets) *Service {
+	return &Service{members: members, hasher: hasher, handoffs: handoffs, tokens: tokens, secrets: secrets}
 }
 
 func (s *Service) Register(ctx context.Context, email, displayName, password string) (domain.Member, error) {

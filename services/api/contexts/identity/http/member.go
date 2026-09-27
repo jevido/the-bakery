@@ -3,8 +3,11 @@
 package http
 
 import (
+	"context"
 	"errors"
 	"strconv"
+	"strings"
+	"time"
 
 	contractshttp "github.com/goravel/framework/contracts/http"
 
@@ -27,6 +30,10 @@ const SessionCookie = "bakery_session"
 const WebHeader = "X-Bakery-Web"
 
 type memberContextKey struct{}
+
+// authKindKey records how the request signed in: "session" (desktop JWT or
+// web cookie) or "token" (a personal token).
+type authKindKey struct{}
 
 type Controller struct {
 	service *app.Service
@@ -195,6 +202,83 @@ func (c *Controller) RedeemHandoff(ctx contractshttp.Context) contractshttp.Resp
 	return c.withSession(ctx, contractshttp.StatusOK, m)
 }
 
+type tokenJSON struct {
+	ID         uint64     `json:"id"`
+	Name       string     `json:"name"`
+	CreatedAt  time.Time  `json:"created_at"`
+	LastUsedAt *time.Time `json:"last_used_at"`
+}
+
+func tokenToJSON(t domain.PersonalToken) tokenJSON {
+	return tokenJSON{ID: t.ID, Name: t.Name, CreatedAt: t.CreatedAt, LastUsedAt: t.LastUsedAt}
+}
+
+// A personal token cannot see or make tokens: a leaked one must not be able
+// to mint more.
+func (c *Controller) refuseTokenAuth(ctx contractshttp.Context) contractshttp.Response {
+	return ctx.Response().Json(contractshttp.StatusForbidden, contractshttp.Json{"error": "personal tokens cannot manage tokens; sign in on the website or the desktop app"})
+}
+
+func (c *Controller) ListTokens(ctx contractshttp.Context) contractshttp.Response {
+	if signedInWithToken(ctx) {
+		return c.refuseTokenAuth(ctx)
+	}
+	id, _ := MemberID(ctx)
+	tokens, err := c.service.ListPersonalTokens(ctx.Context(), id)
+	if err != nil {
+		return serverError(ctx, err)
+	}
+	out := make([]tokenJSON, len(tokens))
+	for i, t := range tokens {
+		out[i] = tokenToJSON(t)
+	}
+	return ctx.Response().Success().Json(contractshttp.Json{"tokens": out})
+}
+
+type createTokenRequest struct {
+	Name string `json:"name"`
+}
+
+// CreateToken returns the secret once, in `token`; it cannot be shown again.
+func (c *Controller) CreateToken(ctx contractshttp.Context) contractshttp.Response {
+	if signedInWithToken(ctx) {
+		return c.refuseTokenAuth(ctx)
+	}
+	var req createTokenRequest
+	if err := ctx.Request().Bind(&req); err != nil {
+		return ctx.Response().Json(contractshttp.StatusBadRequest, contractshttp.Json{"error": "request body must be JSON"})
+	}
+	id, _ := MemberID(ctx)
+	t, secret, err := c.service.CreatePersonalToken(ctx.Context(), id, req.Name)
+	if errors.Is(err, domain.ErrInvalidTokenName) {
+		return ctx.Response().Json(contractshttp.StatusUnprocessableEntity, contractshttp.Json{"error": err.Error(), "field": "name"})
+	}
+	if err != nil {
+		return serverError(ctx, err)
+	}
+	return ctx.Response().Json(contractshttp.StatusCreated, contractshttp.Json{"token": secret, "personal_token": tokenToJSON(t)})
+}
+
+func (c *Controller) RevokeToken(ctx contractshttp.Context) contractshttp.Response {
+	if signedInWithToken(ctx) {
+		return c.refuseTokenAuth(ctx)
+	}
+	tokenID, err := strconv.ParseUint(ctx.Request().Route("token"), 10, 64)
+	id, _ := MemberID(ctx)
+	if err == nil {
+		err = c.service.RevokePersonalToken(ctx.Context(), id, tokenID)
+	} else {
+		err = app.ErrTokenNotFound
+	}
+	if errors.Is(err, app.ErrTokenNotFound) {
+		return ctx.Response().Json(contractshttp.StatusNotFound, contractshttp.Json{"error": err.Error()})
+	}
+	if err != nil {
+		return serverError(ctx, err)
+	}
+	return ctx.Response().NoContent()
+}
+
 func (c *Controller) withSession(ctx contractshttp.Context, status int, m domain.Member) contractshttp.Response {
 	token, err := facades.Auth(ctx).Guard(Guard).LoginUsingID(m.ID)
 	if err != nil {
@@ -242,8 +326,20 @@ type RequireMember struct{}
 func (RequireMember) Signature() string { return "identity.require_member" }
 
 func (RequireMember) Handle(ctx contractshttp.Context) {
-	// A bearer token (the desktop app) wins; otherwise the web session cookie.
+	// A bearer token (the desktop app or a personal token) wins; otherwise
+	// the web session cookie.
 	token := ctx.Request().Header("Authorization")
+	if secret, ok := strings.CutPrefix(token, "Bearer "); ok && strings.HasPrefix(secret, domain.PersonalTokenPrefix) {
+		id, err := verifyPersonalToken(ctx.Context(), secret)
+		if err != nil {
+			_ = unauthorized(ctx, "not signed in").Abort()
+			return
+		}
+		ctx.WithValue(memberContextKey{}, id)
+		ctx.WithValue(authKindKey{}, "token")
+		ctx.Request().Next()
+		return
+	}
 	if token == "" {
 		token = ctx.Request().Cookie(SessionCookie)
 		if token == "" {
@@ -266,7 +362,22 @@ func (RequireMember) Handle(ctx contractshttp.Context) {
 		return
 	}
 	ctx.WithValue(memberContextKey{}, id)
+	ctx.WithValue(authKindKey{}, "session")
 	ctx.Request().Next()
+}
+
+// verifyPersonalToken is set by the context's wiring (identity.go), since
+// this middleware has no service of its own.
+var verifyPersonalToken func(ctx context.Context, secret string) (uint64, error)
+
+// SetPersonalTokenVerifier wires the middleware to the token use case.
+func SetPersonalTokenVerifier(f func(ctx context.Context, secret string) (uint64, error)) {
+	verifyPersonalToken = f
+}
+
+func signedInWithToken(ctx contractshttp.Context) bool {
+	kind, _ := ctx.Value(authKindKey{}).(string)
+	return kind == "token"
 }
 
 func changesSomething(method string) bool {

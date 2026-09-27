@@ -15,11 +15,15 @@ import (
 	"github.com/jevido/the-bakery/services/api/contexts/identity/infra"
 )
 
-var service = app.NewService(infra.Members{}, infra.Hasher{}, infra.Handoffs{})
+var service = app.NewService(infra.Members{}, infra.Hasher{}, infra.Handoffs{}, infra.Tokens{}, infra.Secrets{})
 
 // RequireMember is the middleware that refuses requests without a valid
 // member token (401).
 var RequireMember contractshttp.Middleware = identityhttp.RequireMember{}
+
+func init() {
+	identityhttp.SetPersonalTokenVerifier(service.VerifyPersonalToken)
+}
 
 // Routes registers register, login and me.
 func Routes(r route.Router) {
@@ -31,6 +35,11 @@ func Routes(r route.Router) {
 	r.Post("/api/web/login", c.WebLogin)
 	r.Post("/api/web/logout", c.WebLogout)
 	r.Middleware(RequireMember).Post("/api/web/handoff", c.CreateHandoff)
+	r.Middleware(RequireMember).Group(func(r route.Router) {
+		r.Get("/api/tokens", c.ListTokens)
+		r.Post("/api/tokens", c.CreateToken)
+		r.Delete("/api/tokens/{token}", c.RevokeToken)
+	})
 	r.Post("/api/web/handoff/redeem", c.RedeemHandoff)
 }
 
@@ -43,6 +52,12 @@ func MemberID(ctx contractshttp.Context) (uint64, bool) {
 // MemberIDByEmail resolves an email address to a member id.
 func MemberIDByEmail(ctx context.Context, email string) (uint64, bool, error) {
 	return service.MemberIDByEmail(ctx, email)
+}
+
+// VerifyPersonalToken returns the member a personal token (`bky_…`) belongs
+// to; the MCP server signs its callers in with it.
+func VerifyPersonalToken(ctx context.Context, token string) (uint64, error) {
+	return service.VerifyPersonalToken(ctx, token)
 }
 
 // DisplayNames maps member ids to display names; unknown ids are left out.

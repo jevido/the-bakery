@@ -30,6 +30,13 @@ tags:
       `bakery_session` instead of the body. With that cookie, every request
       that changes something must carry the header `X-Bakery-Web: 1`, and so
       must these endpoints; bearer requests do not need it.
+  - name: Personal tokens
+    description: >-
+      Long-lived secrets for tools such as Claude (MCP) or scripts: `bky_`
+      followed by 32 characters, sent as `Authorization: Bearer bky_…`. They
+      sign in like the member on every endpoint, but cannot list, create or
+      revoke tokens themselves; only a session (desktop token or web cookie)
+      can.
   - name: Guilds
     description: >-
       Found, list, rename, archive and restore guilds; list, add and remove
@@ -290,6 +297,76 @@ paths:
               schema: { $ref: "#/components/schemas/Error" }
               example: { error: "this sign-in link has expired or was already used; sign in on the website" }
         "403": { $ref: "#/components/responses/MissingWebHeader" }
+
+  /api/tokens:
+    get:
+      tags: [Personal tokens]
+      summary: List your personal tokens
+      description: The ones that still work, newest first. Never the secrets.
+      responses:
+        "200":
+          description: Your tokens.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tokens]
+                properties:
+                  tokens:
+                    type: array
+                    items: { $ref: "#/components/schemas/PersonalToken" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/TokenCannotManageTokens" }
+    post:
+      tags: [Personal tokens]
+      summary: Create a personal token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 60 }
+            example: { name: laptop claude }
+      responses:
+        "201":
+          description: The token. `token` is the secret, shown this once and never again.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, personal_token]
+                properties:
+                  token: { type: string, description: "The secret: `bky_` + 32 characters." }
+                  personal_token: { $ref: "#/components/schemas/PersonalToken" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/TokenCannotManageTokens" }
+        "422": { $ref: "#/components/responses/Invalid" }
+
+  /api/tokens/{token}:
+    delete:
+      tags: [Personal tokens]
+      summary: Revoke a personal token
+      description: It stops working at once, on REST and MCP.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Revoked.
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/TokenCannotManageTokens" }
+        "404":
+          description: You have no token with this id.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: no such token }
 
   /api/guilds:
     get:
@@ -857,7 +934,7 @@ components:
     bearer:
       type: http
       scheme: bearer
-      bearerFormat: JWT
+      description: The desktop's session JWT, or a personal token (`bky_…`).
     session:
       type: apiKey
       in: cookie
@@ -891,6 +968,12 @@ components:
       schema: { type: string }
 
   responses:
+    TokenCannotManageTokens:
+      description: The request signed in with a personal token; only a session can manage tokens.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { error: "personal tokens cannot manage tokens; sign in on the website or the desktop app" }
     InviteNotFound:
       description: No invite has this code (or id in this guild).
       content:
@@ -980,6 +1063,14 @@ components:
         id: { type: integer }
         email: { type: string, format: email }
         display_name: { type: string }
+    PersonalToken:
+      type: object
+      required: [id, name, created_at, last_used_at]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: [string, "null"], format: date-time, description: "Updated at most once a minute." }
     Invite:
       type: object
       required: [id, guild_id, code, created_by, expires_at, max_uses, uses, state]
