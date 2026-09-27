@@ -15,9 +15,11 @@ import (
 	"github.com/jevido/the-bakery/services/api/contexts/identity"
 )
 
-// Memberships answers whether a member belongs to a guild.
+// Memberships answers whether a member belongs to a guild, and whether a
+// guild is archived (read-only for everyone).
 type Memberships interface {
 	IsMember(ctx context.Context, guildID, memberID uint64) (bool, error)
+	IsArchived(ctx context.Context, guildID uint64) (bool, error)
 }
 
 func NewMemberships() Memberships { return infra.Memberships{} }
@@ -29,6 +31,10 @@ func (memberLookup) MemberIDByEmail(ctx context.Context, email string) (uint64, 
 	return identity.MemberIDByEmail(ctx, email)
 }
 
+func (memberLookup) DisplayNames(ctx context.Context, ids []uint64) (map[uint64]string, error) {
+	return identity.DisplayNames(ctx, ids)
+}
+
 var service = app.NewService(infra.Guilds{}, memberLookup{}, infra.LogEvents{})
 
 // Routes registers the guild routes, all behind identity.RequireMember.
@@ -37,7 +43,14 @@ func Routes(r route.Router) {
 	r.Middleware(identity.RequireMember).Group(func(r route.Router) {
 		r.Post("/api/guilds", c.Found)
 		r.Get("/api/guilds", c.Mine)
+		r.Get("/api/guilds/{guild}", c.Show)
+		r.Patch("/api/guilds/{guild}", c.Rename)
+		r.Post("/api/guilds/{guild}/archive", c.Archive)
+		r.Post("/api/guilds/{guild}/restore", c.Restore)
+		r.Get("/api/guilds/{guild}/members", c.Members)
 		r.Post("/api/guilds/{guild}/members", c.AddMember)
+		r.Delete("/api/guilds/{guild}/members/{member}", c.RemoveMember)
+		r.Post("/api/guilds/{guild}/leave", c.Leave)
 	})
 }
 

@@ -15,6 +15,7 @@ servers:
     description: Local development (task dev)
 security:
   - bearer: []
+  - session: []
 tags:
   - name: Health
     description: Whether the API is up and can reach its database.
@@ -22,8 +23,17 @@ tags:
     description: >-
       Register, log in and see who you are. Register and login return a JWT to
       send as `Authorization: Bearer <token>`; it lasts 30 days.
+  - name: Web sessions
+    description: >-
+      Sign-in for the website. The token goes into an httpOnly cookie
+      `bakery_session` instead of the body. With that cookie, every request
+      that changes something must carry the header `X-Bakery-Web: 1`, and so
+      must these endpoints; bearer requests do not need it.
   - name: Guilds
-    description: Found a guild, list yours, add a member.
+    description: >-
+      Found, list, rename, archive and restore guilds; list, add and remove
+      members; leave. An archived guild is hidden from the list and
+      read-only (409 on changes) until someone restores it.
   - name: Boards
     description: >-
       A guild's boards. Answers 403 when you are not a member of the board's
@@ -143,11 +153,92 @@ paths:
                   member: { $ref: "#/components/schemas/Member" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /api/web/register:
+    post:
+      tags: [Web sessions]
+      summary: Register on the website
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/WebHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, display_name, password]
+              properties:
+                email: { type: string, format: email }
+                display_name: { type: string, minLength: 1, maxLength: 60 }
+                password: { type: string, format: password, minLength: 8 }
+      responses:
+        "201":
+          description: Registered; the session cookie is set.
+          headers:
+            Set-Cookie: { $ref: "#/components/headers/SessionCookie" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MemberResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403": { $ref: "#/components/responses/MissingWebHeader" }
+        "422": { $ref: "#/components/responses/Invalid" }
+
+  /api/web/login:
+    post:
+      tags: [Web sessions]
+      summary: Sign in on the website
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/WebHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        "200":
+          description: Signed in; the session cookie is set.
+          headers:
+            Set-Cookie: { $ref: "#/components/headers/SessionCookie" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MemberResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401":
+          description: The email and password do not match.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: email or password is incorrect }
+        "403": { $ref: "#/components/responses/MissingWebHeader" }
+
+  /api/web/logout:
+    post:
+      tags: [Web sessions]
+      summary: Sign out on the website
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/WebHeader"
+      responses:
+        "204":
+          description: The session cookie is expired.
+        "403": { $ref: "#/components/responses/MissingWebHeader" }
+
   /api/guilds:
     get:
       tags: [Guilds]
       summary: List your guilds
       description: The guilds you are a member of, by name. Empty when you are in none.
+      parameters:
+        - name: archived
+          in: query
+          description: "`1` also lists archived guilds."
+          schema: { type: string, enum: ["1"] }
       responses:
         "200":
           description: Your guilds.
@@ -190,7 +281,95 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "422": { $ref: "#/components/responses/Invalid" }
 
+  /api/guilds/{guild}:
+    get:
+      tags: [Guilds]
+      summary: Get a guild
+      description: One guild you are in, archived or not.
+      parameters:
+        - $ref: "#/components/parameters/Guild"
+      responses:
+        "200": { $ref: "#/components/responses/GuildOK" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+    patch:
+      tags: [Guilds]
+      summary: Rename a guild
+      parameters:
+        - $ref: "#/components/parameters/Guild"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 60, description: "Trimmed." }
+      responses:
+        "200": { $ref: "#/components/responses/GuildOK" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "409": { $ref: "#/components/responses/Archived" }
+        "422": { $ref: "#/components/responses/Invalid" }
+
+  /api/guilds/{guild}/archive:
+    post:
+      tags: [Guilds]
+      summary: Archive a guild
+      description: Hides the guild from lists and makes it read-only. Any member can.
+      parameters:
+        - $ref: "#/components/parameters/Guild"
+      responses:
+        "200": { $ref: "#/components/responses/GuildOK" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "409": { $ref: "#/components/responses/Archived" }
+
+  /api/guilds/{guild}/restore:
+    post:
+      tags: [Guilds]
+      summary: Restore an archived guild
+      parameters:
+        - $ref: "#/components/parameters/Guild"
+      responses:
+        "200": { $ref: "#/components/responses/GuildOK" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "409":
+          description: The guild is not archived.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: this guild is not archived }
+
   /api/guilds/{guild}/members:
+    get:
+      tags: [Guilds]
+      summary: List a guild's members
+      description: Oldest first.
+      parameters:
+        - $ref: "#/components/parameters/Guild"
+      responses:
+        "200":
+          description: The members.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [members]
+                properties:
+                  members:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, display_name, joined_at]
+                      properties:
+                        id: { type: integer }
+                        display_name: { type: string }
+                        joined_at: { type: string, format: date-time }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
     post:
       tags: [Guilds]
       summary: Add a member
@@ -242,6 +421,45 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
               example: { error: no member with this email, field: email }
+
+  /api/guilds/{guild}/members/{member}:
+    delete:
+      tags: [Guilds]
+      summary: Remove a member
+      description: Any member can remove another. Removing yourself is leaving.
+      parameters:
+        - $ref: "#/components/parameters/Guild"
+        - name: member
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Removed.
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "404":
+          description: That member is not in this guild.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: no such member in this guild }
+        "409": { $ref: "#/components/responses/Archived" }
+        "422": { $ref: "#/components/responses/LastMember" }
+
+  /api/guilds/{guild}/leave:
+    post:
+      tags: [Guilds]
+      summary: Leave a guild
+      parameters:
+        - $ref: "#/components/parameters/Guild"
+      responses:
+        "204":
+          description: You left.
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "409": { $ref: "#/components/responses/Archived" }
+        "422": { $ref: "#/components/responses/LastMember" }
 
   /api/guilds/{guild}/boards:
     get:
@@ -437,7 +655,7 @@ paths:
         "403": { $ref: "#/components/responses/NotMember" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409":
-          description: Another move took the same place at the same moment; try again.
+          description: Another move took the same place at the same moment (try again), or the guild is archived.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -456,8 +674,17 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    session:
+      type: apiKey
+      in: cookie
+      name: bakery_session
 
   parameters:
+    WebHeader:
+      name: X-Bakery-Web
+      in: header
+      required: true
+      schema: { type: string, enum: ["1"] }
     Guild:
       name: guild
       in: path
@@ -469,7 +696,39 @@ components:
       required: true
       schema: { type: integer }
 
+  headers:
+    SessionCookie:
+      description: "`bakery_session=<token>; Path=/; HttpOnly; SameSite=Lax` (and `Secure` outside local development)."
+      schema: { type: string }
+
   responses:
+    MissingWebHeader:
+      description: "A cookie request that changes something came without `X-Bakery-Web: 1`."
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { error: "cookie requests that change something need the X-Bakery-Web header" }
+    GuildOK:
+      description: The guild.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [guild]
+            properties:
+              guild: { $ref: "#/components/schemas/Guild" }
+    Archived:
+      description: The guild is archived; restore it first.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { error: "this guild is archived; restore it first" }
+    LastMember:
+      description: The last member cannot leave or be removed.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { error: "the last member cannot leave or be removed; archive the guild instead" }
     BadRequest:
       description: The body is not valid JSON.
       content:
@@ -518,6 +777,11 @@ components:
         id: { type: integer }
         email: { type: string, format: email }
         display_name: { type: string }
+    MemberResponse:
+      type: object
+      required: [member]
+      properties:
+        member: { $ref: "#/components/schemas/Member" }
     Auth:
       type: object
       required: [token, member]
@@ -529,10 +793,11 @@ components:
         member: { id: 1, email: ada@bakery.test, display_name: Ada }
     Guild:
       type: object
-      required: [id, name]
+      required: [id, name, archived]
       properties:
         id: { type: integer }
         name: { type: string }
+        archived: { type: boolean }
     Board:
       type: object
       required: [id, guild_id, name]

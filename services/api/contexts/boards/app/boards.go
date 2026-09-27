@@ -14,6 +14,7 @@ var (
 	ErrBoardNotFound    = errors.New("board not found")
 	ErrTaskNotFound     = errors.New("task not found")
 	ErrInvalidNeighbour = errors.New("neighbour must be another task in the target column")
+	ErrGuildArchived    = errors.New("this guild is archived; its boards are read-only")
 	// ErrPositionTaken is returned by Tasks when another write took the same
 	// position first; the use case recomputes and tries again.
 	ErrPositionTaken = errors.New("position taken")
@@ -22,9 +23,11 @@ var (
 // positionAttempts bounds retries when concurrent writes pick the same key.
 const positionAttempts = 3
 
-// Memberships is guilds' answer to "is this member in this guild?".
+// Memberships is guilds' answer to "is this member in this guild?" and "is
+// this guild archived?".
 type Memberships interface {
 	IsMember(ctx context.Context, guildID, memberID uint64) (bool, error)
+	IsArchived(ctx context.Context, guildID uint64) (bool, error)
 }
 
 type Boards interface {
@@ -71,6 +74,27 @@ func (s *Service) requireMember(ctx context.Context, guildID, memberID uint64) e
 	return nil
 }
 
+// requireWritable refuses changes in an archived guild.
+func (s *Service) requireWritable(ctx context.Context, guildID uint64) error {
+	archived, err := s.memberships.IsArchived(ctx, guildID)
+	if err != nil {
+		return err
+	}
+	if archived {
+		return ErrGuildArchived
+	}
+	return nil
+}
+
+// writableBoard is board for changes: the guild must not be archived.
+func (s *Service) writableBoard(ctx context.Context, boardID, memberID uint64) (domain.Board, error) {
+	b, err := s.board(ctx, boardID, memberID)
+	if err != nil {
+		return domain.Board{}, err
+	}
+	return b, s.requireWritable(ctx, b.GuildID)
+}
+
 func (s *Service) board(ctx context.Context, boardID, memberID uint64) (domain.Board, error) {
 	b, found, err := s.boards.ByID(ctx, boardID)
 	if err != nil {
@@ -90,7 +114,7 @@ func (s *Service) task(ctx context.Context, taskID, memberID uint64) (domain.Tas
 	if !found {
 		return domain.Task{}, ErrTaskNotFound
 	}
-	if _, err := s.board(ctx, t.BoardID, memberID); err != nil {
+	if _, err := s.writableBoard(ctx, t.BoardID, memberID); err != nil {
 		return domain.Task{}, err
 	}
 	return t, nil
@@ -105,6 +129,9 @@ func (s *Service) ListBoards(ctx context.Context, guildID, memberID uint64) ([]d
 
 func (s *Service) CreateBoard(ctx context.Context, guildID, memberID uint64, name string) (domain.Board, error) {
 	if err := s.requireMember(ctx, guildID, memberID); err != nil {
+		return domain.Board{}, err
+	}
+	if err := s.requireWritable(ctx, guildID); err != nil {
 		return domain.Board{}, err
 	}
 	b, err := domain.NewBoard(guildID, name)
@@ -125,7 +152,7 @@ func (s *Service) GetBoard(ctx context.Context, boardID, memberID uint64) (domai
 }
 
 func (s *Service) CreateTask(ctx context.Context, boardID, memberID uint64, title, description string) (domain.Task, error) {
-	b, err := s.board(ctx, boardID, memberID)
+	b, err := s.writableBoard(ctx, boardID, memberID)
 	if err != nil {
 		return domain.Task{}, err
 	}

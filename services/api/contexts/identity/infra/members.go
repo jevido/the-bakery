@@ -57,6 +57,25 @@ func (m Members) ByID(ctx context.Context, id uint64) (domain.Member, bool, erro
 	return m.first(m.query(ctx).Where("id", id))
 }
 
+func (m Members) ByIDs(ctx context.Context, ids []uint64) ([]domain.Member, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	in := make([]any, len(ids))
+	for i, id := range ids {
+		in[i] = id
+	}
+	var recs []memberRecord
+	if err := m.query(ctx).WhereIn("id", in).Find(&recs); err != nil {
+		return nil, err
+	}
+	out := make([]domain.Member, len(recs))
+	for i, r := range recs {
+		out[i] = r.toDomain()
+	}
+	return out, nil
+}
+
 func (Members) first(q contractsorm.Query) (domain.Member, bool, error) {
 	var rec memberRecord
 	if err := q.FirstOrFail(&rec); err != nil {

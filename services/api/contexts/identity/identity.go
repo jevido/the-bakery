@@ -27,6 +27,9 @@ func Routes(r route.Router) {
 	r.Post("/api/register", c.Register)
 	r.Post("/api/login", c.Login)
 	r.Middleware(RequireMember).Get("/api/me", c.Me)
+	r.Post("/api/web/register", c.WebRegister)
+	r.Post("/api/web/login", c.WebLogin)
+	r.Post("/api/web/logout", c.WebLogout)
 }
 
 // MemberID returns the id of the signed-in member. Only valid behind
@@ -38,6 +41,11 @@ func MemberID(ctx contractshttp.Context) (uint64, bool) {
 // MemberIDByEmail resolves an email address to a member id.
 func MemberIDByEmail(ctx context.Context, email string) (uint64, bool, error) {
 	return service.MemberIDByEmail(ctx, email)
+}
+
+// DisplayNames maps member ids to display names; unknown ids are left out.
+func DisplayNames(ctx context.Context, ids []uint64) (map[uint64]string, error) {
+	return service.DisplayNames(ctx, ids)
 }
 
 // SeedMember makes sure a member with this email exists and returns its id.

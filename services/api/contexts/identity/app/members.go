@@ -20,6 +20,8 @@ type Members interface {
 	Add(ctx context.Context, m domain.Member) (domain.Member, error)
 	ByEmail(ctx context.Context, email string) (domain.Member, bool, error)
 	ByID(ctx context.Context, id uint64) (domain.Member, bool, error)
+	// ByIDs returns the members that exist among ids, in no particular order.
+	ByIDs(ctx context.Context, ids []uint64) ([]domain.Member, error)
 }
 
 type Service struct {
@@ -81,4 +83,18 @@ func (s *Service) MemberIDByEmail(ctx context.Context, email string) (uint64, bo
 	}
 	m, found, err := s.members.ByEmail(ctx, email)
 	return m.ID, found, err
+}
+
+// DisplayNames maps member ids to display names, for other contexts that show
+// members. Unknown ids are left out.
+func (s *Service) DisplayNames(ctx context.Context, ids []uint64) (map[uint64]string, error) {
+	members, err := s.members.ByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[uint64]string, len(members))
+	for _, m := range members {
+		names[m.ID] = m.DisplayName
+	}
+	return names, nil
 }

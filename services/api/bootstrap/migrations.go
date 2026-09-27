@@ -12,5 +12,6 @@ func Migrations() []schema.Migration {
 		&migrations.M20260927000001CreateMembersTable{},
 		&migrations.M20260927000002CreateGuildsTables{},
 		&migrations.M20260927000003CreateBoardsTables{},
+		&migrations.M20260927000004ArchiveGuilds{},
 	}
 }

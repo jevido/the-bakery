@@ -210,7 +210,7 @@ func failure(ctx contractshttp.Context, err error) contractshttp.Response {
 		status = contractshttp.StatusForbidden
 	case errors.Is(err, app.ErrBoardNotFound), errors.Is(err, app.ErrTaskNotFound):
 		status = contractshttp.StatusNotFound
-	case errors.Is(err, app.ErrPositionTaken):
+	case errors.Is(err, app.ErrPositionTaken), errors.Is(err, app.ErrGuildArchived):
 		status = contractshttp.StatusConflict
 	case errors.Is(err, domain.ErrInvalidBoardName):
 		status, field = contractshttp.StatusUnprocessableEntity, "name"

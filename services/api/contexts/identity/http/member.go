@@ -16,6 +16,16 @@ import (
 // Guard is the auth guard (config/auth.go) that issues member tokens.
 const Guard = "member"
 
+// SessionCookie carries a web session: the same JWT the desktop sends as a
+// bearer token, in an httpOnly cookie the website's scripts cannot read.
+const SessionCookie = "bakery_session"
+
+// WebHeader must be on every cookie-authenticated request that changes
+// something. The website's fetches set it; a form on another site cannot, and
+// a cross-origin script cannot either without passing CORS. Bearer requests
+// do not need it.
+const WebHeader = "X-Bakery-Web"
+
 type memberContextKey struct{}
 
 type Controller struct {
@@ -102,6 +112,83 @@ func (c *Controller) Me(ctx contractshttp.Context) contractshttp.Response {
 	return ctx.Response().Success().Json(contractshttp.Json{"member": toJSON(m)})
 }
 
+// WebRegister is Register for the website: the token goes into the session
+// cookie instead of the body.
+func (c *Controller) WebRegister(ctx contractshttp.Context) contractshttp.Response {
+	if !fromWebsite(ctx) {
+		return missingWebHeader(ctx)
+	}
+	var req registerRequest
+	if err := ctx.Request().Bind(&req); err != nil {
+		return ctx.Response().Json(contractshttp.StatusBadRequest, contractshttp.Json{"error": "request body must be JSON"})
+	}
+	m, err := c.service.Register(ctx.Context(), req.Email, req.DisplayName, req.Password)
+	if err != nil {
+		return registerError(ctx, err)
+	}
+	return c.withSession(ctx, contractshttp.StatusCreated, m)
+}
+
+// WebLogin is Login for the website.
+func (c *Controller) WebLogin(ctx contractshttp.Context) contractshttp.Response {
+	if !fromWebsite(ctx) {
+		return missingWebHeader(ctx)
+	}
+	var req loginRequest
+	if err := ctx.Request().Bind(&req); err != nil {
+		return ctx.Response().Json(contractshttp.StatusBadRequest, contractshttp.Json{"error": "request body must be JSON"})
+	}
+	m, err := c.service.Login(ctx.Context(), req.Email, req.Password)
+	if errors.Is(err, app.ErrBadCredentials) {
+		return unauthorized(ctx, err.Error())
+	}
+	if err != nil {
+		return serverError(ctx, err)
+	}
+	return c.withSession(ctx, contractshttp.StatusOK, m)
+}
+
+// WebLogout ends the web session by expiring its cookie.
+func (c *Controller) WebLogout(ctx contractshttp.Context) contractshttp.Response {
+	if !fromWebsite(ctx) {
+		return missingWebHeader(ctx)
+	}
+	ctx.Response().Cookie(sessionCookie("", -1))
+	return ctx.Response().NoContent()
+}
+
+func (c *Controller) withSession(ctx contractshttp.Context, status int, m domain.Member) contractshttp.Response {
+	token, err := facades.Auth(ctx).Guard(Guard).LoginUsingID(m.ID)
+	if err != nil {
+		return serverError(ctx, err)
+	}
+	ctx.Response().Cookie(sessionCookie(token, facades.Config().GetInt("jwt.ttl")*60))
+	return ctx.Response().Json(status, contractshttp.Json{"member": toJSON(m)})
+}
+
+// sessionCookie is host-only on the API (no Domain): the website and the API
+// are same-site, so SameSite=Lax cookies ride along on the website's
+// credentialed fetches, and next's cookie never reaches prod or back.
+func sessionCookie(value string, maxAge int) contractshttp.Cookie {
+	return contractshttp.Cookie{
+		Name:     SessionCookie,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   facades.Config().GetString("app.env") != "local",
+		SameSite: "lax",
+	}
+}
+
+func fromWebsite(ctx contractshttp.Context) bool {
+	return ctx.Request().Header(WebHeader) == "1"
+}
+
+func missingWebHeader(ctx contractshttp.Context) contractshttp.AbortableResponse {
+	return ctx.Response().Json(contractshttp.StatusForbidden, contractshttp.Json{"error": "cookie requests that change something need the " + WebHeader + " header"})
+}
+
 func (c *Controller) withToken(ctx contractshttp.Context, status int, m domain.Member) contractshttp.Response {
 	token, err := facades.Auth(ctx).Guard(Guard).LoginUsingID(m.ID)
 	if err != nil {
@@ -117,10 +204,18 @@ type RequireMember struct{}
 func (RequireMember) Signature() string { return "identity.require_member" }
 
 func (RequireMember) Handle(ctx contractshttp.Context) {
+	// A bearer token (the desktop app) wins; otherwise the web session cookie.
 	token := ctx.Request().Header("Authorization")
 	if token == "" {
-		_ = unauthorized(ctx, "not signed in").Abort()
-		return
+		token = ctx.Request().Cookie(SessionCookie)
+		if token == "" {
+			_ = unauthorized(ctx, "not signed in").Abort()
+			return
+		}
+		if changesSomething(ctx.Request().Method()) && !fromWebsite(ctx) {
+			_ = missingWebHeader(ctx).Abort()
+			return
+		}
 	}
 	payload, err := facades.Auth(ctx).Guard(Guard).Parse(token)
 	if err != nil {
@@ -134,6 +229,14 @@ func (RequireMember) Handle(ctx contractshttp.Context) {
 	}
 	ctx.WithValue(memberContextKey{}, id)
 	ctx.Request().Next()
+}
+
+func changesSomething(method string) bool {
+	switch method {
+	case "GET", "HEAD", "OPTIONS":
+		return false
+	}
+	return true
 }
 
 // MemberID returns the id of the member RequireMember let through.

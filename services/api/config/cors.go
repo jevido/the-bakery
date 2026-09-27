@@ -1,6 +1,9 @@
 package config
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/jevido/the-bakery/services/api/app/facades"
 )
 
@@ -14,12 +17,14 @@ func init() {
 		// in web browsers. You are free to adjust these settings as needed.
 		//
 		// To learn more: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
-		"paths":                []string{},
-		"allowed_methods":      []string{"*"},
-		"allowed_origins":      []string{"*"},
-		"allowed_headers":      []string{"*"},
+		// The Bakery: only the website may call the API from a browser, with
+		// its session cookie. WEB_ORIGIN is a comma-separated list.
+		"paths":                []string{"api/*"},
+		"allowed_methods":      []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
+		"allowed_origins":      strings.Split(fmt.Sprint(config.Env("WEB_ORIGIN", "http://127.0.0.1:4840")), ","),
+		"allowed_headers":      []string{"Content-Type", "Authorization", "X-Bakery-Web"},
 		"exposed_headers":      []string{},
-		"max_age":              0,
-		"supports_credentials": false,
+		"max_age":              600,
+		"supports_credentials": true,
 	})
 }

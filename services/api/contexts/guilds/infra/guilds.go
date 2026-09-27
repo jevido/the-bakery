@@ -12,13 +12,19 @@ import (
 	frameworkerrors "github.com/goravel/framework/errors"
 
 	"github.com/jevido/the-bakery/services/api/app/facades"
+	"github.com/jevido/the-bakery/services/api/contexts/guilds/app"
 	"github.com/jevido/the-bakery/services/api/contexts/guilds/domain"
 )
 
 type guildRecord struct {
-	ID   uint64 `gorm:"primaryKey"`
-	Name string
+	ID         uint64 `gorm:"primaryKey"`
+	Name       string
+	ArchivedAt *time.Time
 	orm.Timestamps
+}
+
+func (r guildRecord) toDomain(memberIDs []uint64) domain.Guild {
+	return domain.Rehydrate(r.ID, r.Name, r.ArchivedAt != nil, memberIDs)
 }
 
 func (guildRecord) TableName() string { return "guilds" }
@@ -58,7 +64,7 @@ func (Guilds) Add(ctx context.Context, g domain.Guild) (domain.Guild, error) {
 	if err != nil {
 		return domain.Guild{}, err
 	}
-	return domain.Rehydrate(rec.ID, rec.Name, g.MemberIDs()), nil
+	return rec.toDomain(g.MemberIDs()), nil
 }
 
 func (Guilds) ByID(ctx context.Context, id uint64) (domain.Guild, bool, error) {
@@ -73,17 +79,19 @@ func (Guilds) ByID(ctx context.Context, id uint64) (domain.Guild, bool, error) {
 	if err := query(ctx).Model(&membershipRecord{}).Where("guild_id", id).Pluck("member_id", &memberIDs); err != nil {
 		return domain.Guild{}, false, err
 	}
-	return domain.Rehydrate(rec.ID, rec.Name, memberIDs), true, nil
+	return rec.toDomain(memberIDs), true, nil
 }
 
-func (Guilds) OfMember(ctx context.Context, memberID uint64) ([]domain.Guild, error) {
+func (Guilds) OfMember(ctx context.Context, memberID uint64, includeArchived bool) ([]domain.Guild, error) {
 	var recs []guildRecord
-	err := query(ctx).Model(&guildRecord{}).
+	q := query(ctx).Model(&guildRecord{}).
 		Select("guilds.*").
 		Join("JOIN guild_memberships ON guild_memberships.guild_id = guilds.id").
-		Where("guild_memberships.member_id", memberID).
-		OrderBy("guilds.name").
-		Find(&recs)
+		Where("guild_memberships.member_id", memberID)
+	if !includeArchived {
+		q = q.WhereNull("guilds.archived_at")
+	}
+	err := q.OrderBy("guilds.name").Find(&recs)
 	if err != nil {
 		return nil, err
 	}
@@ -104,9 +112,36 @@ func (Guilds) OfMember(ctx context.Context, memberID uint64) ([]domain.Guild, er
 	}
 	guilds := make([]domain.Guild, len(recs))
 	for i, r := range recs {
-		guilds[i] = domain.Rehydrate(r.ID, r.Name, byGuild[r.ID])
+		guilds[i] = r.toDomain(byGuild[r.ID])
 	}
 	return guilds, nil
+}
+
+func (Guilds) Save(ctx context.Context, g domain.Guild) error {
+	var archivedAt *time.Time
+	if g.Archived {
+		now := time.Now()
+		archivedAt = &now
+	}
+	_, err := query(ctx).Model(&guildRecord{}).Where("id", g.ID).Update(map[string]any{"name": g.Name, "archived_at": archivedAt})
+	return err
+}
+
+func (Guilds) RemoveMembership(ctx context.Context, guildID, memberID uint64) error {
+	_, err := query(ctx).Where("guild_id", guildID).Where("member_id", memberID).Delete(&membershipRecord{})
+	return err
+}
+
+func (Guilds) Memberships(ctx context.Context, guildID uint64) ([]app.Membership, error) {
+	var recs []membershipRecord
+	if err := query(ctx).Where("guild_id", guildID).OrderBy("joined_at").OrderBy("member_id").Find(&recs); err != nil {
+		return nil, err
+	}
+	out := make([]app.Membership, len(recs))
+	for i, r := range recs {
+		out[i] = app.Membership{MemberID: r.MemberID, JoinedAt: r.JoinedAt}
+	}
+	return out, nil
 }
 
 func (Guilds) AddMembership(ctx context.Context, ev domain.MemberJoined) error {
@@ -138,6 +173,12 @@ func (Memberships) IsMember(ctx context.Context, guildID, memberID uint64) (bool
 	return query(ctx).Model(&membershipRecord{}).Where("guild_id", guildID).Where("member_id", memberID).Exists()
 }
 
+// IsArchived reports whether a guild is archived. A guild that does not
+// exist is not.
+func (Memberships) IsArchived(ctx context.Context, guildID uint64) (bool, error) {
+	return query(ctx).Model(&guildRecord{}).Where("id", guildID).WhereNotNull("archived_at").Exists()
+}
+
 // LogEvents writes guilds' domain events to the log; nothing subscribes to
 // them yet.
 type LogEvents struct{}
@@ -148,4 +189,8 @@ func (LogEvents) GuildFounded(ctx context.Context, ev domain.GuildFounded) {
 
 func (LogEvents) MemberJoined(ctx context.Context, ev domain.MemberJoined) {
 	facades.Log().WithContext(ctx).Infof("MemberJoined guild=%d member=%d", ev.GuildID, ev.MemberID)
+}
+
+func (LogEvents) Other(ctx context.Context, ev any) {
+	facades.Log().WithContext(ctx).Infof("%T %+v", ev, ev)
 }

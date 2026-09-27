@@ -21,6 +21,15 @@ The feature tests in `tests/feature` run against the dev database and skip
 when it is not reachable; run `task db:up` and `task api:migrate` first.
 Artisan runs as `go run . artisan ...`.
 
+## Two ways to sign in
+
+The desktop app sends `Authorization: Bearer <token>`. The website signs in
+through `/api/web/login` and `/api/web/register`, which put the same token in
+an httpOnly cookie `bakery_session` (host-only, SameSite=Lax, Secure outside
+`APP_ENV=local`). `RequireMember` accepts either. A cookie request that
+changes something must carry `X-Bakery-Web: 1`, which cross-site forms cannot
+send; CORS (`config/cors.go`) lets only `WEB_ORIGIN` call with credentials.
+
 ## API description
 
 `openapi.yaml` describes every endpoint as built. It is also the body of the
