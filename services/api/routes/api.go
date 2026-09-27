@@ -12,6 +12,7 @@ import (
 	"github.com/jevido/the-bakery/services/api/contexts/boards"
 	"github.com/jevido/the-bakery/services/api/contexts/guilds"
 	"github.com/jevido/the-bakery/services/api/contexts/identity"
+	"github.com/jevido/the-bakery/services/api/mcp"
 )
 
 // draining is set when the container is about to stop (SIGUSR1 from
@@ -34,6 +35,14 @@ func Api() {
 	identity.Routes(facades.Route())
 	guilds.Routes(facades.Route())
 	boards.Routes(facades.Route())
+
+	// MCP over streamable HTTP. The SDK handler does its own auth (personal
+	// tokens) and writes the response itself.
+	mcpHandler := mcp.Handler()
+	facades.Route().Any("/mcp", func(ctx http.Context) http.Response {
+		mcpHandler.ServeHTTP(ctx.Response().Writer(), ctx.Request().Origin())
+		return nil
+	})
 }
 
 // health answers ok only when the database answers too, so a green health

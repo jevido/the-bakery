@@ -96,3 +96,23 @@ func SeedGuild(ctx context.Context, name string, memberIDs ...uint64) (uint64, e
 	}
 	return g.ID, nil
 }
+
+// GuildSummary is a guild as other modules (the MCP server) see it.
+type GuildSummary struct {
+	ID       uint64
+	Name     string
+	Archived bool
+}
+
+// ListGuildsOf returns the member's guilds, archived ones only when asked.
+func ListGuildsOf(ctx context.Context, memberID uint64, includeArchived bool) ([]GuildSummary, error) {
+	gs, err := service.ListGuildsOf(ctx, memberID, includeArchived)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]GuildSummary, len(gs))
+	for i, g := range gs {
+		out[i] = GuildSummary{ID: g.ID, Name: g.Name, Archived: g.Archived}
+	}
+	return out, nil
+}

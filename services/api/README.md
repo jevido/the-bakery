@@ -30,6 +30,19 @@ an httpOnly cookie `bakery_session` (host-only, SameSite=Lax, Secure outside
 changes something must carry `X-Bakery-Web: 1`, which cross-site forms cannot
 send; CORS (`config/cors.go`) lets only `WEB_ORIGIN` call with credentials.
 
+## MCP server
+
+`/mcp` serves MCP over streamable HTTP (stateless, JSON replies) with the
+official Go SDK (`github.com/modelcontextprotocol/go-sdk`). Clients sign in
+with a personal token (`Authorization: Bearer bky_…`). The server lives in
+`mcp/`; it has no domain of its own: every tool calls a function that the
+guilds or boards context publishes from its root package, so it follows the
+same membership and archive rules as REST. Connect Claude Code with:
+
+```sh
+claude mcp add --transport http bakery-dev http://127.0.0.1:4810/mcp --header "Authorization: Bearer bky_…"
+```
+
 ## API description
 
 `openapi.yaml` describes every endpoint as built. It is also the body of the

@@ -63,3 +63,65 @@ func SeedBoard(ctx context.Context, guildID, memberID uint64, name string, tasks
 	}
 	return nil
 }
+
+// Board, Task and BoardView are what other modules (the MCP server) see.
+type Board struct {
+	ID      uint64
+	GuildID uint64
+	Name    string
+}
+
+type Task struct {
+	ID          uint64
+	BoardID     uint64
+	Title       string
+	Description string
+	Column      string
+}
+
+type Column struct {
+	Column string
+	Tasks  []Task
+}
+
+type BoardView struct {
+	Board   Board
+	Columns []Column
+}
+
+func boardOf(b domain.Board) Board { return Board{ID: b.ID, GuildID: b.GuildID, Name: b.Name} }
+
+func taskOf(t domain.Task) Task {
+	return Task{ID: t.ID, BoardID: t.BoardID, Title: t.Title, Description: t.Description, Column: string(t.Column)}
+}
+
+// ListBoards returns a guild's boards; the member must be in the guild.
+func ListBoards(ctx context.Context, guildID, memberID uint64) ([]Board, error) {
+	bs, err := service.ListBoards(ctx, guildID, memberID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Board, len(bs))
+	for i, b := range bs {
+		out[i] = boardOf(b)
+	}
+	return out, nil
+}
+
+// GetBoard returns a board with all four columns in order, each with its
+// tasks in order.
+func GetBoard(ctx context.Context, boardID, memberID uint64) (BoardView, error) {
+	b, tasks, err := service.GetBoard(ctx, boardID, memberID)
+	if err != nil {
+		return BoardView{}, err
+	}
+	byColumn := map[domain.Column][]Task{}
+	for _, t := range tasks {
+		byColumn[t.Column] = append(byColumn[t.Column], taskOf(t))
+	}
+	view := BoardView{Board: boardOf(b)}
+	for _, c := range domain.Columns {
+		view.Columns = append(view.Columns, Column{Column: string(c), Tasks: append([]Task{}, byColumn[c]...)})
+	}
+	return view, nil
+}
