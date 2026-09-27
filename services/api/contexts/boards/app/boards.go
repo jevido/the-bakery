@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/jevido/the-bakery/services/api/contexts/boards/domain"
 )
@@ -66,17 +67,24 @@ type Events interface {
 	TaskMoved(ctx context.Context, ev domain.TaskMoved)
 	SubtaskAdded(ctx context.Context, ev domain.SubtaskAdded)
 	SubtaskCompleted(ctx context.Context, ev domain.SubtaskCompleted)
+	TaskCommented(ctx context.Context, ev domain.TaskCommented)
 }
 
 type Service struct {
 	memberships Memberships
 	boards      Boards
 	tasks       Tasks
+	comments    Comments
+	names       MemberNames
 	events      Events
+	now         func() time.Time
 }
 
-func NewService(memberships Memberships, boards Boards, tasks Tasks, events Events) *Service {
-	return &Service{memberships: memberships, boards: boards, tasks: tasks, events: events}
+func NewService(memberships Memberships, boards Boards, tasks Tasks, comments Comments, names MemberNames, events Events) *Service {
+	return &Service{
+		memberships: memberships, boards: boards, tasks: tasks, comments: comments,
+		names: names, events: events, now: time.Now,
+	}
 }
 
 func (s *Service) requireMember(ctx context.Context, guildID, memberID uint64) error {

@@ -63,11 +63,13 @@ Each event carries the acting member's id.
 ## Integration
 
 - **Publishes:** Go functions in the root package (`ListBoards`, `GetBoard`,
-  `CreateBoard`, `CreateTask`, `UpdateTask`, `MoveTask`, `DeleteTask`) with their
-  own types, for the MCP server.
-- **Consumes:** identity's authenticated member id; guilds'
-  `Memberships.IsMember` and `Memberships.IsArchived`. A guild is only an id
-  here; boards never read the guild tables.
+  `CreateBoard`, `CreateTask`, `GetTask`, `UpdateTask`, `ExpandTask`,
+  `MoveTask`, `DeleteTask`, `ListComments`, `CommentOnTask`) with their own
+  types, for the MCP server.
+- **Consumes:** identity's authenticated member id and display names by id
+  (`identity.DisplayNames`, behind boards' `MemberNames` port); guilds'
+  `Memberships.IsMember` and `Memberships.IsArchived`. A guild and a member
+  are only ids here; boards never read the guild or member tables.
 
 ## Why it's shaped this way
 

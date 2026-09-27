@@ -58,6 +58,11 @@ tags:
       it can be ticked off (`done`). Subtasks are one level deep. Answers 403
       when you are not a member of the board's guild, 404 when the task does
       not exist.
+  - name: Comments
+    description: >-
+      Comments on a task, oldest first. Every member of the guild reads and
+      writes them; only a comment's author edits or deletes it (403 for
+      anyone else). An archived guild's comments can be read, not written.
 
 paths:
   /api/health:
@@ -1042,6 +1047,100 @@ paths:
               schema: { $ref: "#/components/schemas/Error" }
               example: { error: neighbour must be another task in the target column, field: after_id }
 
+  /api/tasks/{task}/comments:
+    get:
+      tags: [Comments]
+      summary: List a task's comments
+      parameters:
+        - $ref: "#/components/parameters/Task"
+      responses:
+        "200":
+          description: The comments, oldest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [comments]
+                properties:
+                  comments:
+                    type: array
+                    items: { $ref: "#/components/schemas/Comment" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Comments]
+      summary: Comment on a task
+      parameters:
+        - $ref: "#/components/parameters/Task"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommentBody" }
+            example: { body: The freezer needs a second cooler. }
+      responses:
+        "201":
+          description: Written.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CommentResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/ArchivedBoard" }
+        "422": { $ref: "#/components/responses/Invalid" }
+
+  /api/comments/{comment}:
+    patch:
+      tags: [Comments]
+      summary: Edit your comment
+      description: Replaces the body and sets `edited_at`. Only the author may (403 otherwise).
+      parameters:
+        - $ref: "#/components/parameters/Comment"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CommentBody" }
+            example: { body: The freezer needs three coolers. }
+      responses:
+        "200":
+          description: Edited.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CommentResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: Not a member of the guild, or not the comment's author.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: only its author can change a comment }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/ArchivedBoard" }
+        "422": { $ref: "#/components/responses/Invalid" }
+    delete:
+      tags: [Comments]
+      summary: Delete your comment
+      description: Only the author may (403 otherwise).
+      parameters:
+        - $ref: "#/components/parameters/Comment"
+      responses:
+        "204":
+          description: Deleted.
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: Not a member of the guild, or not the comment's author.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: only its author can change a comment }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/ArchivedBoard" }
+
 components:
   securitySchemes:
     bearer:
@@ -1071,6 +1170,11 @@ components:
       schema: { type: integer }
     Task:
       name: task
+      in: path
+      required: true
+      schema: { type: integer }
+    Comment:
+      name: comment
       in: path
       required: true
       schema: { type: integer }
@@ -1250,3 +1354,24 @@ components:
       required: [task]
       properties:
         task: { $ref: "#/components/schemas/Task" }
+    Comment:
+      type: object
+      required: [id, task_id, author_id, author_name, body, created_at, edited_at]
+      properties:
+        id: { type: integer }
+        task_id: { type: integer }
+        author_id: { type: integer }
+        author_name: { type: string, description: "The author's display name." }
+        body: { type: string, description: "Markdown, 1 to 10 000 characters." }
+        created_at: { type: string, format: date-time }
+        edited_at: { type: [string, "null"], format: date-time }
+    CommentResponse:
+      type: object
+      required: [comment]
+      properties:
+        comment: { $ref: "#/components/schemas/Comment" }
+    CommentBody:
+      type: object
+      required: [body]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 10000 }

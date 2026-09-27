@@ -1,10 +1,12 @@
-// Package boards wires the boards context: its routes, and the dev seeder's
-// board. It takes membership answers from guilds.Memberships and nothing
-// else from guilds.
+// Package boards wires the boards context: its routes, the functions it
+// publishes, and the dev seeder's board. It takes membership answers from
+// guilds.Memberships and display names from identity, and nothing else from
+// either.
 package boards
 
 import (
 	"context"
+	"time"
 
 	"github.com/goravel/framework/contracts/route"
 
@@ -16,7 +18,14 @@ import (
 	"github.com/jevido/the-bakery/services/api/contexts/identity"
 )
 
-var service = app.NewService(guilds.NewMemberships(), infra.Boards{}, infra.Tasks{}, infra.LogEvents{})
+// memberNames adapts identity's display names to boards' MemberNames.
+type memberNames struct{}
+
+func (memberNames) DisplayNames(ctx context.Context, ids []uint64) (map[uint64]string, error) {
+	return identity.DisplayNames(ctx, ids)
+}
+
+var service = app.NewService(guilds.NewMemberships(), infra.Boards{}, infra.Tasks{}, infra.Comments{}, memberNames{}, infra.LogEvents{})
 
 // Routes registers the board and task routes, all behind
 // identity.RequireMember.
@@ -33,6 +42,10 @@ func Routes(r route.Router) {
 		r.Post("/api/tasks/{task}/expand", c.ExpandTask)
 		r.Post("/api/tasks/{task}/move", c.MoveTask)
 		r.Delete("/api/tasks/{task}", c.DeleteTask)
+		r.Get("/api/tasks/{task}/comments", c.ListComments)
+		r.Post("/api/tasks/{task}/comments", c.CommentOnTask)
+		r.Patch("/api/comments/{comment}", c.EditComment)
+		r.Delete("/api/comments/{comment}", c.DeleteComment)
 	})
 }
 
@@ -210,6 +223,40 @@ func UpdateTask(ctx context.Context, taskID, memberID uint64, title, description
 func MoveTask(ctx context.Context, taskID, memberID uint64, column string, afterID, beforeID *uint64) (Task, error) {
 	t, err := service.MoveTask(ctx, taskID, memberID, column, afterID, beforeID)
 	return taskOf(t), err
+}
+
+// Comment is a comment on a task with its author's display name.
+type Comment struct {
+	ID         uint64
+	TaskID     uint64
+	AuthorID   uint64
+	AuthorName string
+	Body       string
+	CreatedAt  time.Time
+	EditedAt   *time.Time
+}
+
+func commentOf(c app.AuthoredComment) Comment {
+	return Comment{ID: c.ID, TaskID: c.TaskID, AuthorID: c.AuthorID, AuthorName: c.AuthorName, Body: c.Body, CreatedAt: c.CreatedAt, EditedAt: c.EditedAt}
+}
+
+// ListComments returns a task's comments, oldest first.
+func ListComments(ctx context.Context, taskID, memberID uint64) ([]Comment, error) {
+	cs, err := service.ListComments(ctx, taskID, memberID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Comment, len(cs))
+	for i, c := range cs {
+		out[i] = commentOf(c)
+	}
+	return out, nil
+}
+
+// CommentOnTask writes a comment on a task as the member.
+func CommentOnTask(ctx context.Context, taskID, memberID uint64, body string) (Comment, error) {
+	c, err := service.CommentOnTask(ctx, taskID, memberID, body)
+	return commentOf(c), err
 }
 
 // DeleteTask removes a task.

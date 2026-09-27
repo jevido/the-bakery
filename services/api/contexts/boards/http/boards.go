@@ -294,9 +294,9 @@ func failure(ctx contractshttp.Context, err error) contractshttp.Response {
 	status := contractshttp.StatusInternalServerError
 	field := ""
 	switch {
-	case errors.Is(err, app.ErrNotMember):
+	case errors.Is(err, app.ErrNotMember), errors.Is(err, domain.ErrNotAuthor):
 		status = contractshttp.StatusForbidden
-	case errors.Is(err, app.ErrBoardNotFound), errors.Is(err, app.ErrTaskNotFound):
+	case errors.Is(err, app.ErrBoardNotFound), errors.Is(err, app.ErrTaskNotFound), errors.Is(err, app.ErrCommentNotFound):
 		status = contractshttp.StatusNotFound
 	case errors.Is(err, app.ErrPositionTaken), errors.Is(err, app.ErrGuildArchived):
 		status = contractshttp.StatusConflict
@@ -312,6 +312,8 @@ func failure(ctx contractshttp.Context, err error) contractshttp.Response {
 		status, field = contractshttp.StatusUnprocessableEntity, "titles"
 	case errors.Is(err, domain.ErrNotSubtask):
 		status, field = contractshttp.StatusUnprocessableEntity, "done"
+	case errors.Is(err, domain.ErrInvalidCommentBody):
+		status, field = contractshttp.StatusUnprocessableEntity, "body"
 	case errors.Is(err, domain.ErrNestedSubtask):
 		status = contractshttp.StatusUnprocessableEntity
 	}

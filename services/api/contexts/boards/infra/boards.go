@@ -249,6 +249,10 @@ func (LogEvents) SubtaskAdded(ctx context.Context, ev domain.SubtaskAdded) {
 	facades.Log().WithContext(ctx).Infof("SubtaskAdded subtask=%d parent=%d board=%d", ev.SubtaskID, ev.ParentID, ev.BoardID)
 }
 
+func (LogEvents) TaskCommented(ctx context.Context, ev domain.TaskCommented) {
+	facades.Log().WithContext(ctx).Infof("TaskCommented task=%d board=%d comment=%d author=%d", ev.TaskID, ev.BoardID, ev.CommentID, ev.AuthorID)
+}
+
 func (LogEvents) SubtaskCompleted(ctx context.Context, ev domain.SubtaskCompleted) {
 	facades.Log().WithContext(ctx).Infof("SubtaskCompleted subtask=%d parent=%d board=%d", ev.SubtaskID, ev.ParentID, ev.BoardID)
 }

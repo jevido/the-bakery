@@ -227,3 +227,53 @@ func (s *BoardsTestSuite) TestSubtasks() {
 	s.Require().NoError(err)
 	s.Zero(left)
 }
+
+func (s *BoardsTestSuite) TestComments() {
+	_, ada := s.register()
+	guildID := s.foundGuild(ada, "Comment Colony")
+	_, bram := s.register()
+	s.join(ada, guildID, bram)
+	boardID := s.createBoard(ada, guildID, "Getting settled")
+	taskID := s.createTask(ada, boardID, "Build a freezer")
+	comments := fmt.Sprintf("/api/tasks/%d/comments", taskID)
+
+	res := s.post(ada, comments, `{"body":"Needs **two** coolers."}`)
+	res.AssertCreated()
+	first := s.jsonOf(res)["comment"].(map[string]any)
+	s.Nil(first["edited_at"])
+	s.NotEmpty(first["author_name"])
+	firstID := uint64(first["id"].(float64))
+	s.post(bram, comments, `{"body":"On it."}`).AssertCreated()
+	s.post(ada, comments, `{"body":"  "}`).AssertUnprocessableEntity()
+
+	res = s.get(bram, comments)
+	res.AssertOk()
+	list := s.jsonOf(res)["comments"].([]any)
+	s.Require().Len(list, 2)
+	s.Equal("Needs **two** coolers.", list[0].(map[string]any)["body"], "oldest first")
+	s.Equal("On it.", list[1].(map[string]any)["body"])
+
+	// Only the author edits or deletes.
+	one := fmt.Sprintf("/api/comments/%d", firstID)
+	s.send("PATCH", bram, one, `{"body":"Mine now"}`).AssertForbidden()
+	s.send("DELETE", bram, one, "").AssertForbidden()
+	res = s.send("PATCH", ada, one, `{"body":"Needs three coolers."}`)
+	res.AssertOk()
+	edited := s.jsonOf(res)["comment"].(map[string]any)
+	s.Equal("Needs three coolers.", edited["body"])
+	s.NotNil(edited["edited_at"])
+
+	// Outsiders see nothing.
+	_, stranger := s.register()
+	s.get(stranger, comments).AssertForbidden()
+	s.post(stranger, comments, `{"body":"Hello"}`).AssertForbidden()
+	s.send("PATCH", stranger, one, `{"body":"Hello"}`).AssertForbidden()
+
+	s.send("DELETE", ada, one, "").AssertNoContent()
+	s.send("DELETE", ada, one, "").AssertNotFound()
+
+	// An archived guild's comments can be read, not written.
+	s.post(ada, fmt.Sprintf("/api/guilds/%d/archive", guildID), "").AssertSuccessful()
+	s.get(bram, comments).AssertOk()
+	s.post(bram, comments, `{"body":"Too late"}`).AssertConflict()
+}

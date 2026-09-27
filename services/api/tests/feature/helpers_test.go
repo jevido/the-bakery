@@ -128,3 +128,12 @@ func (s *featureSuite) seededGuildID() uint64 {
 	}
 	return ids[0]
 }
+
+// join makes the member behind token a member of the guild through a fresh
+// invite made by one of its members.
+func (s *featureSuite) join(memberToken string, guildID uint64, token string) {
+	res := s.post(memberToken, fmt.Sprintf("/api/guilds/%d/invites", guildID), `{}`)
+	res.AssertCreated()
+	code := s.jsonOf(res)["invite"].(map[string]any)["code"].(string)
+	s.post(token, "/api/invites/"+code+"/accept", "").AssertOk()
+}

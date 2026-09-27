@@ -17,5 +17,6 @@ func Migrations() []schema.Migration {
 		&migrations.M20260927000006CreateGuildInvitesTable{},
 		&migrations.M20260927000007CreatePersonalTokensTable{},
 		&migrations.M20260927000008AddSubtasksToTasks{},
+		&migrations.M20260927000009CreateTaskCommentsTable{},
 	}
 }
