@@ -16,6 +16,7 @@ which guilds a Member belongs to or what they may do there; that is guilds.
 | Member | A person with an account: email, display name, password. |
 | Credentials | A Member's email and hashed password. |
 | Token | The JWT a Member receives on register or login. |
+| Web session | A sign-in from the website: the same JWT, carried in an httpOnly cookie instead of a bearer header. |
 | Operator | The platform owner (and appointees) using the moderation console. Not a Member account; not modelled yet. |
 
 ## Model
