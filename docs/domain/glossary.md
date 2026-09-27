@@ -34,6 +34,16 @@ document; list them here when people outside the context use them too.
 | Comment | boards | Text a member writes on a task. Only its author can edit or delete it. | Description, note |
 | Board event | boards (published language) | A change on a board announced to everyone watching it, over the board's event stream: `task.created`, `task.updated`, `task.moved`, `task.deleted`, `column.created`, `column.updated`, `column.moved`, `column.deleted`, `presence`. | Domain event (inside the context), activity (a task's history) |
 | Presence | boards | Which members have a board open right now. Short-lived: kept while their stream is open and gone a minute after it goes quiet; never history. | Online status, activity |
+| Work type | boards | A kind of work a task needs (Coding, Research, …), one list per guild, each identified by a key (`coding`, `research`, …). A task has at most one. A guild starts with Coding, Research, Writing, Testing, Design, Review and Ops. | Label, tag, category |
+| Agent | agents | A configured Claude CLI worker owned by one member: name, title, backstory, traits, model, permission mode, allowed tools, skillset and work priorities. The desktop app may use RimWorld wording in its labels; the model says Agent. | Colonist, bot, assistant, AI |
+| Roster | agents | All agents of one member. | Team, crew |
+| Skillset | agents | An agent's skills: the files of its `.claude/skills` directory. | Plugin, toolkit |
+| Skill | agents | One directory of a skillset with a `SKILL.md` (name and description in its front matter) and any supporting files. | Command, prompt |
+| Trait | agents | A fixed personality or working-style option of an agent; each adds one line to its instructions, and some traits conflict. | Setting, flag |
+| Work priority | agents | How much an agent wants a kind of work: 1 (first) to 4 (last), or off, per work type key. | Skill level, weight |
+| Share | agents | An owner makes an agent available to one guild they are in, for its members to recruit. | Publish, transfer |
+| Recruit | agents | Copy an agent shared with a guild into your own roster. The copy is yours; the original stays its owner's. | Clone, fork, hire |
+| Revision | agents | A number that goes up by one with every change to an agent; a change based on an older revision is refused as a conflict. | Version (that is a release) |
 | Activity | boards | What happened to a task, in order: created, edited, moved, commented, subtask added, subtask done. Written by the system from domain events, never by a member. | Comment, audit log (the Operator's, in the console) |
 | Release | platform | A tagged desktop build, `desktop-vX.Y.Z` (semantic versioning: X breaking, Y features, Z fixes), published as a GitHub release with signed artifacts and an update manifest. | Deploy (that is the API and website going out) |
 | Environment | platform | Where The Bakery runs: `dev` (local), `next` (pre-production) or `prod`. | Stage, instance |

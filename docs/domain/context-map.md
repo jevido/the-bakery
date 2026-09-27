@@ -7,17 +7,19 @@ depend on each other.
 
 | Context | Subdomain | Hosted in | Owns |
 | ------- | --------- | --------- | ---- |
-| [boards](contexts/boards/README.md) | core | `services/api` (`contexts/boards`) | boards, tasks |
-| [guilds](contexts/guilds/README.md) | supporting | `services/api` (`contexts/guilds`) | guilds, memberships |
-| [identity](contexts/identity/README.md) | generic | `services/api` (`contexts/identity`) | members, credentials, tokens |
+| [boards](contexts/boards/README.md) | core | `services/api` (`contexts/boards`) | boards and their columns, tasks and subtasks, comments, activity, work types, board events and presence |
+| [agents](contexts/agents/README.md) | supporting | `services/api` (`contexts/agents`); mirrored as folders by `apps/desktop` | agents, their skillsets and work priorities, shares |
+| [guilds](contexts/guilds/README.md) | supporting | `services/api` (`contexts/guilds`) | guilds, memberships, invites |
+| [identity](contexts/identity/README.md) | generic | `services/api` (`contexts/identity`) | members, credentials, tokens, personal tokens, web sessions, handoff codes |
 
 `services/api` also hosts the **MCP server** (module `mcp/`): an *open host
-service* over guilds and boards for Claude and other MCP clients. It has no
+service* over guilds, boards and agents for Claude and other MCP clients. It has no
 domain of its own; each MCP tool calls a use case those contexts publish, with
 the same rules as REST.
 
 `apps/desktop` and `apps/web` host no context: they are clients of the API
-and hold no domain data of their own.
+and hold no domain data of their own. The desktop app's agent folders are a
+synced copy of the member's agents, not a model of their own.
 
 - **Core:** where the project competes. Gets the most care and the richest model.
 - **Supporting:** needed and specific to this project, but not the differentiator.
@@ -32,9 +34,12 @@ adapt to.
 | Upstream | Downstream | Pattern | Through |
 | -------- | ---------- | ------- | ------- |
 | identity | guilds | customer/supplier | The authenticated member id (`identity.MemberID(ctx)`) and a lookup of a member id by email, translated into a plain member id inside guilds |
-| identity | boards | customer/supplier | The authenticated member id (`identity.MemberID(ctx)`) |
-| guilds, boards | MCP server (`mcp/`) | open host service | The contexts' published Go functions (the same use cases REST calls); identity's `VerifyPersonalToken` for sign-in |
-| guilds | boards | customer/supplier | The `guilds.Memberships` Go interface: `IsMember(ctx, guildID, memberID) (bool, error)`. Boards never read the guild tables. |
+| identity | boards | customer/supplier | The authenticated member id (`identity.MemberID(ctx)`) and display names by id (`identity.DisplayNames`) |
+| identity | agents | customer/supplier | The authenticated member id and display names by id, as for boards |
+| guilds | boards | customer/supplier | The `guilds.Memberships` Go interface: `IsMember(ctx, guildID, memberID)` and `IsArchived(ctx, guildID)`. Boards never read the guild tables. |
+| guilds | agents | customer/supplier | `guilds.Memberships.IsMember`, to check sharing, listing a guild's agents and recruiting. Agents never read the guild tables. |
+| boards | agents | published language | Work type keys (`coding`, `research`, …) as plain strings in an agent's work priorities. Agents never read boards' tables, and a key a guild lacks just counts as off. |
+| guilds, boards, agents | MCP server (`mcp/`) | open host service | The contexts' published Go functions (the same use cases REST calls); identity's `VerifyPersonalToken` for sign-in |
 
 Patterns: *customer/supplier*, *conformist*, *anticorruption layer*,
 *open host service* / *published language*, *shared kernel*, *separate ways*.
@@ -50,6 +55,9 @@ Optional. Keep it in sync with the tables above, or leave it out.
 ```mermaid
 flowchart LR
   identity -->|member id| guilds
-  identity -->|member id| boards
-  guilds -->|Memberships.IsMember| boards
+  identity -->|member id, names| boards
+  identity -->|member id, names| agents
+  guilds -->|Memberships| boards
+  guilds -->|Memberships.IsMember| agents
+  boards -->|work type keys| agents
 ```
