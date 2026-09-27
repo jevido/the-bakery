@@ -48,6 +48,12 @@
             {/each}
           </ul>
         {/if}
+        {#if os === 'linux' && release.assets.linux.length > 0}
+          <p class="dim small">
+            Needs WebKitGTK 6.0 from your distribution: <code>webkitgtk-6.0</code> on Arch and Fedora,
+            <code>libwebkitgtk-6.0-4</code> on Debian and Ubuntu. The AppImage updates itself.
+          </p>
+        {/if}
         {#if os === 'macos' && release.assets.macos.length > 0}
           <p class="dim small">The macOS build is not signed yet: open it with right-click → Open the first time.</p>
         {/if}

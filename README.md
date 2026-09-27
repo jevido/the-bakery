@@ -51,6 +51,7 @@ task down       # stop the API and the desktop app (Postgres keeps running)
 task db:down    # stop Postgres
 ```
 
-Conventions for people and coding agents live in [`CLAUDE.md`](CLAUDE.md).
+Want to help? Start with [`CONTRIBUTING.md`](CONTRIBUTING.md). Conventions for
+people and coding agents live in [`CLAUDE.md`](CLAUDE.md).
 The project is built with domain-driven design; the model lives in
 [`docs/domain`](docs/domain).

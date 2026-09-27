@@ -30,6 +30,7 @@
   <footer>
     <span>The Bakery is open source.</span>
     <a href="https://github.com/jevido/the-bakery">Source on GitHub</a>
+    <a href="https://github.com/jevido/the-bakery/blob/main/CONTRIBUTING.md">Contributing</a>
   </footer>
 </div>
 
