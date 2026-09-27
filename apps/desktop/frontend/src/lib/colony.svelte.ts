@@ -262,6 +262,58 @@ export class Colony {
     if (!ok) await this.reloadBoard()
   }
 
+  // addColumn puts a new column at the end of the board.
+  async addColumn(name: string): Promise<boolean> {
+    if (this.boardId === null) return false
+    const col = await this.#run(() => BoardsService.CreateColumn(this.boardId!, name))
+    if (!col) return false
+    if (this.view && !this.view.columns.some((c) => c.id === col.id)) {
+      this.view.columns.push({ id: col.id, name: col.name, tasks: [] })
+    }
+    return true
+  }
+
+  async renameColumn(id: number, name: string) {
+    const col = this.view?.columns.find((c) => c.id === id)
+    if (!col || col.name === name) return
+    const before = col.name
+    col.name = name
+    const saved = await this.#run(() => BoardsService.RenameColumn(id, name))
+    if (!saved) col.name = before
+  }
+
+  // moveColumn puts the column at index among the others right away, then
+  // tells the API its new neighbours. If the API refuses, the board is
+  // reloaded.
+  async moveColumn(id: number, index: number) {
+    const view = this.view
+    if (!view) return
+    const from = view.columns.findIndex((c) => c.id === id)
+    if (from < 0) return
+    const [col] = view.columns.splice(from, 1)
+    index = Math.max(0, Math.min(index, view.columns.length))
+    view.columns.splice(index, 0, col)
+    if (index === from) return
+    const afterId = view.columns[index - 1]?.id ?? null
+    const beforeId = view.columns[index + 1]?.id ?? null
+    const moved = await this.#run(() => BoardsService.MoveColumn(id, afterId, beforeId))
+    if (!moved) await this.reloadBoard()
+  }
+
+  // deleteColumn removes an empty column; the API refuses one with tasks.
+  async deleteColumn(id: number) {
+    const view = this.view
+    if (!view) return
+    const i = view.columns.findIndex((c) => c.id === id)
+    if (i < 0) return
+    const [col] = view.columns.splice(i, 1)
+    const ok = await this.#run(async () => {
+      await BoardsService.DeleteColumn(id)
+      return true
+    })
+    if (!ok) view.columns.splice(i, 0, col)
+  }
+
   // moveTask moves the task to index in the column right away, then tells
   // the API its new neighbours. If the API refuses, the board is reloaded.
   async moveTask(id: number, columnId: number, index: number) {

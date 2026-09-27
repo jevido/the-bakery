@@ -219,3 +219,39 @@ func (c *Client) ListActivity(ctx context.Context, token string, taskID, before 
 	err := c.do(ctx, http.MethodGet, path, token, nil, &res)
 	return res.Activity, err
 }
+
+// BoardColumn is a column without its tasks, as the column endpoints return it.
+type BoardColumn struct {
+	ID   uint64 `json:"id"`
+	Name string `json:"name"`
+}
+
+func (c *Client) CreateColumn(ctx context.Context, token string, boardID uint64, name string) (BoardColumn, error) {
+	var res struct {
+		Column BoardColumn `json:"column"`
+	}
+	err := c.do(ctx, http.MethodPost, fmt.Sprintf("/api/boards/%d/columns", boardID), token, map[string]string{"name": name}, &res)
+	return res.Column, err
+}
+
+func (c *Client) RenameColumn(ctx context.Context, token string, columnID uint64, name string) (BoardColumn, error) {
+	var res struct {
+		Column BoardColumn `json:"column"`
+	}
+	err := c.do(ctx, http.MethodPatch, fmt.Sprintf("/api/columns/%d", columnID), token, map[string]string{"name": name}, &res)
+	return res.Column, err
+}
+
+// MoveColumn puts a column right after afterID and/or right before
+// beforeID (nil for either end).
+func (c *Client) MoveColumn(ctx context.Context, token string, columnID uint64, afterID, beforeID *uint64) (BoardColumn, error) {
+	var res struct {
+		Column BoardColumn `json:"column"`
+	}
+	err := c.do(ctx, http.MethodPost, fmt.Sprintf("/api/columns/%d/move", columnID), token, map[string]any{"after_id": afterID, "before_id": beforeID}, &res)
+	return res.Column, err
+}
+
+func (c *Client) DeleteColumn(ctx context.Context, token string, columnID uint64) error {
+	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/api/columns/%d", columnID), token, nil, nil)
+}

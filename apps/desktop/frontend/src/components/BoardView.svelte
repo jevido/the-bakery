@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Panel, TextField } from '@bakery/ui'
   import TaskCard from './TaskCard.svelte'
+  import ColumnHeader from './ColumnHeader.svelte'
   import type { Colony, LiveState } from '../lib/colony.svelte'
 
   let { colony }: { colony: Colony } = $props()
@@ -18,6 +19,75 @@
     'signed-out': 'Signed out',
   }
   let newTitle = $state('')
+
+  // Columns are dragged by their header, with their own data type so a
+  // column never lands in a task list and a card never moves a column.
+  const COLUMN_TYPE = 'application/x-bakery-column'
+  let draggedColumn = $state<number | null>(null)
+  // Where the dragged column would land, among the other columns.
+  let columnDrop = $state<number | null>(null)
+  let addingColumn = $state(false)
+  let newColumn = $state('')
+
+  function columnDragStart(event: DragEvent, id: number) {
+    draggedColumn = id
+    event.dataTransfer?.setData(COLUMN_TYPE, String(id))
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+  }
+
+  function columnDragEnd() {
+    draggedColumn = null
+    columnDrop = null
+  }
+
+  // The drop index is the number of other columns whose middle is left of
+  // the pointer.
+  function columnDragOver(event: DragEvent) {
+    if (draggedColumn === null) return
+    event.preventDefault()
+    const others = [...(event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[data-column-id]')].filter(
+      (el) => Number(el.dataset.columnId) !== draggedColumn,
+    )
+    columnDrop = others.filter((el) => {
+      const r = el.getBoundingClientRect()
+      return r.left + r.width / 2 < event.clientX
+    }).length
+  }
+
+  function columnDropped(event: DragEvent) {
+    if (draggedColumn === null) return
+    event.preventDefault()
+    const id = draggedColumn
+    const index = columnDrop
+    columnDragEnd()
+    if (index !== null) colony.moveColumn(id, index)
+  }
+
+  // Which side of which rendered column shows the drop marker.
+  function columnMarker(index: number, columns: { id: number }[]): 'before' | 'after' | null {
+    if (columnDrop === null || draggedColumn === null) return null
+    const others = columns.filter((c) => c.id !== draggedColumn)
+    if (columnDrop < others.length) return others[columnDrop].id === columns[index].id ? 'before' : null
+    return others[others.length - 1]?.id === columns[index].id ? 'after' : null
+  }
+
+  async function addColumn(event: KeyboardEvent) {
+    if (event.key === 'Escape') {
+      addingColumn = false
+      newColumn = ''
+      return
+    }
+    if (event.key !== 'Enter') return
+    const name = newColumn.trim()
+    if (name && (await colony.addColumn(name))) {
+      newColumn = ''
+      addingColumn = false
+    }
+  }
+
+  function focus(node: HTMLInputElement) {
+    node.focus()
+  }
 
   function dragStart(event: DragEvent, id: number) {
     draggedId = id
@@ -87,10 +157,31 @@
       <span class={['live', colony.live]} title="Changes by others show up here as they happen">{LIVE[colony.live]}</span>
     {/if}
   </header>
-  <div class="board">
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="board"
+    style:--columns={colony.view.columns.length}
+    ondragover={columnDragOver}
+    ondrop={columnDropped}
+  >
     {#each colony.view.columns as col, c (col.id)}
       {@const at = indicatorAt(col.id, col.tasks)}
-      <Panel title={`${col.name} · ${col.tasks.length}`}>
+      {@const marker = columnMarker(c, colony.view.columns)}
+      <div
+        class={['column', marker && `drop-${marker}`, { dragging: draggedColumn === col.id }]}
+        data-column-id={col.id}
+      >
+      <Panel>
+        {#snippet header()}
+          <ColumnHeader
+            column={col}
+            last={colony.view!.columns.length === 1}
+            ondragstart={(e) => columnDragStart(e, col.id)}
+            ondragend={columnDragEnd}
+            onrename={(name) => colony.renameColumn(col.id, name)}
+            ondelete={() => colony.deleteColumn(col.id)}
+          />
+        {/snippet}
         <ul
           class={['tasks', { over: dropTarget?.column === col.id }]}
           data-column={col.id}
@@ -118,7 +209,24 @@
           </div>
         {/if}
       </Panel>
+      </div>
     {/each}
+    <div class="add-column">
+      {#if addingColumn}
+        <input
+          class="column-input"
+          aria-label="New column name"
+          placeholder="Column name, then Enter"
+          maxlength={40}
+          bind:value={newColumn}
+          onkeydown={addColumn}
+          onblur={() => !newColumn.trim() && (addingColumn = false)}
+          {@attach focus}
+        />
+      {:else}
+        <button class="add-column-button" onclick={() => (addingColumn = true)}>+ Column</button>
+      {/if}
+    </div>
   </div>
 {/if}
 
@@ -161,16 +269,69 @@
      sideways. */
   .board {
     display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(200px, 1fr);
+    grid-template-columns: repeat(var(--columns), minmax(200px, 1fr)) 150px;
     gap: var(--gap);
     height: 100%;
     min-height: 0;
     overflow-x: auto;
   }
 
-  .board :global(.panel) {
+  .column {
+    display: flex;
+    flex-direction: column;
     min-height: 0;
+    min-width: 0;
+    border-radius: var(--radius);
+  }
+
+  .column :global(.panel) {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .column.dragging {
+    opacity: 0.4;
+  }
+
+  .column.drop-before {
+    box-shadow: -5px 0 0 -2px var(--steel-bright);
+  }
+
+  .column.drop-after {
+    box-shadow: 5px 0 0 -2px var(--steel-bright);
+  }
+
+  .add-column {
+    min-width: 0;
+  }
+
+  .add-column-button {
+    width: 100%;
+    font: inherit;
+    color: var(--text-dim);
+    padding: 6px 8px;
+    text-align: left;
+    background: none;
+    border: 1px dashed var(--frame-dim);
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+
+  .add-column-button:hover {
+    color: var(--text);
+    border-color: var(--frame);
+  }
+
+  .column-input {
+    width: 100%;
+    box-sizing: border-box;
+    font: inherit;
+    color: var(--text);
+    padding: 6px 8px;
+    background: var(--panel-inset);
+    border: 1px solid var(--frame);
+    border-radius: var(--radius);
+    user-select: text;
   }
 
   .board :global(.panel > .body) {

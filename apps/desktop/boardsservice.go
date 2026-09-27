@@ -74,3 +74,24 @@ func (s *BoardsService) DeleteTask(ctx context.Context, taskID uint64) error {
 	_, err := call(s.session, func(t string) (struct{}, error) { return struct{}{}, s.client.DeleteTask(ctx, t, taskID) })
 	return err
 }
+
+func (s *BoardsService) CreateColumn(ctx context.Context, boardID uint64, name string) (api.BoardColumn, error) {
+	return call(s.session, func(t string) (api.BoardColumn, error) { return s.client.CreateColumn(ctx, t, boardID, name) })
+}
+
+func (s *BoardsService) RenameColumn(ctx context.Context, columnID uint64, name string) (api.BoardColumn, error) {
+	return call(s.session, func(t string) (api.BoardColumn, error) { return s.client.RenameColumn(ctx, t, columnID, name) })
+}
+
+func (s *BoardsService) MoveColumn(ctx context.Context, columnID uint64, afterID, beforeID *uint64) (api.BoardColumn, error) {
+	return call(s.session, func(t string) (api.BoardColumn, error) {
+		return s.client.MoveColumn(ctx, t, columnID, afterID, beforeID)
+	})
+}
+
+// DeleteColumn deletes an empty column; the API refuses one with tasks, and
+// the last one.
+func (s *BoardsService) DeleteColumn(ctx context.Context, columnID uint64) error {
+	_, err := call(s.session, func(t string) (struct{}, error) { return struct{}{}, s.client.DeleteColumn(ctx, t, columnID) })
+	return err
+}

@@ -14,7 +14,9 @@ types. A component that knows about tasks or guilds stays in its app.
 
 ## Components
 
-- `Panel` — framed box with an optional title bar (`title`, `actions` snippet).
+- `Panel` — framed box with an optional title bar: a `title`, or a `header`
+  snippet for markup of your own in its place, and an `actions` snippet on the
+  right.
 - `Button` — `variant` `plain` (default), `confirm` or `danger`; takes every
   `<button>` attribute.
 - `TextField` — labelled input with `bind:value`; takes every `<input>` attribute.

@@ -55,8 +55,12 @@ directory and logs a warning.
 - `frontend/src/lib/activity.ts` — how activity reads: `activityLine(entry)`
   builds every sentence, `timeAgo` the relative times.
 - `frontend/src/screens/` — full screens (`Login`, `Colony`).
+- `frontend/src/components/ColumnHeader.svelte` — a column's title bar: drag
+  handle, name (double-click to rename), task count, and a menu whose Delete is
+  off for a column with tasks or the last one.
 - `frontend/src/components/BoardView.svelte` — the board's columns (scrolling
-  sideways when they do not fit), the live indicator, and HTML5
+  sideways when they do not fit, "+ Column" at the end, dragged by their header
+  with their own drag type), the live indicator, and HTML5
   drag and drop; `TaskCard.svelte` — a card: double-click opens the task
   panel, a badge counts done subtasks, delete after confirming;
   `TaskPanel.svelte` — the side panel: title, markdown description with
