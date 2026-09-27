@@ -309,3 +309,63 @@ func (c *Client) SetTaskWorkType(ctx context.Context, token string, taskID uint6
 	err := c.do(ctx, http.MethodPatch, fmt.Sprintf("/api/tasks/%d", taskID), token, map[string]string{"work_type": key}, &res)
 	return res.Task, err
 }
+
+// Run is one run of an agent on a task, as the API records it.
+type Run struct {
+	ID           uint64     `json:"id"`
+	TaskID       uint64     `json:"task_id"`
+	MemberID     uint64     `json:"member_id"`
+	MemberName   string     `json:"member_name"`
+	AgentID      uint64     `json:"agent_id"`
+	AgentName    string     `json:"agent_name"`
+	Machine      string     `json:"machine"`
+	Branch       string     `json:"branch"`
+	Status       string     `json:"status"`
+	StartedAt    time.Time  `json:"started_at"`
+	EndedAt      *time.Time `json:"ended_at"`
+	CostUSD      float64    `json:"cost_usd"`
+	Turns        int        `json:"turns"`
+	Summary      string     `json:"summary"`
+	FilesChanged int        `json:"files_changed"`
+	Additions    int        `json:"additions"`
+	Deletions    int        `json:"deletions"`
+}
+
+// RunEnd is what a run reports when it ends.
+type RunEnd struct {
+	Status       string  `json:"status"`
+	CostUSD      float64 `json:"cost_usd"`
+	Turns        int     `json:"turns"`
+	Summary      string  `json:"summary"`
+	FilesChanged int     `json:"files_changed"`
+	Additions    int     `json:"additions"`
+	Deletions    int     `json:"deletions"`
+}
+
+// ListRuns returns a task's runs, newest first.
+func (c *Client) ListRuns(ctx context.Context, token string, taskID uint64) ([]Run, error) {
+	var res struct {
+		Runs []Run `json:"runs"`
+	}
+	err := c.do(ctx, http.MethodGet, fmt.Sprintf("/api/tasks/%d/runs", taskID), token, nil, &res)
+	return res.Runs, err
+}
+
+// StartRun records that an agent started on a task.
+func (c *Client) StartRun(ctx context.Context, token string, taskID, agentID uint64, agentName, machine, branch string) (Run, error) {
+	var res struct {
+		Run Run `json:"run"`
+	}
+	in := map[string]any{"agent_id": agentID, "agent_name": agentName, "machine": machine, "branch": branch}
+	err := c.do(ctx, http.MethodPost, fmt.Sprintf("/api/tasks/%d/runs", taskID), token, in, &res)
+	return res.Run, err
+}
+
+// FinishRun ends a run with its outcome.
+func (c *Client) FinishRun(ctx context.Context, token string, runID uint64, end RunEnd) (Run, error) {
+	var res struct {
+		Run Run `json:"run"`
+	}
+	err := c.do(ctx, http.MethodPatch, fmt.Sprintf("/api/runs/%d", runID), token, end, &res)
+	return res.Run, err
+}

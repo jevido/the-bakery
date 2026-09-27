@@ -325,9 +325,9 @@ func failure(ctx contractshttp.Context, err error) contractshttp.Response {
 	status := contractshttp.StatusInternalServerError
 	field := ""
 	switch {
-	case errors.Is(err, app.ErrNotMember), errors.Is(err, domain.ErrNotAuthor):
+	case errors.Is(err, app.ErrNotMember), errors.Is(err, domain.ErrNotAuthor), errors.Is(err, domain.ErrNotRunOwner):
 		status = contractshttp.StatusForbidden
-	case errors.Is(err, app.ErrBoardNotFound), errors.Is(err, app.ErrTaskNotFound), errors.Is(err, app.ErrCommentNotFound):
+	case errors.Is(err, app.ErrBoardNotFound), errors.Is(err, app.ErrTaskNotFound), errors.Is(err, app.ErrCommentNotFound), errors.Is(err, app.ErrRunNotFound):
 		status = contractshttp.StatusNotFound
 	case errors.Is(err, app.ErrPositionTaken), errors.Is(err, app.ErrGuildArchived):
 		status = contractshttp.StatusConflict
@@ -361,6 +361,16 @@ func failure(ctx contractshttp.Context, err error) contractshttp.Response {
 		status = contractshttp.StatusNotFound
 	case errors.Is(err, domain.ErrInvalidCommentBody):
 		status, field = contractshttp.StatusUnprocessableEntity, "body"
+	case errors.Is(err, domain.ErrRunAlreadyEnded), errors.Is(err, app.ErrRunOnSubtask):
+		status = contractshttp.StatusUnprocessableEntity
+	case errors.Is(err, domain.ErrInvalidRunStatus):
+		status, field = contractshttp.StatusUnprocessableEntity, "status"
+	case errors.Is(err, domain.ErrInvalidRunStats):
+		status, field = contractshttp.StatusUnprocessableEntity, "cost_usd"
+	case errors.Is(err, domain.ErrInvalidRunAgent):
+		status, field = contractshttp.StatusUnprocessableEntity, "agent_name"
+	case errors.Is(err, domain.ErrInvalidRunDetails):
+		status, field = contractshttp.StatusUnprocessableEntity, "machine"
 	case errors.Is(err, domain.ErrNestedSubtask):
 		status = contractshttp.StatusUnprocessableEntity
 	}

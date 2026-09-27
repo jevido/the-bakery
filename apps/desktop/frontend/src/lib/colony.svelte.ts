@@ -189,6 +189,11 @@ export class Colony {
         else if (i >= 0) this.#reloadSoon()
         return
       }
+      case 'run.started':
+      case 'run.finished':
+        // Nothing on the board itself changes; an open task panel reloaded
+        // above.
+        return
       default:
         // task.created, task.updated, column.created, column.moved, and
         // types this version does not know.

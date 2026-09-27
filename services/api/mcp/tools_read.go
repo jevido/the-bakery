@@ -98,7 +98,23 @@ type getTaskOut struct {
 	Subtasks      []taskOut    `json:"subtasks" jsonschema:"in order"`
 	Comments      []commentOut `json:"comments" jsonschema:"the last 20 comments, oldest first"`
 	CommentsTotal int          `json:"comments_total"`
+	Runs          []runOut     `json:"runs" jsonschema:"the last 5 runs of agents on this task, newest first"`
 }
+
+type runOut struct {
+	ID         uint64     `json:"id"`
+	AgentName  string     `json:"agent_name"`
+	MemberName string     `json:"member_name" jsonschema:"who started the run"`
+	Branch     string     `json:"branch" jsonschema:"the git branch the agent worked on"`
+	Status     string     `json:"status" jsonschema:"running, succeeded, failed, stopped, or lost (still running after a day)"`
+	StartedAt  time.Time  `json:"started_at"`
+	EndedAt    *time.Time `json:"ended_at,omitempty"`
+	CostUSD    float64    `json:"cost_usd"`
+	Summary    string     `json:"summary,omitempty" jsonschema:"what the agent said it did"`
+}
+
+// recentRuns is how many runs get_task returns.
+const recentRuns = 5
 
 type listGuildsIn struct {
 	IncludeArchived bool `json:"include_archived,omitempty" jsonschema:"also list archived guilds"`
@@ -228,7 +244,7 @@ func addReadTools(s *sdk.Server) {
 		Name:  "get_task",
 		Title: "Get a task",
 		Description: "Returns one task in full: its description, its subtasks in order (with whether each is done), " +
-			"and its last 20 comments, oldest first. Read this before working on a task.",
+			"its last 20 comments, oldest first, and the last 5 runs of agents on it. Read this before working on a task.",
 		Annotations: readOnly,
 	}, func(ctx context.Context, _ *sdk.CallToolRequest, in getTaskIn) (*sdk.CallToolResult, getTaskOut, error) {
 		me, err := memberID(ctx)
@@ -245,9 +261,20 @@ func addReadTools(s *sdk.Server) {
 			r, _ := failed(err)
 			return r, getTaskOut{}, nil
 		}
-		out := getTaskOut{Task: taskOutOf(t), Subtasks: tasksOutOf(subtasks), Comments: []commentOut{}, CommentsTotal: len(cs)}
+		runs, err := boards.ListRuns(ctx, in.TaskID, me, recentRuns)
+		if err != nil {
+			r, _ := failed(err)
+			return r, getTaskOut{}, nil
+		}
+		out := getTaskOut{Task: taskOutOf(t), Subtasks: tasksOutOf(subtasks), Comments: []commentOut{}, CommentsTotal: len(cs), Runs: []runOut{}}
 		for _, c := range cs[max(0, len(cs)-recentComments):] {
 			out.Comments = append(out.Comments, commentOutOf(c))
+		}
+		for _, r := range runs {
+			out.Runs = append(out.Runs, runOut{
+				ID: r.ID, AgentName: r.AgentName, MemberName: r.MemberName, Branch: r.Branch, Status: r.Status,
+				StartedAt: r.StartedAt, EndedAt: r.EndedAt, CostUSD: r.CostUSD, Summary: r.Summary,
+			})
 		}
 		return nil, out, nil
 	})

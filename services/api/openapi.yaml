@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: The Bakery API
-  version: 1.4.0
+  version: 1.5.0
   description: >-
     The JSON API behind The Bakery: members, guilds, invites, boards, tasks,
     work types and agents. The desktop app (bearer token) and the website (session cookie)
@@ -68,6 +68,14 @@ tags:
       What happened to a task, newest first. The API writes it from what
       members (and Claude) do; nobody writes it directly. A subtask's
       entries appear on its parent.
+  - name: Runs
+    description: >-
+      Runs of agents on tasks. A run happens on a member's own machine (the
+      desktop app starts Claude CLI there); the API keeps its record so the
+      whole guild sees that a task is being worked and what came of it. A run
+      starts `running` and ends once, as `succeeded`, `failed` or `stopped`,
+      and only the member who started it ends it. A run still `running`
+      after 24 hours reads as `lost`.
   - name: Agents
     description: >-
       A member's roster of configured Claude CLI agents, each with its
@@ -1299,7 +1307,9 @@ paths:
         `position`), `task.deleted` (`task_id`), `column.created`
         (`column_id`, `name`, `position`), `column.updated` (`column_id`,
         `name`), `column.moved` (`column_id`, `position`), `column.deleted`
-        (`column_id`), `presence` (who has the board open: `state` is
+        (`column_id`), `run.started` (`run_id`, `task_id`, `agent_id`,
+        `agent_name`), `run.finished` (`run_id`, `task_id`, `agent_name`,
+        `status`, `cost_usd`), `presence` (who has the board open: `state` is
         `snapshot`, first on every stream, with the `present` streams, or
         `joined` / `left` with the stream's `conn_id`, `member_id` and, when
         joining, `display_name`; a stream that stops pinging counts as left
@@ -1654,6 +1664,101 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/NotMember" }
         "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/tasks/{task}/runs:
+    get:
+      tags: [Runs]
+      summary: List a task's runs
+      description: Newest first, for every member of the guild. Readable in an archived guild too.
+      parameters:
+        - $ref: "#/components/parameters/Task"
+      responses:
+        "200":
+          description: The runs.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [runs]
+                properties:
+                  runs:
+                    type: array
+                    items: { $ref: "#/components/schemas/Run" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Runs]
+      summary: Start a run
+      description: >-
+        Records that the calling member put one of their agents on a task on
+        the board (not a subtask). The agent is named by its id and its name
+        as it is now; boards keeps both as given.
+      parameters:
+        - $ref: "#/components/parameters/Task"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agent_id, agent_name]
+              properties:
+                agent_id: { type: integer }
+                agent_name: { type: string, minLength: 1, maxLength: 200 }
+                machine: { type: string, maxLength: 200, description: "Where it runs, e.g. the host name." }
+                branch: { type: string, maxLength: 200, example: bakery/12-wall-in-the-freezer }
+      responses:
+        "201":
+          description: The run, `running`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Archived" }
+        "422": { $ref: "#/components/responses/Invalid" }
+  /api/runs/{run}:
+    patch:
+      tags: [Runs]
+      summary: Finish a run
+      description: >-
+        Ends a running run with its outcome, once. Only the member who
+        started it can. The summary is kept to its first 4 000 characters.
+      parameters:
+        - name: run
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [succeeded, failed, stopped] }
+                cost_usd: { type: number, minimum: 0 }
+                turns: { type: integer, minimum: 0 }
+                summary: { type: string }
+                files_changed: { type: integer, minimum: 0 }
+                additions: { type: integer, minimum: 0 }
+                deletions: { type: integer, minimum: 0 }
+            example: { status: succeeded, cost_usd: 0.42, turns: 7, summary: "Walls up; cooler placed.", files_changed: 6, additions: 120, deletions: 14 }
+      responses:
+        "200":
+          description: The run, ended.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { description: Not the member who started the run, or not a member of the guild. }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { description: "The run has already ended, or a field needs fixing (`field` says which)." }
 
   /api/comments/{comment}:
     patch:
@@ -2068,7 +2173,7 @@ components:
         id: { type: integer }
         kind:
           type: string
-          enum: [created, edited, moved, commented, subtask_added, subtask_done]
+          enum: [created, edited, moved, commented, subtask_added, subtask_done, run_started, run_finished]
         actor_id: { type: integer, description: "The member who did it." }
         actor_name: { type: string }
         at: { type: string, format: date-time }
@@ -2078,7 +2183,35 @@ components:
             Depends on `kind`. created: `column`. edited: `title` and
             `description`, each true when it changed. moved: `from`, `to`
             (columns). commented: `comment_id`. subtask_added and
-            subtask_done: `subtask_id`, `title`.
+            subtask_done: `subtask_id`, `title`. run_started: `run_id`,
+            `agent_name`. run_finished: `run_id`, `agent_name`, `status`,
+            `cost_usd`.
+    Run:
+      type: object
+      required: [id, task_id, member_id, member_name, agent_id, agent_name, machine, branch, status, started_at, ended_at, cost_usd, turns, summary, files_changed, additions, deletions]
+      properties:
+        id: { type: integer }
+        task_id: { type: integer }
+        member_id: { type: integer, description: "Who started it." }
+        member_name: { type: string }
+        agent_id: { type: integer }
+        agent_name: { type: string, description: "The agent's name when the run started." }
+        machine: { type: string }
+        branch: { type: string }
+        status: { type: string, enum: [running, succeeded, failed, stopped, lost] }
+        started_at: { type: string, format: date-time }
+        ended_at: { type: [string, "null"], format: date-time }
+        cost_usd: { type: number }
+        turns: { type: integer }
+        summary: { type: string }
+        files_changed: { type: integer }
+        additions: { type: integer }
+        deletions: { type: integer }
+    RunResponse:
+      type: object
+      required: [run]
+      properties:
+        run: { $ref: "#/components/schemas/Run" }
     CommentResponse:
       type: object
       required: [comment]

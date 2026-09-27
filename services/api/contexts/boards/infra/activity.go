@@ -49,6 +49,12 @@ func (ActivityProjector) Handle(ctx context.Context, event any) {
 	case domain.SubtaskCompleted:
 		rec = activityRecord{TaskID: ev.ParentID, BoardID: ev.BoardID, ActorID: ev.ActorID, Kind: string(app.ActivitySubtaskDone)}
 		data = map[string]any{"subtask_id": ev.SubtaskID, "title": ev.Title}
+	case domain.RunStarted:
+		rec = activityRecord{TaskID: ev.TaskID, BoardID: ev.BoardID, ActorID: ev.ActorID, Kind: string(app.ActivityRunStarted)}
+		data = map[string]any{"run_id": ev.RunID, "agent_name": ev.AgentName}
+	case domain.RunFinished:
+		rec = activityRecord{TaskID: ev.TaskID, BoardID: ev.BoardID, ActorID: ev.ActorID, Kind: string(app.ActivityRunFinished)}
+		data = map[string]any{"run_id": ev.RunID, "agent_name": ev.AgentName, "status": string(ev.Status), "cost_usd": ev.CostUSD}
 	default:
 		return
 	}

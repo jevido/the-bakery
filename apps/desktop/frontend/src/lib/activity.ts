@@ -7,6 +7,12 @@ import type { Activity } from './bindings'
 const column = (c: unknown) => String(c ?? '')
 const quoted = (s: unknown) => `“${String(s ?? '')}”`
 
+const RUN_END: Record<string, string> = {
+  succeeded: 'finished working on this',
+  failed: 'could not finish this',
+  stopped: 'was stopped',
+}
+
 export function activityLine(e: Activity): string {
   const who = e.actor_name || 'Someone'
   const d = e.data ?? {}
@@ -25,6 +31,10 @@ export function activityLine(e: Activity): string {
       return `${who} added the subtask ${quoted(d.title)}`
     case 'subtask_done':
       return `${who} ticked off ${quoted(d.title)}`
+    case 'run_started':
+      return `${who} put ${d.agent_name ?? 'an agent'} to work on this`
+    case 'run_finished':
+      return `${d.agent_name ?? 'The agent'} ${RUN_END[String(d.status)] ?? 'finished'}`
     default:
       return `${who}: ${e.kind}`
   }

@@ -26,7 +26,7 @@ func (memberNames) DisplayNames(ctx context.Context, ids []uint64) (map[uint64]s
 }
 
 var service = app.NewService(
-	guilds.NewMemberships(), infra.Boards{}, infra.Tasks{}, infra.Comments{}, infra.ActivityLog{}, infra.PresenceLog{}, infra.WorkTypes{}, memberNames{},
+	guilds.NewMemberships(), infra.Boards{}, infra.Tasks{}, infra.Comments{}, infra.ActivityLog{}, infra.PresenceLog{}, infra.WorkTypes{}, infra.Runs{}, memberNames{},
 	app.NewDispatcher(infra.LogEvents{}.Handle, infra.ActivityProjector{}.Handle, infra.BoardEventPublisher{}.Handle),
 )
 
@@ -61,6 +61,9 @@ func Routes(r route.Router) {
 		r.Patch("/api/comments/{comment}", c.EditComment)
 		r.Delete("/api/comments/{comment}", c.DeleteComment)
 		r.Get("/api/tasks/{task}/activity", c.ListActivity)
+		r.Get("/api/tasks/{task}/runs", c.ListRuns)
+		r.Post("/api/tasks/{task}/runs", c.StartRun)
+		r.Patch("/api/runs/{run}", c.FinishRun)
 	})
 }
 
@@ -340,4 +343,33 @@ func CommentOnTask(ctx context.Context, taskID, memberID uint64, body string) (C
 // DeleteTask removes a task.
 func DeleteTask(ctx context.Context, taskID, memberID uint64) error {
 	return service.DeleteTask(ctx, taskID, memberID)
+}
+
+// Run is one run of an agent on a task, as the MCP server reads it.
+type Run struct {
+	ID         uint64
+	AgentName  string
+	MemberName string
+	Branch     string
+	Status     string
+	StartedAt  time.Time
+	EndedAt    *time.Time
+	CostUSD    float64
+	Summary    string
+}
+
+// ListRuns returns a task's latest runs, newest first; limit 0 means all.
+func ListRuns(ctx context.Context, taskID, memberID uint64, limit int) ([]Run, error) {
+	rs, err := service.ListRuns(ctx, taskID, memberID, limit)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Run, len(rs))
+	for i, r := range rs {
+		out[i] = Run{
+			ID: r.ID, AgentName: r.AgentName, MemberName: r.MemberName, Branch: r.Branch, Status: string(r.Status),
+			StartedAt: r.StartedAt, EndedAt: r.EndedAt, CostUSD: r.CostUSD, Summary: r.Summary,
+		}
+	}
+	return out, nil
 }

@@ -278,6 +278,7 @@ func (s *MCPTestSuite) TestTaskDetailTools() {
 	s.Equal(float64(1), out["task"].(map[string]any)["subtasks_done"])
 	s.Len(out["subtasks"], 3)
 	s.Len(out["comments"], 1)
+	s.Empty(out["runs"])
 
 	out, _ = s.call(cs, "get_board", map[string]any{"board_id": boardID})
 	card := out["columns"].([]any)[0].(map[string]any)["tasks"].([]any)

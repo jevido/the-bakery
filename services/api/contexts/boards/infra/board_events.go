@@ -63,6 +63,12 @@ func boardEventOf(event any) (ev BoardEvent, ok bool) {
 		return updated(e.ParentID, e.BoardID, e.ActorID, map[string]any{"subtask_id": e.SubtaskID})
 	case domain.SubtaskMoved:
 		return updated(e.ParentID, e.BoardID, e.ActorID, map[string]any{"subtask_id": e.SubtaskID})
+	case domain.RunStarted:
+		return BoardEvent{Type: "run.started", BoardID: e.BoardID, ActorID: e.ActorID,
+			Data: map[string]any{"run_id": e.RunID, "task_id": e.TaskID, "agent_id": e.AgentID, "agent_name": e.AgentName}}, true
+	case domain.RunFinished:
+		return BoardEvent{Type: "run.finished", BoardID: e.BoardID, ActorID: e.ActorID,
+			Data: map[string]any{"run_id": e.RunID, "task_id": e.TaskID, "agent_name": e.AgentName, "status": string(e.Status), "cost_usd": e.CostUSD}}, true
 	case domain.ColumnCreated:
 		return BoardEvent{Type: "column.created", BoardID: e.BoardID, ActorID: e.ActorID,
 			Data: map[string]any{"column_id": e.ColumnID, "name": e.Name, "position": e.Position}}, true

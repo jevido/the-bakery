@@ -82,15 +82,16 @@ type Service struct {
 	activity    ActivityLog
 	presence    PresenceLog
 	workTypes   WorkTypes
+	runs        Runs
 	names       MemberNames
 	events      Events
 	now         func() time.Time
 }
 
-func NewService(memberships Memberships, boards Boards, tasks Tasks, comments Comments, activity ActivityLog, presence PresenceLog, workTypes WorkTypes, names MemberNames, events Events) *Service {
+func NewService(memberships Memberships, boards Boards, tasks Tasks, comments Comments, activity ActivityLog, presence PresenceLog, workTypes WorkTypes, runs Runs, names MemberNames, events Events) *Service {
 	return &Service{
 		memberships: memberships, boards: boards, tasks: tasks, comments: comments,
-		activity: activity, presence: presence, workTypes: workTypes, names: names, events: events, now: time.Now,
+		activity: activity, presence: presence, workTypes: workTypes, runs: runs, names: names, events: events, now: time.Now,
 	}
 }
 

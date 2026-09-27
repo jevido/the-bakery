@@ -15,6 +15,8 @@ const (
 	ActivityCommented    ActivityKind = "commented"
 	ActivitySubtaskAdded ActivityKind = "subtask_added"
 	ActivitySubtaskDone  ActivityKind = "subtask_done"
+	ActivityRunStarted   ActivityKind = "run_started"
+	ActivityRunFinished  ActivityKind = "run_finished"
 )
 
 // Activity is one entry of a task's history. It is a projection of domain
