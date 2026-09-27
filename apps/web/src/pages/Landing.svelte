@@ -13,13 +13,13 @@
   <p class="lede">A workbench where your guild plans the work and, soon, Claude helps do it.</p>
   <div class="actions">
     <DownloadButton />
-    <a class="signup" href="/signup">Create an account</a>
+    <a class="signup" href="/signup">Sign up to found a guild</a>
   </div>
 </section>
 
 <div class="panels">
   <Panel title="Guilds">
-    <p>A guild is the people who work together. Everyone in it can do everything. No org charts, no permission screens.</p>
+    <p>A guild is the people who work together. Found one here on the website, send invite links, and everyone in it can do everything. No org charts, no permission screens.</p>
   </Panel>
   <Panel title="Boards">
     <p>Plan the work as tasks on boards: Backlog, To do, Doing, Done. Drag them along; the whole guild sees the same board.</p>
@@ -30,8 +30,8 @@
 </div>
 
 <p class="note">
-  Early days. The colony has a board and not much else. What is next is on
-  <a href="https://jevidocs.jevido.app/p/bakery/unfinished">Not built yet</a>.
+  Early days: the colony has guilds, boards and not much else yet. See
+  <a href="/how-it-works">how it works</a>, or <a href="/contributors">help build it</a>.
 </p>
 
 <style>

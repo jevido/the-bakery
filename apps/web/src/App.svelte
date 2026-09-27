@@ -10,12 +10,16 @@
   import NotFound from './pages/NotFound.svelte'
   import Handoff from './pages/Handoff.svelte'
   import Join from './pages/Join.svelte'
+  import HowItWorks from './pages/HowItWorks.svelte'
+  import Contributors from './pages/Contributors.svelte'
   import { router } from './lib/router.svelte'
   import { session } from './lib/session.svelte'
 
   const routes: Record<string, Component> = {
     '/': Landing,
     '/desktop': Desktop,
+    '/how-it-works': HowItWorks,
+    '/contributors': Contributors,
     '/signin': SignIn,
     '/signup': SignUp,
     '/admin': Admin,

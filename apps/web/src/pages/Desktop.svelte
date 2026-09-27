@@ -29,6 +29,10 @@
 </svelte:head>
 
 <h1>The desktop app</h1>
+<p class="intro">
+  Where the guild's work happens: open a guild's boards, add tasks and drag them from Backlog to Done. It
+  keeps you signed in and installs new releases itself. Built for Linux for now; it needs WebKitGTK 6.0 from your distribution. Windows and macOS come later.
+</p>
 
 {#if release === undefined}
   <p class="dim">Checking the supply depot…</p>
@@ -73,6 +77,12 @@
 {/if}
 
 <style>
+  .intro {
+    max-width: 44em;
+    margin: 0 0 12px;
+    color: var(--text-dim);
+  }
+
   h1 {
     margin: 0 0 8px;
     font-family: var(--font-display);

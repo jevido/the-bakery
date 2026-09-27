@@ -17,6 +17,7 @@
 
   const nav = [
     { href: '/', label: 'Home' },
+    { href: '/how-it-works', label: 'How it works' },
     { href: '/desktop', label: 'Desktop app' },
   ]
 </script>
@@ -49,7 +50,7 @@
   <footer>
     <span>The Bakery is open source.</span>
     <a href="https://github.com/jevido/the-bakery">Source on GitHub</a>
-    <a href="https://github.com/jevido/the-bakery/blob/main/CONTRIBUTING.md">Contributing</a>
+    <a href="/contributors">Contributing</a>
   </footer>
 </div>
 
