@@ -194,6 +194,113 @@ func (c *Controller) Leave(ctx contractshttp.Context) contractshttp.Response {
 	return ctx.Response().NoContent()
 }
 
+type inviteJSON struct {
+	ID        uint64     `json:"id"`
+	GuildID   uint64     `json:"guild_id"`
+	Code      string     `json:"code"`
+	CreatedBy uint64     `json:"created_by"`
+	ExpiresAt *time.Time `json:"expires_at"`
+	MaxUses   *int       `json:"max_uses"`
+	Uses      int        `json:"uses"`
+	// State is active, expired, used_up or revoked.
+	State string `json:"state"`
+}
+
+func inviteToJSON(inv domain.Invite) inviteJSON {
+	state := "active"
+	switch err := inv.Usable(time.Now()); {
+	case errors.Is(err, domain.ErrInviteRevoked):
+		state = "revoked"
+	case errors.Is(err, domain.ErrInviteExpired):
+		state = "expired"
+	case errors.Is(err, domain.ErrInviteUsedUp):
+		state = "used_up"
+	}
+	return inviteJSON{ID: inv.ID, GuildID: inv.GuildID, Code: inv.Code, CreatedBy: inv.CreatedBy,
+		ExpiresAt: inv.ExpiresAt, MaxUses: inv.MaxUses, Uses: inv.Uses, State: state}
+}
+
+type createInviteRequest struct {
+	ExpiresInHours *int `json:"expires_in_hours"`
+	MaxUses        *int `json:"max_uses"`
+}
+
+func (c *Controller) CreateInvite(ctx contractshttp.Context) contractshttp.Response {
+	guildID, ok := routeID(ctx, "guild")
+	if !ok {
+		return notFound(ctx)
+	}
+	var req createInviteRequest
+	if err := ctx.Request().Bind(&req); err != nil {
+		return badRequest(ctx)
+	}
+	var expiresIn *time.Duration
+	if req.ExpiresInHours != nil {
+		d := time.Duration(*req.ExpiresInHours) * time.Hour
+		expiresIn = &d
+	}
+	me, _ := c.memberID(ctx)
+	inv, err := c.service.CreateInvite(ctx.Context(), guildID, me, expiresIn, req.MaxUses)
+	if err != nil {
+		return failure(ctx, err)
+	}
+	return ctx.Response().Json(contractshttp.StatusCreated, contractshttp.Json{"invite": inviteToJSON(inv)})
+}
+
+func (c *Controller) ListInvites(ctx contractshttp.Context) contractshttp.Response {
+	guildID, ok := routeID(ctx, "guild")
+	if !ok {
+		return notFound(ctx)
+	}
+	me, _ := c.memberID(ctx)
+	invites, err := c.service.ListInvites(ctx.Context(), guildID, me)
+	if err != nil {
+		return failure(ctx, err)
+	}
+	out := make([]inviteJSON, len(invites))
+	for i, inv := range invites {
+		out[i] = inviteToJSON(inv)
+	}
+	return ctx.Response().Success().Json(contractshttp.Json{"invites": out})
+}
+
+func (c *Controller) RevokeInvite(ctx contractshttp.Context) contractshttp.Response {
+	guildID, ok := routeID(ctx, "guild")
+	inviteID, ok2 := routeID(ctx, "invite")
+	if !ok || !ok2 {
+		return notFound(ctx)
+	}
+	me, _ := c.memberID(ctx)
+	if err := c.service.RevokeInvite(ctx.Context(), guildID, inviteID, me); err != nil {
+		return failure(ctx, err)
+	}
+	return ctx.Response().NoContent()
+}
+
+// ShowInvite is public: anyone holding the link sees the guild's name and
+// size, and whether the invite still works.
+func (c *Controller) ShowInvite(ctx contractshttp.Context) contractshttp.Response {
+	info, err := c.service.Invite(ctx.Context(), ctx.Request().Route("code"))
+	if err != nil {
+		return failure(ctx, err)
+	}
+	body := contractshttp.Json{"guild_name": info.GuildName, "member_count": info.MemberCount, "valid": info.Problem == nil}
+	if info.Problem != nil {
+		body["problem"] = info.Problem.Error()
+	}
+	return ctx.Response().Success().Json(contractshttp.Json{"invite": body})
+}
+
+// AcceptInvite makes the signed-in member a member of the invite's guild.
+func (c *Controller) AcceptInvite(ctx contractshttp.Context) contractshttp.Response {
+	me, _ := c.memberID(ctx)
+	g, err := c.service.AcceptInvite(ctx.Context(), ctx.Request().Route("code"), me)
+	if err != nil {
+		return failure(ctx, err)
+	}
+	return ctx.Response().Success().Json(contractshttp.Json{"guild": toJSON(g)})
+}
+
 func routeID(ctx contractshttp.Context, key string) (uint64, bool) {
 	id, err := strconv.ParseUint(ctx.Request().Route(key), 10, 64)
 	return id, err == nil
@@ -212,6 +319,12 @@ func failure(ctx contractshttp.Context, err error) contractshttp.Response {
 		status = contractshttp.StatusConflict
 	case errors.Is(err, domain.ErrLastMember):
 		status = contractshttp.StatusUnprocessableEntity
+	case errors.Is(err, app.ErrInviteNotFound):
+		status = contractshttp.StatusNotFound
+	case errors.Is(err, domain.ErrInviteRevoked), errors.Is(err, domain.ErrInviteExpired), errors.Is(err, domain.ErrInviteUsedUp):
+		status = contractshttp.StatusGone
+	case errors.Is(err, domain.ErrInvalidInviteRule):
+		status, field = contractshttp.StatusUnprocessableEntity, "expires_in_hours"
 	case errors.Is(err, domain.ErrInvalidName):
 		status, field = contractshttp.StatusUnprocessableEntity, "name"
 	case errors.Is(err, app.ErrUnknownEmail):

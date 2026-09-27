@@ -6,7 +6,12 @@ package guilds
 import (
 	"context"
 
+	contractshttp "github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/contracts/route"
+	"github.com/goravel/framework/http/limit"
+	"github.com/goravel/framework/http/middleware"
+
+	"github.com/jevido/the-bakery/services/api/app/facades"
 
 	"github.com/jevido/the-bakery/services/api/contexts/guilds/app"
 	"github.com/jevido/the-bakery/services/api/contexts/guilds/domain"
@@ -35,7 +40,7 @@ func (memberLookup) DisplayNames(ctx context.Context, ids []uint64) (map[uint64]
 	return identity.DisplayNames(ctx, ids)
 }
 
-var service = app.NewService(infra.Guilds{}, memberLookup{}, infra.LogEvents{})
+var service = app.NewService(infra.Guilds{}, infra.Invites{}, infra.Codes{}, memberLookup{}, infra.LogEvents{})
 
 // Routes registers the guild routes, all behind identity.RequireMember.
 func Routes(r route.Router) {
@@ -51,7 +56,18 @@ func Routes(r route.Router) {
 		r.Post("/api/guilds/{guild}/members", c.AddMember)
 		r.Delete("/api/guilds/{guild}/members/{member}", c.RemoveMember)
 		r.Post("/api/guilds/{guild}/leave", c.Leave)
+		r.Get("/api/guilds/{guild}/invites", c.ListInvites)
+		r.Post("/api/guilds/{guild}/invites", c.CreateInvite)
+		r.Delete("/api/guilds/{guild}/invites/{invite}", c.RevokeInvite)
 	})
+
+	// Invite codes can be looked up without signing in, so both code routes
+	// are rate-limited per client against guessing.
+	facades.RateLimiter().For("invite-codes", func(ctx contractshttp.Context) contractshttp.Limit {
+		return limit.PerMinute(30)
+	})
+	r.Middleware(middleware.Throttle("invite-codes")).Get("/api/invites/{code}", c.ShowInvite)
+	r.Middleware(middleware.Throttle("invite-codes"), identity.RequireMember).Post("/api/invites/{code}/accept", c.AcceptInvite)
 }
 
 // SeedGuild makes sure a guild with this name exists (founded by the first

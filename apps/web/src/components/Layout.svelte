@@ -5,6 +5,11 @@
 
   let { children }: { children: Snippet } = $props()
 
+  // Signing in from a page (an invite, say) comes back to it.
+  let back = $derived(
+    ['/', '/signin', '/signup'].includes(router.path) ? '' : `?next=${encodeURIComponent(router.path)}`,
+  )
+
   async function signOut() {
     await session.signOut()
     router.navigate('/')
@@ -31,8 +36,8 @@
         <a href="/admin">{session.member.display_name}</a>
         <button class="link" onclick={signOut}>Sign out</button>
       {:else if session.member === null}
-        <a href="/signin">Sign in</a>
-        <a class="cta" href="/signup">Sign up</a>
+        <a href={`/signin${back}`}>Sign in</a>
+        <a class="cta" href={`/signup${back}`}>Sign up</a>
       {/if}
     </div>
   </header>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Panel, Button, TextField } from '@bakery/ui'
   import Confirm from '../components/Confirm.svelte'
+  import InvitesTab from '../components/InvitesTab.svelte'
   import { guilds, joinedOn, type Guild, type GuildMember } from '../lib/guilds'
   import { session } from '../lib/session.svelte'
   import { router } from '../lib/router.svelte'
@@ -154,9 +155,7 @@
       </table>
     </Panel>
   {:else if tab === 'invites'}
-    <Panel title="Invites">
-      <p class="dim">Invite links arrive with the next supply drop.</p>
-    </Panel>
+    <InvitesTab guildId={id} archived={guild.archived} />
   {:else}
     <Panel title="Settings">
       {#if guild.archived}

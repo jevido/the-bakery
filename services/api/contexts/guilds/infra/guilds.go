@@ -37,6 +37,8 @@ type membershipRecord struct {
 
 func (membershipRecord) TableName() string { return "guild_memberships" }
 
+var errRecordNotFound = frameworkerrors.OrmRecordNotFound
+
 func query(ctx context.Context) contractsorm.Query {
 	return facades.Orm().WithContext(ctx).Query()
 }

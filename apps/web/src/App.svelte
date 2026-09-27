@@ -9,6 +9,7 @@
   import AdminGuild from './pages/AdminGuild.svelte'
   import NotFound from './pages/NotFound.svelte'
   import Handoff from './pages/Handoff.svelte'
+  import Join from './pages/Join.svelte'
   import { router } from './lib/router.svelte'
   import { session } from './lib/session.svelte'
 
@@ -28,6 +29,8 @@
   let Page = $derived(routes[path] ?? NotFound)
   // /admin/guilds/{id}
   let guildId = $derived(Number(path.match(/^\/admin\/guilds\/(\d+)$/)?.[1] ?? 0))
+  // /join/{code}
+  let joinCode = $derived(path.match(/^\/join\/([A-Za-z0-9]+)$/)?.[1] ?? '')
 
   // Signed-out visitors of /admin go to sign in and come back afterwards.
   $effect(() => {
@@ -42,6 +45,8 @@
 <Layout>
   {#if needsMember && !session.member}
     <p class="dim">Checking your papers…</p>
+  {:else if joinCode}
+    {#key joinCode}<Join code={joinCode} />{/key}
   {:else if guildId}
     {#key guildId}<AdminGuild id={guildId} />{/key}
   {:else}

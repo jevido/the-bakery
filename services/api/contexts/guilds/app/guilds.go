@@ -63,12 +63,14 @@ type Events interface {
 
 type Service struct {
 	guilds  Guilds
+	invites Invites
+	codes   Codes
 	members MemberLookup
 	events  Events
 }
 
-func NewService(guilds Guilds, members MemberLookup, events Events) *Service {
-	return &Service{guilds: guilds, members: members, events: events}
+func NewService(guilds Guilds, invites Invites, codes Codes, members MemberLookup, events Events) *Service {
+	return &Service{guilds: guilds, invites: invites, codes: codes, members: members, events: events}
 }
 
 func (s *Service) FoundGuild(ctx context.Context, name string, founderID uint64) (domain.Guild, error) {

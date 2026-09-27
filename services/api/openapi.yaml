@@ -34,6 +34,11 @@ tags:
       Found, list, rename, archive and restore guilds; list, add and remove
       members; leave. An archived guild is hidden from the list and
       read-only (409 on changes) until someone restores it.
+  - name: Invites
+    description: >-
+      Invite links: `<website>/join/<code>`. Members make, list and withdraw
+      them; anyone holding a code can look it up; a signed-in member accepts
+      it to join. The two code routes allow 30 requests a minute per client.
   - name: Boards
     description: >-
       A guild's boards. Answers 403 when you are not a member of the board's
@@ -517,6 +522,124 @@ paths:
         "409": { $ref: "#/components/responses/Archived" }
         "422": { $ref: "#/components/responses/LastMember" }
 
+  /api/guilds/{guild}/invites:
+    get:
+      tags: [Invites]
+      summary: List a guild's invites
+      description: Newest first, with their state.
+      parameters:
+        - $ref: "#/components/parameters/Guild"
+      responses:
+        "200":
+          description: The invites.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invites]
+                properties:
+                  invites:
+                    type: array
+                    items: { $ref: "#/components/schemas/Invite" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+    post:
+      tags: [Invites]
+      summary: Make an invite link
+      parameters:
+        - $ref: "#/components/parameters/Guild"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expires_in_hours: { type: [integer, "null"], minimum: 1, maximum: 720, description: "Leave out or null for no end." }
+                max_uses: { type: [integer, "null"], minimum: 1, description: "Leave out or null for no limit." }
+            example: { expires_in_hours: 168, max_uses: 10 }
+      responses:
+        "201":
+          description: The invite. Its link is `<website>/join/<code>`.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invite]
+                properties:
+                  invite: { $ref: "#/components/schemas/Invite" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "409": { $ref: "#/components/responses/Archived" }
+        "422": { $ref: "#/components/responses/Invalid" }
+
+  /api/guilds/{guild}/invites/{invite}:
+    delete:
+      tags: [Invites]
+      summary: Withdraw an invite
+      parameters:
+        - $ref: "#/components/parameters/Guild"
+        - name: invite
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "204":
+          description: Withdrawn.
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/NotMember" }
+        "404": { $ref: "#/components/responses/InviteNotFound" }
+
+  /api/invites/{code}:
+    get:
+      tags: [Invites]
+      summary: Look up an invite
+      description: Public. Shows which guild the code is for and whether it still works.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Code"
+      responses:
+        "200":
+          description: The invite.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invite]
+                properties:
+                  invite:
+                    type: object
+                    required: [guild_name, member_count, valid]
+                    properties:
+                      guild_name: { type: string }
+                      member_count: { type: integer }
+                      valid: { type: boolean }
+                      problem: { type: string, description: "Why it does not work, when valid is false." }
+        "404": { $ref: "#/components/responses/InviteNotFound" }
+        "429": { $ref: "#/components/responses/TooMany" }
+
+  /api/invites/{code}/accept:
+    post:
+      tags: [Invites]
+      summary: Accept an invite
+      description: >-
+        Makes the signed-in member a member of the invite's guild. Someone
+        already in the guild gets 200 and the invite is not used up.
+      parameters:
+        - $ref: "#/components/parameters/Code"
+      responses:
+        "200": { $ref: "#/components/responses/GuildOK" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/InviteNotFound" }
+        "409": { $ref: "#/components/responses/Archived" }
+        "410":
+          description: The invite was withdrawn, has expired or has been used up.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: this invite has expired }
+        "429": { $ref: "#/components/responses/TooMany" }
+
   /api/guilds/{guild}/boards:
     get:
       tags: [Boards]
@@ -741,6 +864,11 @@ components:
       in: header
       required: true
       schema: { type: string, enum: ["1"] }
+    Code:
+      name: code
+      in: path
+      required: true
+      schema: { type: string }
     Guild:
       name: guild
       in: path
@@ -758,6 +886,14 @@ components:
       schema: { type: string }
 
   responses:
+    InviteNotFound:
+      description: No invite has this code (or id in this guild).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { error: this invite link does not exist }
+    TooMany:
+      description: More than 30 requests a minute from this client; wait and try again.
     MissingWebHeader:
       description: "A cookie request that changes something came without `X-Bakery-Web: 1`."
       content:
@@ -833,6 +969,18 @@ components:
         id: { type: integer }
         email: { type: string, format: email }
         display_name: { type: string }
+    Invite:
+      type: object
+      required: [id, guild_id, code, created_by, expires_at, max_uses, uses, state]
+      properties:
+        id: { type: integer }
+        guild_id: { type: integer }
+        code: { type: string }
+        created_by: { type: integer }
+        expires_at: { type: [string, "null"], format: date-time }
+        max_uses: { type: [integer, "null"] }
+        uses: { type: integer }
+        state: { type: string, enum: [active, expired, used_up, revoked] }
     MemberResponse:
       type: object
       required: [member]
