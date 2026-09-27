@@ -59,6 +59,15 @@ directory and logs a warning.
   files in `testdata/`; `go test ./internal/workshop -update` rewrites them).
   `WorkshopService.PrintRunCommand` prepares a run without starting it and
   returns the command to paste into a terminal, for checking a board's setup.
+  `WorkshopService.StartRun` puts an agent to work: it checks the board's
+  run limit, prepares the run, records it with the API (`POST
+  /api/tasks/{task}/runs`) and starts `claude` (`BAKERY_CLAUDE` overrides the
+  binary) in its own process group (`process.go`). Every output line goes to
+  `runs/<id>/stream.jsonl`, stderr to `stderr.log`; `stream.go` decodes the
+  lines into run events, sent to the frontend as the Wails event
+  `run:<id>`, with the list of runs as `workshop:runs`. `StopRun` interrupts
+  the run and kills it after 5 seconds; the run's end is recorded with
+  `PATCH /api/runs/{run}`. Runs still going when the app quits are stopped.
 - `internal/session/runner.go` — the runner token: a personal token the app
   makes for itself (`desktop runner (<host>)`) so Claude can use the Bakery
   MCP server as the member during a run. Kept in its own keyring entry,

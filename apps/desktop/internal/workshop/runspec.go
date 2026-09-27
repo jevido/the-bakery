@@ -75,9 +75,11 @@ type RunInput struct {
 }
 
 // bakeryTools are the Bakery MCP tools a run may use without asking: read
-// the task and its board, tick subtasks, add subtasks and comments, edit the
-// task. Moving and deleting tasks stay with the member.
+// guilds, boards and the task, tick subtasks, add subtasks and comments,
+// edit the task. Moving and deleting tasks stay with the member.
 var bakeryTools = []string{
+	"mcp__bakery__list_guilds",
+	"mcp__bakery__list_boards",
 	"mcp__bakery__get_task",
 	"mcp__bakery__get_board",
 	"mcp__bakery__list_work_types",

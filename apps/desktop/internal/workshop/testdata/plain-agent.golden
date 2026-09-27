@@ -23,6 +23,8 @@ You are Vera.
 project,local
 --strict-mcp-config
 --allowedTools
+mcp__bakery__list_guilds
+mcp__bakery__list_boards
 mcp__bakery__get_task
 mcp__bakery__get_board
 mcp__bakery__list_work_types
