@@ -11,6 +11,11 @@ depend on each other.
 | [guilds](contexts/guilds/README.md) | supporting | `services/api` (`contexts/guilds`) | guilds, memberships |
 | [identity](contexts/identity/README.md) | generic | `services/api` (`contexts/identity`) | members, credentials, tokens |
 
+`services/api` also hosts the **MCP server** (module `mcp/`): an *open host
+service* over guilds and boards for Claude and other MCP clients. It has no
+domain of its own; each MCP tool calls a use case those contexts publish, with
+the same rules as REST.
+
 `apps/desktop` and `apps/web` host no context: they are clients of the API
 and hold no domain data of their own.
 
@@ -28,6 +33,7 @@ adapt to.
 | -------- | ---------- | ------- | ------- |
 | identity | guilds | customer/supplier | The authenticated member id (`identity.MemberID(ctx)`) and a lookup of a member id by email, translated into a plain member id inside guilds |
 | identity | boards | customer/supplier | The authenticated member id (`identity.MemberID(ctx)`) |
+| guilds, boards | MCP server (`mcp/`) | open host service | The contexts' published Go functions (the same use cases REST calls); identity's `VerifyPersonalToken` for sign-in |
 | guilds | boards | customer/supplier | The `guilds.Memberships` Go interface: `IsMember(ctx, guildID, memberID) (bool, error)`. Boards never read the guild tables. |
 
 Patterns: *customer/supplier*, *conformist*, *anticorruption layer*,

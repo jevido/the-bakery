@@ -16,6 +16,7 @@ document; list them here when people outside the context use them too.
 | Token | identity | The JWT (valid 30 days) a Member receives on register or login and sends as `Authorization: Bearer ...` to prove who they are. | API key |
 | Operator | identity | The platform owner, and anyone they appoint, who uses the moderation console. Not a guild role and not a Member account. | Guild member, admin |
 | Web session | identity | A sign-in from the website, carried in an httpOnly cookie that page scripts cannot read. The desktop app keeps its bearer token instead. | Token (the desktop's) |
+| Personal token | identity | A long-lived secret a member creates for a tool (Claude, a script): named, shown once, stored only as a hash, revocable one at a time. Looks like `bky_…`. | Token (the desktop's session JWT), API key |
 | Handoff code | identity | A one-time code the desktop app gets for its signed-in member and opens the website with, so the website signs them in too. Valid for 60 seconds, usable once; the website trades it for a web session. | Token (never put in a URL) |
 | Clock out | identity | What the desktop app calls logging out: the token is forgotten on this machine. | |
 | Guild | guilds | The top-level group people work in together. A Member can belong to many guilds. | Workspace, org, organisation, team (never used) |
@@ -31,3 +32,4 @@ document; list them here when people outside the context use them too.
 | Position | boards | A sortable key that orders tasks within one column of a board. Moving a task changes only its own position. | Index, rank number |
 | Release | platform | A tagged desktop build, `desktop-vX.Y.Z`, published as a GitHub release with signed artifacts and an update manifest. | Deploy (that is the API and website going out) |
 | Environment | platform | Where The Bakery runs: `dev` (local), `next` (pre-production) or `prod`. | Stage, instance |
+| MCP tool | api (published language) | One operation Claude can call on `/mcp`, such as `list_guilds` or `move_task`: a thin wrapper over an existing use case, with the same rules as the REST API. | Endpoint (REST), agent |
