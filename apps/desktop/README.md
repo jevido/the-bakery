@@ -58,7 +58,8 @@ running window.
 ## Releases
 
 A tag `desktop-vX.Y.Z` runs `.github/workflows/desktop-release.yml`: it
-builds on Linux, Windows and macOS with the version and the prod API URL
+builds on Linux (Windows and macOS builds are left out for now; their Wails
+build tasks are still in `build/`) with the version and the prod API URL
 (`https://api.bakery.jevido.app`) set through ldflags, and publishes a GitHub
 release with:
 
@@ -66,12 +67,9 @@ release with:
 | ---- | --- |
 | `the-bakery-X.Y.Z-linux-x86_64.AppImage` | Linux install and updates; needs the system's GTK 4 and WebKitGTK 6.0 (`webkitgtk-6.0` on Arch and Fedora, `libwebkitgtk-6.0-4` on Debian and Ubuntu) |
 | `the-bakery_X.Y.Z_amd64.deb` | Linux install via apt/dpkg |
-| `the-bakery-X.Y.Z-windows-amd64-installer.exe` | Windows install (NSIS) |
-| `the-bakery-X.Y.Z-windows-amd64.zip` | Windows updates (the exe) |
-| `the-bakery-X.Y.Z-darwin-universal.zip` | macOS install and updates (unsigned `.app`) |
 | `manifest.json` | the signed Wails update manifest |
 
-Update files are signed with an Ed25519 key. The private key is the
+The update file is signed with an Ed25519 key. The private key is the
 `BAKERY_UPDATE_KEY` Actions secret (the maintainer keeps a copy outside the
 repo); the public key is `build/updater.pub`, which the app checks updates
 against. A local package: `task desktop:package` (Linux: AppImage, deb, rpm,

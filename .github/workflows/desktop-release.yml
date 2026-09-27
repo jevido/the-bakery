@@ -1,6 +1,7 @@
-# Desktop release: a tag desktop-vX.Y.Z builds the app for Linux, Windows
-# and macOS, signs the update files and publishes a GitHub release with a
-# Wails update manifest. The running app reads that manifest to update
+# Desktop release: a tag desktop-vX.Y.Z builds the app for Linux, signs the
+# update file and publishes a GitHub release with a Wails update manifest.
+# Windows and macOS builds are left out for now; the Wails build tasks for
+# them are still in apps/desktop/build/. The running app reads that manifest to update
 # itself (apps/desktop, "self-update").
 name: desktop-release
 
@@ -30,10 +31,6 @@ jobs:
         include:
           - os: ubuntu-24.04
             platform: linux
-          - os: windows-latest
-            platform: windows
-          - os: macos-latest
-            platform: darwin
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -56,12 +53,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev file
 
-      - name: Windows build dependencies
-        if: matrix.platform == 'windows'
-        run: |
-          choco install nsis -y --no-progress
-          echo "C:\Program Files (x86)\NSIS" >> "$GITHUB_PATH"
-
       - name: Install wails3
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}
 
@@ -83,8 +74,6 @@ jobs:
           LDFLAGS="-X main.version=$VERSION -X main.defaultAPIURL=$API_URL"
           case "${{ matrix.platform }}" in
             linux)   wails3 task linux:package EXTRA_LDFLAGS="$LDFLAGS" ;;
-            windows) wails3 task windows:package EXTRA_LDFLAGS="$LDFLAGS" ;;
-            darwin)  wails3 task darwin:package:universal EXTRA_LDFLAGS="$LDFLAGS" ;;
           esac
 
       - name: Collect release files
@@ -97,15 +86,6 @@ jobs:
               # The AppImage installs and updates; the deb is for apt users.
               cp bin/*.AppImage "dist/$N-linux-x86_64.AppImage"
               cp bin/the-bakery.deb "dist/the-bakery_${VERSION}_amd64.deb"
-              ;;
-            windows)
-              # The installer is for first installs; the zip holds the exe
-              # the updater swaps in.
-              cp "$(find . -name '*installer*.exe' -not -path './dist/*' | head -1)" "dist/$N-windows-amd64-installer.exe"
-              7z a "dist/$N-windows-amd64.zip" ./bin/the-bakery.exe
-              ;;
-            darwin)
-              ditto -c -k --keepParent bin/the-bakery.app "dist/$N-darwin-universal.zip"
               ;;
           esac
           ls -la dist
@@ -166,7 +146,7 @@ jobs:
             -key "$RUNNER_TEMP/updater.key" \
             -url-prefix "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/" \
             -output manifest.json \
-            ./*.AppImage ./*-windows-amd64.zip ./*-darwin-universal.zip
+            ./*.AppImage
           wails3 updater verify -manifest manifest.json -publickey ../apps/desktop/build/updater.pub
           rm "$RUNNER_TEMP/updater.key"
           ls -la

@@ -6,10 +6,13 @@
   latestRelease().then((r) => (release = r))
 
   const detected = detectOS(navigator.userAgent)
-  // The visitor's OS first, then the others.
-  const order: OS[] = [detected, ...(['linux', 'windows', 'macos'] as OS[]).filter((o) => o !== detected)].filter(
-    (o): o is OS => o !== null,
+  // The visitor's OS first, then the others; only systems with a build.
+  let order = $derived(
+    [detected, ...(['linux', 'windows', 'macos'] as OS[]).filter((o) => o !== detected)].filter(
+      (o): o is OS => o !== null && (release?.assets[o].length ?? 0) > 0,
+    ),
   )
+  let missingForVisitor = $derived(detected !== null && release != null && release.assets[detected].length === 0)
 
   function size(bytes: number): string {
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`
@@ -36,18 +39,19 @@
   </Panel>
 {:else}
   <p class="dim">Version {release.version}, released {date(release.publishedAt)}.</p>
+  {#if missingForVisitor && detected}
+    <Panel title={`No ${OS_NAMES[detected]} build yet`}>
+      <p>The Bakery is built for Linux for now; Windows and macOS builds come later.</p>
+    </Panel>
+  {/if}
   <div class="downloads">
     {#each order as os (os)}
       <Panel title={os === detected ? `${OS_NAMES[os]} · your system` : OS_NAMES[os]}>
-        {#if release.assets[os].length === 0}
-          <p class="dim">No build for {OS_NAMES[os]} in this release.</p>
-        {:else}
-          <ul>
-            {#each release.assets[os] as asset (asset.name)}
-              <li><a href={asset.url}>{asset.name}</a> <span class="dim">{size(asset.size)}</span></li>
-            {/each}
-          </ul>
-        {/if}
+        <ul>
+          {#each release.assets[os] as asset (asset.name)}
+            <li><a href={asset.url}>{asset.name}</a> <span class="dim">{size(asset.size)}</span></li>
+          {/each}
+        </ul>
         {#if os === 'linux' && release.assets.linux.length > 0}
           <p class="dim small">
             Needs WebKitGTK 6.0 from your distribution: <code>webkitgtk-6.0</code> on Arch and Fedora,
