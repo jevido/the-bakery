@@ -3,10 +3,17 @@
   import type { OpenTask } from '../lib/task.svelte'
   import { renderMarkdown, openLinksOutside } from '../lib/markdown'
   import { activityLine, timeAgo, fullTime } from '../lib/activity'
+  import type { WorkType } from '../lib/bindings'
 
   // me is the signed-in member's id: only their own comments can be changed.
   // column is the name of the task's column, for the title bar.
-  let { open, me, column, onclose }: { open: OpenTask; me: number; column: string; onclose: () => void } = $props()
+  let {
+    open,
+    me,
+    column,
+    workTypes = [],
+    onclose,
+  }: { open: OpenTask; me: number; column: string; workTypes?: WorkType[]; onclose: () => void } = $props()
 
   const TABS = [
     { id: 'comments', label: 'Comments' },
@@ -214,6 +221,16 @@
         />
       </div>
 
+      {#if !task.parent_id}
+        <label class="work-type">
+          <span>Work type</span>
+          <select value={task.work_type ?? ''} onchange={(e) => open.setWorkType((e.currentTarget as HTMLSelectElement).value)}>
+            <option value="">None</option>
+            {#each workTypes as w (w.key)}<option value={w.key}>{w.name}</option>{/each}
+          </select>
+        </label>
+      {/if}
+
       <section>
         <header>
           <h3>Description</h3>
@@ -411,6 +428,24 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+  }
+
+  .work-type {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .work-type select {
+    font: inherit;
+    font-size: 13px;
+    color: var(--text);
+    padding: 3px 6px;
+    background: var(--panel-inset);
+    border: 1px solid var(--frame-dim);
+    border-radius: var(--radius);
   }
 
   section header {

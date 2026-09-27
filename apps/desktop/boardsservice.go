@@ -95,3 +95,36 @@ func (s *BoardsService) DeleteColumn(ctx context.Context, columnID uint64) error
 	_, err := call(s.session, func(t string) (struct{}, error) { return struct{}{}, s.client.DeleteColumn(ctx, t, columnID) })
 	return err
 }
+
+func (s *BoardsService) WorkTypes(ctx context.Context, guildID uint64) ([]api.WorkType, error) {
+	wts, err := call(s.session, func(t string) ([]api.WorkType, error) { return s.client.ListWorkTypes(ctx, t, guildID) })
+	if wts == nil {
+		wts = []api.WorkType{}
+	}
+	return wts, err
+}
+
+func (s *BoardsService) AddWorkType(ctx context.Context, guildID uint64, key, name string) (api.WorkType, error) {
+	return call(s.session, func(t string) (api.WorkType, error) { return s.client.AddWorkType(ctx, t, guildID, key, name) })
+}
+
+func (s *BoardsService) RenameWorkType(ctx context.Context, guildID uint64, key, name string) (api.WorkType, error) {
+	return call(s.session, func(t string) (api.WorkType, error) {
+		return s.client.UpdateWorkType(ctx, t, guildID, key, &name, nil)
+	})
+}
+
+// MoveWorkType puts a work type at position (from 0) in the guild's list.
+func (s *BoardsService) MoveWorkType(ctx context.Context, guildID uint64, key string, position int) (api.WorkType, error) {
+	return call(s.session, func(t string) (api.WorkType, error) {
+		return s.client.UpdateWorkType(ctx, t, guildID, key, nil, &position)
+	})
+}
+
+// DeleteWorkType deletes a work type no task has; the API refuses one in use.
+func (s *BoardsService) DeleteWorkType(ctx context.Context, guildID uint64, key string) error {
+	_, err := call(s.session, func(t string) (struct{}, error) {
+		return struct{}{}, s.client.DeleteWorkType(ctx, t, guildID, key)
+	})
+	return err
+}

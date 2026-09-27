@@ -68,12 +68,18 @@ directory and logs a warning.
   builds every sentence, `timeAgo` the relative times.
 - `frontend/src/screens/` — full screens (`Login`, `Colony`).
 - `frontend/src/components/AgentsScreen.svelte` — the Agents screen (the
-  sidebar switches between Boards and Agents): the roster, the open agent's
+  sidebar switches between Boards, Agents and Work): the roster, the open agent's
   `CharacterCard.svelte` (name, title, backstory, traits, model, permission
   mode, allowed tools, skills with import from `~/.claude/skills` or a folder,
   sharing per guild, delete), and a Recruit tab for the guild's shared agents.
   `Portrait.svelte` draws a stand-in portrait from the agent's portrait seed;
   `lib/roster.svelte.ts` holds the screen's state.
+- `frontend/src/components/WorkTab.svelte` — the Work screen: agents against
+  the open guild's work types, each cell a work priority (click raises it,
+  right-click lowers it, saved to `agent.toml` a second after the last click),
+  and the work type editor (add, rename, drag to reorder, delete). Task cards
+  show their work type as a chip (`lib/worktype.ts` picks its colour); the
+  task panel sets it.
 - `frontend/src/components/ColumnHeader.svelte` — a column's title bar: drag
   handle, name (double-click to rename), task count, and a menu whose Delete is
   off for a column with tasks or the last one.

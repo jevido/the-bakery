@@ -211,13 +211,15 @@ func (s *AgentsService) Status() AgentSyncStatus {
 
 // AgentSummary is one agent of the roster as its folder holds it.
 type AgentSummary struct {
-	Slug     string           `json:"slug"`
-	Name     string           `json:"name"`
-	Title    string           `json:"title"`
-	Seed     string           `json:"portrait_seed"`
-	Skills   []api.AgentSkill `json:"skills"`
-	Conflict bool             `json:"conflict"`
-	Synced   bool             `json:"synced"`
+	Slug  string `json:"slug"`
+	Name  string `json:"name"`
+	Title string `json:"title"`
+	Seed  string `json:"portrait_seed"`
+	// WorkPriorities maps a work type key to 1 (first) … 4 (last).
+	WorkPriorities map[string]int   `json:"work_priorities"`
+	Skills         []api.AgentSkill `json:"skills"`
+	Conflict       bool             `json:"conflict"`
+	Synced         bool             `json:"synced"`
 }
 
 // List reads the roster from the agent folders.
@@ -243,7 +245,12 @@ func (s *AgentsService) List() ([]AgentSummary, error) {
 		if err != nil {
 			return nil, err
 		}
-		sum := AgentSummary{Slug: f.Slug, Name: f.Manifest.Name, Title: f.Manifest.Title, Seed: f.Manifest.PortraitSeed, Skills: []api.AgentSkill{},
+		priorities := f.Manifest.WorkPriorities
+		if priorities == nil {
+			priorities = map[string]int{}
+		}
+		sum := AgentSummary{Slug: f.Slug, Name: f.Manifest.Name, Title: f.Manifest.Title, Seed: f.Manifest.PortraitSeed,
+			WorkPriorities: priorities, Skills: []api.AgentSkill{},
 			Conflict: inConflict[f.Slug], Synced: f.Sync != nil && !f.Changed()}
 		for path, content := range f.Files {
 			if filepath.Base(path) == "SKILL.md" && filepath.Dir(path) != "." && filepath.Dir(filepath.Dir(path)) == "." {
@@ -570,4 +577,32 @@ func (s *AgentsService) PullOrigin(ctx context.Context, slug string) error {
 		s.Trigger()
 	}
 	return err
+}
+
+// SetWorkPriorities sets an agent's priority (1–4, 0 for off) for the given
+// work type keys; keys not given keep theirs, since they may matter in
+// another guild. The sync sends it.
+func (s *AgentsService) SetWorkPriorities(slug string, changes map[string]int) error {
+	f, err := s.engine.Folder(slug)
+	if err != nil {
+		return err
+	}
+	m := f.Manifest
+	priorities := map[string]int{}
+	for k, v := range m.WorkPriorities {
+		priorities[k] = v
+	}
+	for k, v := range changes {
+		if v < 1 || v > 4 {
+			delete(priorities, k)
+			continue
+		}
+		priorities[k] = v
+	}
+	m.WorkPriorities = priorities
+	if err := s.engine.SaveManifest(slug, m); err != nil {
+		return err
+	}
+	s.Trigger()
+	return nil
 }

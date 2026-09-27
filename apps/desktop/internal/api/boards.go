@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -31,6 +32,7 @@ type Task struct {
 	Description   string  `json:"description"`
 	Position      string  `json:"position"`
 	Done          bool    `json:"done"`
+	WorkType      *string `json:"work_type"`
 	SubtasksTotal int     `json:"subtasks_total"`
 	SubtasksDone  int     `json:"subtasks_done"`
 }
@@ -254,4 +256,56 @@ func (c *Client) MoveColumn(ctx context.Context, token string, columnID uint64, 
 
 func (c *Client) DeleteColumn(ctx context.Context, token string, columnID uint64) error {
 	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/api/columns/%d", columnID), token, nil, nil)
+}
+
+// WorkType is one of a guild's kinds of work.
+type WorkType struct {
+	Key  string `json:"key"`
+	Name string `json:"name"`
+}
+
+func (c *Client) ListWorkTypes(ctx context.Context, token string, guildID uint64) ([]WorkType, error) {
+	var res struct {
+		WorkTypes []WorkType `json:"work_types"`
+	}
+	err := c.do(ctx, http.MethodGet, fmt.Sprintf("/api/guilds/%d/work-types", guildID), token, nil, &res)
+	return res.WorkTypes, err
+}
+
+func (c *Client) AddWorkType(ctx context.Context, token string, guildID uint64, key, name string) (WorkType, error) {
+	var res struct {
+		WorkType WorkType `json:"work_type"`
+	}
+	err := c.do(ctx, http.MethodPost, fmt.Sprintf("/api/guilds/%d/work-types", guildID), token, map[string]string{"key": key, "name": name}, &res)
+	return res.WorkType, err
+}
+
+// UpdateWorkType renames a work type and/or moves it to position (nil
+// leaves either as it is).
+func (c *Client) UpdateWorkType(ctx context.Context, token string, guildID uint64, key string, name *string, position *int) (WorkType, error) {
+	body := map[string]any{}
+	if name != nil {
+		body["name"] = *name
+	}
+	if position != nil {
+		body["position"] = *position
+	}
+	var res struct {
+		WorkType WorkType `json:"work_type"`
+	}
+	err := c.do(ctx, http.MethodPatch, fmt.Sprintf("/api/guilds/%d/work-types/%s", guildID, url.PathEscape(key)), token, body, &res)
+	return res.WorkType, err
+}
+
+func (c *Client) DeleteWorkType(ctx context.Context, token string, guildID uint64, key string) error {
+	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/api/guilds/%d/work-types/%s", guildID, url.PathEscape(key)), token, nil, nil)
+}
+
+// SetTaskWorkType gives a task one of the guild's work types ("" clears it).
+func (c *Client) SetTaskWorkType(ctx context.Context, token string, taskID uint64, key string) (Task, error) {
+	var res struct {
+		Task Task `json:"task"`
+	}
+	err := c.do(ctx, http.MethodPatch, fmt.Sprintf("/api/tasks/%d", taskID), token, map[string]string{"work_type": key}, &res)
+	return res.Task, err
 }

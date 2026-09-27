@@ -4,6 +4,7 @@
   import TaskPanel from '../components/TaskPanel.svelte'
   import ConflictDialog from '../components/ConflictDialog.svelte'
   import AgentsScreen from '../components/AgentsScreen.svelte'
+  import WorkTab from '../components/WorkTab.svelte'
   import { AgentSync } from '../lib/agentsync.svelte'
   import { Colony } from '../lib/colony.svelte'
   import { WebsiteService, messageOf, type Member } from '../lib/bindings'
@@ -25,7 +26,7 @@
   let showConflicts = $state(false)
 
   // The main area shows the board or the roster.
-  let view = $state<'board' | 'agents'>('board')
+  let view = $state<'board' | 'agents' | 'work'>('board')
 
   const SYNC_LABEL: Record<string, string> = {
     idle: 'Agents in sync',
@@ -61,6 +62,7 @@
     <nav class="views" aria-label="Screens">
       <button class={['view', { active: view === 'board' }]} onclick={() => (view = 'board')}>Boards</button>
       <button class={['view', { active: view === 'agents' }]} onclick={() => (view = 'agents')}>Agents</button>
+      <button class={['view', { active: view === 'work' }]} onclick={() => (view = 'work')}>Work</button>
     </nav>
 
     <Panel title="Guilds">
@@ -134,11 +136,13 @@
       </Panel>
     {:else if view === 'agents'}
       <AgentsScreen sync={agentSync} guilds={colony.guilds} guildId={colony.guildId} />
+    {:else if view === 'work'}
+      <WorkTab {colony} sync={agentSync} />
     {:else if colony.view}
       <div class={['work', { 'with-panel': colony.openTaskId !== null }]}>
         <BoardView {colony} />
         {#if colony.openTaskId !== null}
-          <TaskPanel open={colony.task} me={member.id} column={openColumn} onclose={() => colony.closeTask()} />
+          <TaskPanel open={colony.task} me={member.id} column={openColumn} workTypes={colony.workTypes} onclose={() => colony.closeTask()} />
         {/if}
       </div>
     {:else if colony.guild}

@@ -3,7 +3,7 @@
 // Talks to the API only through BoardsService and LiveService.
 
 import { Events } from '@wailsio/runtime'
-import { BoardsService, LiveService, isSignedOut, messageOf, type Board, type BoardView, type Guild, type Task } from './bindings'
+import { BoardsService, LiveService, isSignedOut, messageOf, type Board, type BoardView, type Guild, type Task, type WorkType } from './bindings'
 import { OpenTask } from './task.svelte'
 
 export type ColumnState = { id: number; name: string; tasks: Task[] }
@@ -67,6 +67,8 @@ export class Colony {
   openTaskId = $state<number | null>(null)
   task: OpenTask
   live = $state<LiveState>('off')
+  // The open guild's work types, in its order.
+  workTypes = $state.raw<WorkType[]>([])
   // Open streams on the board, by stream id: who has it open right now.
   #streams = $state<Record<string, { id: number; name: string }>>({})
   // One entry per member, however many windows they have open.
@@ -226,6 +228,7 @@ export class Colony {
   async openGuild(id: number) {
     this.guildId = id
     remember(LAST_GUILD, id)
+    this.reloadWorkTypes()
     this.boards = (await this.#run(() => BoardsService.ListBoards(id))) ?? []
     const last = recall(LAST_BOARD)
     const pick = this.boards.find((b) => b.id === last) ?? this.boards[0]
@@ -237,6 +240,18 @@ export class Colony {
       LiveService.Unwatch()
       this.live = 'off'
     }
+  }
+
+  async reloadWorkTypes() {
+    if (this.guildId === null) return
+    const id = this.guildId
+    const wts = await this.#run(() => BoardsService.WorkTypes(id))
+    if (wts && this.guildId === id) this.workTypes = wts
+  }
+
+  workTypeName(key: string | null | undefined): string {
+    if (!key) return ''
+    return this.workTypes.find((w) => w.key === key)?.name ?? key
   }
 
   async openBoard(id: number) {

@@ -225,6 +225,7 @@
               ondragstart={(e) => dragStart(e, task.id)}
               ondragend={dragEnd}
               selected={colony.openTaskId === task.id}
+              workTypeName={colony.workTypeName(task.work_type)}
               onopen={() => colony.openTask(task.id)}
               ondelete={() => colony.deleteTask(task.id)}
             />

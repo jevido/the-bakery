@@ -1,11 +1,13 @@
 <script lang="ts">
   import { Button } from '@bakery/ui'
   import type { Task } from '../lib/bindings'
+  import { workTypeStyle } from '../lib/worktype'
 
   let {
     task,
     dragging = false,
     selected = false,
+    workTypeName = '',
     ondragstart,
     ondragend,
     onopen,
@@ -14,6 +16,7 @@
     task: Task
     dragging?: boolean
     selected?: boolean
+    workTypeName?: string
     ondragstart: (event: DragEvent) => void
     ondragend: () => void
     onopen: () => void
@@ -42,6 +45,9 @@
   {:else}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <span class="title" ondblclick={onopen} title="Double-click to open">{task.title}</span>
+    {#if task.work_type}
+      <span class="wt" style={workTypeStyle(task.work_type)} title="Work type">{workTypeName || task.work_type}</span>
+    {/if}
     {#if task.subtasks_total > 0}
       <span class={['badge', { full: allDone }]} title="Subtasks done">{task.subtasks_done}/{task.subtasks_total}</span>
     {/if}
@@ -72,6 +78,17 @@
 
   .selected {
     border-color: var(--steel-bright);
+  }
+
+  .wt {
+    padding: 0 5px;
+    font-size: 11px;
+    line-height: 16px;
+    white-space: nowrap;
+    color: var(--wt-fg);
+    background: var(--wt-bg);
+    border: 1px solid var(--wt-border);
+    border-radius: var(--radius);
   }
 
   .badge {

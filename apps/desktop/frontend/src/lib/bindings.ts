@@ -11,6 +11,7 @@ export type {
   TaskDetail,
   Comment,
   Activity,
+  WorkType,
 } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/internal/api/models'
 
 // Go errors reach the frontend as rejected promises; this pulls out the

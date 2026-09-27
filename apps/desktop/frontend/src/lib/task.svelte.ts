@@ -120,6 +120,13 @@ export class OpenTask {
     return true
   }
 
+  // setWorkType gives the task one of the guild's work types ("" for none).
+  async setWorkType(key: string) {
+    if (!this.task) return
+    const t = await this.#run(() => TaskService.SetWorkType(this.task!.id, key))
+    if (t) await this.#changed()
+  }
+
   async addSubtask(title: string): Promise<boolean> {
     if (!this.task) return false
     const st = await this.#run(() => TaskService.AddSubtask(this.task!.id, title))

@@ -75,3 +75,8 @@ func (s *TaskService) ListActivity(ctx context.Context, taskID, before uint64, l
 		return s.client.ListActivity(ctx, t, taskID, before, limit)
 	})
 }
+
+// SetWorkType gives the task one of the guild's work types ("" for none).
+func (s *TaskService) SetWorkType(ctx context.Context, taskID uint64, key string) (api.Task, error) {
+	return call(s.session, func(t string) (api.Task, error) { return s.client.SetTaskWorkType(ctx, t, taskID, key) })
+}
