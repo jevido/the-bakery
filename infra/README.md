@@ -20,9 +20,9 @@ image.
 
 | Environment | Branch | Web | API | Database |
 | ----------- | ------ | --- | --- | -------- |
-| `dev` | any, local | http://127.0.0.1:4840 | http://127.0.0.1:4810 | Postgres 17 in `infra/dev/compose.yml` on `127.0.0.1:4820` |
-| `next` | `next` | https://next.bakery.jevido.app | https://api.next.bakery.jevido.app | Postgres 17 on Coolify, its own resource |
-| `prod` | `main` | https://bakery.jevido.app | https://api.bakery.jevido.app | Postgres 17 on Coolify, its own resource, daily backups |
+| `dev` | any, local | http://127.0.0.1:4840 | http://127.0.0.1:4810 | Postgres 18 in `infra/dev/compose.yml` on `127.0.0.1:4820` |
+| `next` | `next` | https://next.bakery.jevido.app | https://api.next.bakery.jevido.app | Postgres 18 on Coolify, its own resource |
+| `prod` | `main` | https://bakery.jevido.app | https://api.bakery.jevido.app | Postgres 18 on Coolify, its own resource, daily backups |
 
 All of it runs on Coolify at https://coolify.jevido.app, in the Coolify
 project "the bakery": environment `production` for prod, `next` for next.

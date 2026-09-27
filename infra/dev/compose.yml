@@ -2,7 +2,7 @@
 name: the-bakery
 services:
   postgres:
-    image: docker.io/library/postgres:17
+    image: docker.io/library/postgres:18
     environment:
       POSTGRES_USER: bakery
       POSTGRES_PASSWORD: bakery
@@ -10,7 +10,9 @@ services:
     ports:
       - "127.0.0.1:4820:5432"
     volumes:
-      - postgres:/var/lib/postgresql/data
+      # Postgres 18 images keep data in /var/lib/postgresql/<major>/; mount
+      # the parent. A new volume, since 17's data cannot be opened by 18.
+      - postgres18:/var/lib/postgresql
 
 volumes:
-  postgres:
+  postgres18:

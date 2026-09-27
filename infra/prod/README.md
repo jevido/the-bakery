@@ -8,7 +8,7 @@ Production.
 | Deploys from | branch `main` |
 | Web | https://bakery.jevido.app |
 | API | https://api.bakery.jevido.app, health check `/api/health` |
-| Database | Postgres 17, its own Coolify resource, daily backups |
+| Database | Postgres 18, its own Coolify resource, daily backups |
 | Desktop releases | GitHub releases tagged `desktop-vX.Y.Z`; release builds default to the prod API |
 
 Per resource (port, environment variable names, deploy steps, backups, how to

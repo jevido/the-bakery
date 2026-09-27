@@ -43,7 +43,7 @@ workspace, org or team.
 
 - **Go 1.27** (via mise), `gofmt` + `go vet`. Load the `go` skill for Go code.
 - **`services/api`**: Goravel v1.18, run artisan as `go run . artisan ...`.
-  Postgres 17.
+  Postgres 18.
 - **`apps/desktop`**: Wails v3 (`wails3` CLI, v3.0.0-beta.18). Load the
   `wails` skill and use only its v3 section; v2 APIs do not exist here.
 - **Frontend**: Svelte 5 runes + TypeScript, bun as package manager, Vite.

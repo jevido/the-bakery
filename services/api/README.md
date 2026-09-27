@@ -1,7 +1,7 @@
 # api
 
 The Bakery's JSON API: the source of truth for members, guilds, boards and
-tasks. A Goravel v1.18 app on Postgres 17, listening on `127.0.0.1:4810`.
+tasks. A Goravel v1.18 app on Postgres 18, listening on `127.0.0.1:4810`.
 
 ## Run
 
