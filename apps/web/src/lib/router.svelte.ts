@@ -15,6 +15,12 @@ class Router {
     window.scrollTo(0, 0)
   }
 
+  // replace navigates without leaving a history entry (for redirects).
+  replace(to: string) {
+    window.history.replaceState({}, '', to)
+    this.path = new URL(to, window.location.origin).pathname
+  }
+
   // onclick handles clicks on same-origin links anywhere on the page, so
   // plain <a href="/desktop"> works without a Link component.
   onclick = (event: MouseEvent) => {

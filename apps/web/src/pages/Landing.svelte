@@ -13,6 +13,7 @@
   <p class="lede">A workbench where your guild plans the work and, soon, Claude helps do it.</p>
   <div class="actions">
     <DownloadButton />
+    <a class="signup" href="/signup">Create an account</a>
   </div>
 </section>
 
@@ -58,6 +59,10 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 12px 20px;
+  }
+
+  .signup {
+    font-family: var(--font-display);
   }
 
   .panels {

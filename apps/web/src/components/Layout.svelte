@@ -1,8 +1,14 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
   import { router } from '../lib/router.svelte'
+  import { session } from '../lib/session.svelte'
 
   let { children }: { children: Snippet } = $props()
+
+  async function signOut() {
+    await session.signOut()
+    router.navigate('/')
+  }
 
   const nav = [
     { href: '/', label: 'Home' },
@@ -20,7 +26,15 @@
       <a href="https://jevidocs.jevido.app/p/bakery">Docs</a>
       <a href="https://github.com/jevido/the-bakery">GitHub</a>
     </nav>
-    <!-- Room for the account menu (phase 03). -->
+    <div class="account">
+      {#if session.member}
+        <a href="/admin">{session.member.display_name}</a>
+        <button class="link" onclick={signOut}>Sign out</button>
+      {:else if session.member === null}
+        <a href="/signin">Sign in</a>
+        <a class="cta" href="/signup">Sign up</a>
+      {/if}
+    </div>
   </header>
 
   <main>
@@ -59,6 +73,39 @@
     font-size: 20px;
     color: var(--text);
     text-decoration: none;
+  }
+
+  .account {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .account a,
+  .link {
+    color: var(--text-dim);
+    text-decoration: none;
+  }
+
+  .link {
+    font: inherit;
+    padding: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+
+  .account a:hover,
+  .link:hover {
+    color: var(--text);
+  }
+
+  .account .cta {
+    padding: 2px 10px;
+    color: var(--text);
+    background: var(--olive);
+    border: 1px solid var(--frame);
+    border-radius: var(--radius);
   }
 
   nav {

@@ -3,19 +3,47 @@
   import Layout from './components/Layout.svelte'
   import Landing from './pages/Landing.svelte'
   import Desktop from './pages/Desktop.svelte'
+  import SignIn from './pages/SignIn.svelte'
+  import SignUp from './pages/SignUp.svelte'
+  import Admin from './pages/Admin.svelte'
   import NotFound from './pages/NotFound.svelte'
   import { router } from './lib/router.svelte'
+  import { session } from './lib/session.svelte'
 
   const routes: Record<string, Component> = {
     '/': Landing,
     '/desktop': Desktop,
+    '/signin': SignIn,
+    '/signup': SignUp,
+    '/admin': Admin,
   }
 
-  let Page = $derived(routes[router.path.replace(/\/+$/, '') || '/'] ?? NotFound)
+  session.load()
+
+  let path = $derived(router.path.replace(/\/+$/, '') || '/')
+  let needsMember = $derived(path === '/admin' || path.startsWith('/admin/'))
+  let Page = $derived(routes[path] ?? NotFound)
+
+  // Signed-out visitors of /admin go to sign in and come back afterwards.
+  $effect(() => {
+    if (needsMember && session.member === null) {
+      router.replace(`/signin?next=${encodeURIComponent(window.location.pathname + window.location.search)}`)
+    }
+  })
 </script>
 
 <svelte:document onclick={router.onclick} />
 
 <Layout>
-  <Page />
+  {#if needsMember && !session.member}
+    <p class="dim">Checking your papers…</p>
+  {:else}
+    <Page />
+  {/if}
 </Layout>
+
+<style>
+  .dim {
+    color: var(--text-faint);
+  }
+</style>
