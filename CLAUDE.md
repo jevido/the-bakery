@@ -104,6 +104,28 @@ the code follows it.
   to reverse, record the reasoning in that context's "Why it's shaped this
   way" section.
 
+## Documentation (jevidocs)
+
+The Bakery's public and contributor documentation lives in the jevidocs
+project **`bakery`** (https://jevidocs.jevido.app/p/bakery), edited through
+the `jevidocs` MCP server (`get_page_tree`, `read_page`, `create_page`,
+`update_page`). `docs/domain/` is the model for people changing the code;
+jevidocs is for people using The Bakery or chipping in.
+
+- **Same change, same time.** When a change alters what a person can do, how
+  a unit is built or run, an API endpoint or MCP tool, or a glossary term,
+  update the matching jevidocs pages before calling the work done. Say which
+  pages you changed.
+- **Describe what exists.** Pages describe the running system. Planned work
+  goes on the "Not built yet" page only, never mixed into a guide as if it
+  works.
+- **Read before writing.** `read_page` first, then `update_page` with the
+  whole new body; never overwrite a page you have not read in this session.
+- **Same language as the code.** Terms follow `docs/domain/glossary.md`; the
+  jevidocs glossary pages mirror it in plain words.
+- If the MCP call fails (no token, server down), say so and list the pages
+  that still need the update, instead of skipping it silently.
+
 ## Working style for agents
 
 - Do what the task asks, in the unit and context it concerns.
