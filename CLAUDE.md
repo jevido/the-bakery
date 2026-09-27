@@ -4,9 +4,20 @@ Guidance for coding agents (and people) working in this repository.
 
 ## What this is
 
-> TODO: what the project is, its core domain, and which units host which
-> bounded contexts. Read `README.md` for the overview and `docs/domain/` for
-> the domain model and why it is shaped the way it is.
+The Bakery is a desktop workbench for the Claude CLI where guilds plan and run
+their work. Read `README.md` for the overview and `docs/domain/` for the domain
+model and why it is shaped the way it is.
+
+- **Core domain: boards** — planning work as tasks on boards.
+- **Supporting: guilds** — who works together.
+- **Generic: identity** — accounts and authentication.
+
+`services/api` hosts all three contexts. `apps/desktop` is a client of the API
+only and holds no domain data of its own.
+
+Tone: the desktop app feels like RimWorld (a colony-sim UI; agents are
+configured like RimWorld colonists). The word is **guild**, never
+workspace, org or team.
 
 ## Where things go
 
@@ -30,10 +41,15 @@ Guidance for coding agents (and people) working in this repository.
 
 ## Stack rules
 
-> TODO: add rules per language/framework as the project adopts them (versions,
-> formatters, package manager, patterns to use or avoid, skills to load), each
-> with a one-line reason.
-
+- **Go 1.27** (via mise), `gofmt` + `go vet`. Load the `go` skill for Go code.
+- **`services/api`**: Goravel v1.18, run artisan as `go run . artisan ...`.
+  Postgres 17.
+- **`apps/desktop`**: Wails v3 (`wails3` CLI, v3.0.0-beta.18). Load the
+  `wails` skill and use only its v3 section; v2 APIs do not exist here.
+- **Frontend**: Svelte 5 runes + TypeScript, bun as package manager, Vite.
+  Load `svelte-core-bestpractices` / `svelte-code-writer` for `.svelte` files.
+- **The desktop app talks to the API from Go** (Wails services), never `fetch`
+  from the webview, so the token stays in Go and the OS keyring.
 - **Podman**, not Docker, in scripts and docs (`podman compose`,
   `Containerfile`).
 
@@ -46,13 +62,14 @@ task check           # format, lint, test and type-check every unit
 task down            # stop every dev server this repo started
 ```
 
-**Local ports:** pick one range for the repo (e.g. 47xx) and give each unit
-its own decade, with strict port binding so a clash fails loudly instead of
-silently moving.
+**Local ports:** range 48xx, each unit its own decade, with strict port
+binding so a clash fails loudly instead of silently moving.
 
-| Port | Unit |
-| ---- | ---- |
-|      |      |
+| Port | Unit                               |
+| ---- | ---------------------------------- |
+| 4810 | `services/api`                     |
+| 4820 | Postgres (`infra/dev/compose.yml`) |
+| 4830 | `apps/desktop` Vite dev server     |
 
 New units take the next free decade; add them here and to `DEV_PORTS` in the
 root `Taskfile.yml` so `task down` stops them.

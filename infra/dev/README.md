@@ -2,8 +2,11 @@
 
 Local development stack.
 
-- `compose.yml` (add when a unit needs a backing service such as a database)
-  runs with `podman compose -f infra/dev/compose.yml`. Bind every port to
+- `compose.yml` runs the backing services with
+  `podman compose -f infra/dev/compose.yml` (`task db:up` / `task db:down`).
+  Today that is one Postgres 17 on `127.0.0.1:4820`, user, password and
+  database `bakery`, data in the named volume `postgres`. `task dev` starts it
+  first. Bind every port to
   `127.0.0.1` and pick it from the unit's block in the port table in
   `CLAUDE.md`. Local credentials in it are not secrets.
 - `down.sh` stops every local dev server by the ports it listens on;

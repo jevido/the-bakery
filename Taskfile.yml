@@ -5,7 +5,7 @@ version: "3"
 
 vars:
   # Every port a dev task listens on. Keep in sync with the table in CLAUDE.md.
-  DEV_PORTS: ""
+  DEV_PORTS: "4810 4820 4830"
 
 tasks:
   default:
@@ -23,7 +23,17 @@ tasks:
   dev:
     desc: Run every unit's dev server together (Ctrl+C stops all)
     # Add each unit's dev task here, e.g. deps: [api:dev, web:dev]
-    deps: []
+    deps: [db:up]
+
+  db:up:
+    desc: Start the dev Postgres (Podman)
+    cmds:
+      - podman compose -f infra/dev/compose.yml up -d
+
+  db:down:
+    desc: Stop the dev Postgres
+    cmds:
+      - podman compose -f infra/dev/compose.yml down
 
   check:
     desc: Format check, lint, test and type-check every unit
