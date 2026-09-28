@@ -67,6 +67,7 @@ type Service struct {
 	codes   Codes
 	members MemberLookup
 	events  Events
+	audit   AuditLog
 }
 
 func NewService(guilds Guilds, invites Invites, codes Codes, members MemberLookup, events Events) *Service {
@@ -101,11 +102,19 @@ func (s *Service) RenameGuild(ctx context.Context, guildID, by uint64, name stri
 }
 
 func (s *Service) ArchiveGuild(ctx context.Context, guildID, by uint64) (domain.Guild, error) {
-	return s.change(ctx, guildID, by, func(g *domain.Guild) (any, error) { return g.Archive(by) })
+	g, err := s.change(ctx, guildID, by, func(g *domain.Guild) (any, error) { return g.Archive(by) })
+	if err == nil {
+		s.auditLog().Record(ctx, AuditRecord{ActorID: by, Action: "guild.archived", TargetKind: "guild", TargetID: guildID})
+	}
+	return g, err
 }
 
 func (s *Service) RestoreGuild(ctx context.Context, guildID, by uint64) (domain.Guild, error) {
-	return s.change(ctx, guildID, by, func(g *domain.Guild) (any, error) { return g.Restore(by) })
+	g, err := s.change(ctx, guildID, by, func(g *domain.Guild) (any, error) { return g.Restore(by) })
+	if err == nil {
+		s.auditLog().Record(ctx, AuditRecord{ActorID: by, Action: "guild.restored", TargetKind: "guild", TargetID: guildID})
+	}
+	return g, err
 }
 
 // change applies f to the guild and stores the name and archived flag.
@@ -167,6 +176,7 @@ func (s *Service) RemoveMember(ctx context.Context, guildID, by, memberID uint64
 		return err
 	}
 	s.events.Other(ctx, ev)
+	s.auditLog().Record(ctx, AuditRecord{ActorID: by, Action: "guild.member_removed", TargetKind: "member", TargetID: memberID, Meta: map[string]any{"guild_id": guildID}})
 	return nil
 }
 

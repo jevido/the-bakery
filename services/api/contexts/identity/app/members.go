@@ -30,6 +30,7 @@ type Service struct {
 	handoffs Handoffs
 	tokens   Tokens
 	secrets  Secrets
+	audit    AuditLog
 }
 
 func NewService(members Members, hasher domain.PasswordHasher, handoffs Handoffs, tokens Tokens, secrets Secrets) *Service {

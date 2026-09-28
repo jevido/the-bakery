@@ -53,7 +53,7 @@ func init() {
 const requestTimeout = 3 * time.Second
 
 func Api() {
-	facades.Route().Middleware(goravelgin.Timeout(requestTimeout)).Group(func(r route.Router) {
+	facades.Route().Middleware(goravelgin.Timeout(requestTimeout), moderation.RememberIP).Group(func(r route.Router) {
 		r.Get("/api/health", health)
 		identity.Routes(r)
 		guilds.Routes(r)

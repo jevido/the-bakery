@@ -43,6 +43,7 @@ func (s *Service) CreatePersonalToken(ctx context.Context, memberID uint64, name
 	if err != nil {
 		return domain.PersonalToken{}, "", err
 	}
+	s.auditLog().Record(ctx, AuditRecord{ActorID: memberID, Action: "personal_token.created", TargetKind: "personal_token", TargetID: t.ID, Meta: map[string]any{"name": t.Name}})
 	return t, secret, nil
 }
 
@@ -61,7 +62,11 @@ func (s *Service) RevokePersonalToken(ctx context.Context, memberID, tokenID uin
 		return ErrTokenNotFound
 	}
 	t.Revoke(time.Now())
-	return s.tokens.Revoke(ctx, t)
+	if err := s.tokens.Revoke(ctx, t); err != nil {
+		return err
+	}
+	s.auditLog().Record(ctx, AuditRecord{ActorID: memberID, Action: "personal_token.revoked", TargetKind: "personal_token", TargetID: t.ID, Meta: map[string]any{"name": t.Name}})
+	return nil
 }
 
 // VerifyPersonalToken returns the member a personal token belongs to, or

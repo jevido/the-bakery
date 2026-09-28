@@ -116,3 +116,15 @@ func ListGuildsOf(ctx context.Context, memberID uint64, includeArchived bool) ([
 	}
 	return out, nil
 }
+
+// SetAuditRecorder sets where this context's sensitive actions are
+// recorded: the moderation context's audit log, set when it is wired.
+func SetAuditRecorder(record func(ctx context.Context, actorMemberID uint64, action, targetKind string, targetID uint64, meta map[string]any)) {
+	service.SetAuditLog(auditRecorder(record))
+}
+
+type auditRecorder func(ctx context.Context, actorMemberID uint64, action, targetKind string, targetID uint64, meta map[string]any)
+
+func (f auditRecorder) Record(ctx context.Context, e app.AuditRecord) {
+	f(ctx, e.ActorID, e.Action, e.TargetKind, e.TargetID, e.Meta)
+}

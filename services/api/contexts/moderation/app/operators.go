@@ -48,11 +48,12 @@ type Service struct {
 	hasher    Hasher
 	secrets   Secrets
 	totp      TOTP
+	audit     AuditEntries
 	now       func() time.Time
 }
 
-func NewService(operators Operators, hasher Hasher, secrets Secrets, totp TOTP) *Service {
-	return &Service{operators: operators, hasher: hasher, secrets: secrets, totp: totp, now: time.Now}
+func NewService(operators Operators, hasher Hasher, secrets Secrets, totp TOTP, audit AuditEntries) *Service {
+	return &Service{operators: operators, hasher: hasher, secrets: secrets, totp: totp, audit: audit, now: time.Now}
 }
 
 // CreateOperator makes an operator and returns the otpauth:// URL for

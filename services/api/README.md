@@ -49,6 +49,15 @@ go run . artisan operator:confirm owner@example.com 123456
 `operator:create` reads the password from stdin when stdin is not a
 terminal. An operator signs in only after confirming a first code.
 
+Sensitive actions go to the platform's **audit log** (`audit_entries`,
+append-only): operator sign-ins, personal tokens made and revoked, guilds
+archived and restored, members removed from a guild, and (later) sanctions
+and reports. Identity and guilds record through a one-method port that
+moderation's wiring sets (`SetAuditRecorder`); `moderation.RememberIP` puts
+the client IP in every request's context. Operators read it at
+`GET /api/console/audit` (filters `actor_kind`, `actor_id`, `action`,
+`target_kind`, `target_id`, `from`, `to`; paging with `before` and `limit`).
+
 ## MCP server
 
 `/mcp` serves MCP over streamable HTTP (stateless, JSON replies) with the

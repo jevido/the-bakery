@@ -26,7 +26,9 @@ func (operatorCreate) Signature() string { return "operator:create" }
 func (operatorCreate) Description() string {
 	return "Make a console operator (then confirm their authenticator with operator:confirm)"
 }
-func (operatorCreate) Extend() command.Extend { return command.Extend{ArgsUsage: "<email>", Category: "operator"} }
+func (operatorCreate) Extend() command.Extend {
+	return command.Extend{ArgsUsage: "<email>", Category: "operator"}
+}
 
 func (operatorCreate) Handle(ctx console.Context) error {
 	email := strings.TrimSpace(ctx.Argument(0))
@@ -51,8 +53,10 @@ func (operatorCreate) Handle(ctx console.Context) error {
 // sign in.
 type operatorConfirm struct{}
 
-func (operatorConfirm) Signature() string   { return "operator:confirm" }
-func (operatorConfirm) Description() string { return "Confirm a console operator's authenticator with a first code" }
+func (operatorConfirm) Signature() string { return "operator:confirm" }
+func (operatorConfirm) Description() string {
+	return "Confirm a console operator's authenticator with a first code"
+}
 func (operatorConfirm) Extend() command.Extend {
 	return command.Extend{ArgsUsage: "<email> <code>", Category: "operator"}
 }

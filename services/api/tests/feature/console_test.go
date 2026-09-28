@@ -118,3 +118,54 @@ func (s *ConsoleTestSuite) TestSignInIsRateLimited() {
 	}
 	s.True(seen429, "the sixth sign-in in a minute is refused")
 }
+
+// audit reads the audit log as an operator.
+func (s *ConsoleTestSuite) audit(token, query string) []map[string]any {
+	res := s.get(token, "/api/console/audit?"+query)
+	res.AssertOk()
+	var out []map[string]any
+	for _, e := range s.jsonOf(res)["entries"].([]any) {
+		out = append(out, e.(map[string]any))
+	}
+	return out
+}
+
+func (s *ConsoleTestSuite) TestAuditLog() {
+	email, secret := s.operator("a long enough secret")
+	op := s.signIn(email, "a long enough secret", secret)
+
+	_, ada := s.register()
+	guildID := s.foundGuild(ada, "Audited Colony")
+	_, bram := s.register()
+	s.join(ada, guildID, bram)
+	bramID := uint64(s.jsonOf(s.get(bram, "/api/me"))["member"].(map[string]any)["id"].(float64))
+	adaID := uint64(s.jsonOf(s.get(ada, "/api/me"))["member"].(map[string]any)["id"].(float64))
+
+	// Removing a member from a guild is in the log, with who did it.
+	s.send("DELETE", ada, fmt.Sprintf("/api/guilds/%d/members/%d", guildID, bramID), "").AssertNoContent()
+	removed := s.audit(op, fmt.Sprintf("action=guild.member_removed&target_kind=member&target_id=%d", bramID))
+	s.Require().Len(removed, 1)
+	s.Equal(float64(adaID), removed[0]["actor_id"])
+	s.Equal("member", removed[0]["actor_kind"])
+	s.Equal(float64(guildID), removed[0]["meta"].(map[string]any)["guild_id"])
+	s.NotEmpty(removed[0]["ip"])
+
+	// Personal tokens made and revoked, and archiving.
+	res := s.post(ada, "/api/tokens", `{"name":"audited"}`)
+	res.AssertCreated()
+	tokenID := uint64(s.jsonOf(res)["personal_token"].(map[string]any)["id"].(float64))
+	s.send("DELETE", ada, fmt.Sprintf("/api/tokens/%d", tokenID), "").AssertNoContent()
+	s.post(ada, fmt.Sprintf("/api/guilds/%d/archive", guildID), "").AssertOk()
+	actions := map[string]bool{}
+	for _, e := range s.audit(op, fmt.Sprintf("actor_kind=member&actor_id=%d", adaID)) {
+		actions[e["action"].(string)] = true
+	}
+	for _, want := range []string{"guild.member_removed", "personal_token.created", "personal_token.revoked", "guild.archived"} {
+		s.True(actions[want], want)
+	}
+
+	// The operator's own sign-in too; and members cannot read the log.
+	s.NotEmpty(s.audit(op, "actor_kind=operator&action=operator.signed_in"))
+	s.get(ada, "/api/console/audit").AssertUnauthorized()
+	s.get(op, "/api/console/audit?from=yesterday").AssertUnprocessableEntity()
+}
