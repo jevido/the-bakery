@@ -4,13 +4,11 @@
   import TaskCard from './TaskCard.svelte'
   import ColumnHeader from './ColumnHeader.svelte'
   import type { Colony, LiveState } from '../lib/colony.svelte'
-  import type { Letters } from '../lib/letters.svelte'
-  import ColonyView from './ColonyView.svelte'
+  import TimeControls from './TimeControls.svelte'
 
-  let { colony, letters }: { colony: Colony; letters: Letters } = $props()
+  let { colony }: { colony: Colony } = $props()
 
   // The board as cards, or as the colony from above.
-  let mode = $state<'board' | 'colony'>('board')
 
   let draggedId = $state<number | null>(null)
   // Where the dragged task would land: a column and an index among the
@@ -25,34 +23,6 @@
     'signed-out': 'Signed out',
   }
   let newTitle = $state('')
-
-  // Time controls, like RimWorld's: Space pauses or resumes, 1 normal, 2
-  // fast. Not while typing, and not with a modifier held.
-  const SPEEDS = [
-    { id: 'paused', label: '⏸', title: 'Pause (Space): no new runs start' },
-    { id: 'normal', label: '▶', title: 'Normal speed (1)' },
-    { id: 'fast', label: '▶▶', title: 'Fast (2): more runs at once' },
-  ] as const
-  const speed = $derived(colony.settings?.config.speed ?? 'paused')
-  let lastSpeed: 'normal' | 'fast' = 'normal'
-
-  function typing(target: EventTarget | null): boolean {
-    const el = target as HTMLElement | null
-    return !!el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))
-  }
-
-  function speedKeys(e: KeyboardEvent) {
-    if (e.ctrlKey || e.metaKey || e.altKey || typing(e.target) || !colony.settings?.linked) return
-    if (e.key === ' ') {
-      e.preventDefault()
-      if (speed === 'paused') colony.setSpeed(lastSpeed)
-      else {
-        lastSpeed = speed === 'fast' ? 'fast' : 'normal'
-        colony.setSpeed('paused')
-      }
-    } else if (e.key === '1') colony.setSpeed('normal')
-    else if (e.key === '2') colony.setSpeed('fast')
-  }
 
   // The card menu: prioritize for one of my agents, forbid or allow.
   let menu = $state<{ taskId: number; x: number; y: number } | null>(null)
@@ -199,8 +169,6 @@
   }
 </script>
 
-<svelte:window onkeydown={speedKeys} />
-
 {#if colony.view}
   <!-- One element, so the screen's grid (board beside the task panel) sees
        one cell, not the header and the columns separately. -->
@@ -210,20 +178,7 @@
     {#if colony.live !== 'off'}
       <span class={['live', colony.live]} title="Changes by others show up here as they happen">{LIVE[colony.live]}</span>
     {/if}
-    {#if colony.settings?.linked}
-      <div class="speed" role="group" aria-label="Time controls">
-        {#each SPEEDS as s (s.id)}
-          <button class={{ on: speed === s.id }} title={s.title} aria-pressed={speed === s.id} onclick={() => colony.setSpeed(s.id)}
-            >{s.label}</button
-          >
-        {/each}
-      </div>
-      {#if speed === 'paused'}<span class="paused">Paused</span>{/if}
-    {/if}
-    <div class="modes" role="group" aria-label="View">
-      <button class={{ on: mode === 'board' }} aria-pressed={mode === 'board'} onclick={() => (mode = 'board')}>Board</button>
-      <button class={{ on: mode === 'colony' }} aria-pressed={mode === 'colony'} onclick={() => (mode = 'colony')}>Colony</button>
-    </div>
+    <TimeControls {colony} />
     <span class="spacer"></span>
     {#if colony.settings && !colony.settings.linked}
       <button class="linked" title="Agents cannot run on this board on this machine until it is linked to a repository" onclick={() => colony.openSettings()}>Not linked</button>
@@ -248,9 +203,6 @@
     {/if}
     <button class="gear" aria-label="Board settings" title="Board settings (this machine)" onclick={() => colony.openSettings()}>⚙</button>
   </header>
-  {#if mode === 'colony'}
-    <ColonyView {colony} {letters} />
-  {:else}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="board"
@@ -328,7 +280,6 @@
       {/if}
     </div>
   </div>
-  {/if}
     {#if menu && menuTask}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="menu-veil" onclick={() => (menu = null)} oncontextmenu={(e) => { e.preventDefault(); menu = null }}></div>
@@ -371,65 +322,6 @@
     font-family: var(--font-display);
     font-size: 16px;
     font-weight: 600;
-  }
-
-  .modes {
-    display: flex;
-    margin-left: 6px;
-    border: 1px solid var(--frame-dim);
-    border-radius: var(--radius);
-    overflow: hidden;
-  }
-
-  .modes button {
-    font: inherit;
-    font-size: 11px;
-    padding: 1px 8px;
-    color: var(--text-dim);
-    background: var(--panel-inset);
-    border: none;
-    cursor: pointer;
-  }
-
-  .modes button.on {
-    color: var(--text);
-    background: var(--panel-title);
-  }
-
-  .speed {
-    display: flex;
-    border: 1px solid var(--frame-dim);
-    border-radius: var(--radius);
-    overflow: hidden;
-  }
-
-  .speed button {
-    font: inherit;
-    font-size: 11px;
-    min-width: 26px;
-    padding: 1px 6px;
-    color: var(--text-dim);
-    background: var(--panel-inset);
-    border: none;
-    border-right: 1px solid var(--frame-dim);
-    cursor: pointer;
-  }
-
-  .speed button:last-child {
-    border-right: none;
-  }
-
-  .speed button.on {
-    color: var(--bg-deep);
-    background: var(--olive);
-  }
-
-  .paused {
-    font-family: var(--font-display);
-    font-size: 12px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--rust-bright);
   }
 
   .menu-veil {

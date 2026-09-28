@@ -2,13 +2,15 @@
   import { empty } from '../lib/flavor/lines'
   import { Panel, Button, TextField, Tabs, Portrait } from '@bakery/ui'
   import CharacterCard from './CharacterCard.svelte'
+  import WorkPriorities from './WorkPriorities.svelte'
+  import type { Colony } from '../lib/colony.svelte'
   import { Roster } from '../lib/roster.svelte'
   import type { AgentSync } from '../lib/agentsync.svelte'
   import type { Agent, Guild } from '../lib/bindings'
 
   // The roster: my agents on the left, the open one's character card on the
   // right, and the agents my guild shares, to recruit.
-  let { sync, guilds, guildId }: { sync: AgentSync; guilds: Guild[]; guildId: number | null } = $props()
+  let { sync, colony, guilds, guildId }: { sync: AgentSync; colony: Colony; guilds: Guild[]; guildId: number | null } = $props()
 
   const roster = new Roster()
   roster.load()
@@ -19,6 +21,7 @@
 
   const TABS = [
     { id: 'roster', label: 'Roster' },
+    { id: 'priorities', label: 'Work priorities' },
     { id: 'recruit', label: 'Recruit' },
   ]
   let tab = $state('roster')
@@ -99,7 +102,7 @@
             {/if}
           </div>
         </div>
-      {:else}
+      {:else if active === 'recruit'}
         <Panel title={guild ? `Shared with ${guild.name}` : 'Shared agents'}>
           {#if guildId === null}
             <p class="dim">Open a guild first.</p>
@@ -130,6 +133,8 @@
             </ul>
           {/if}
         </Panel>
+      {:else if active === 'priorities'}
+        <WorkPriorities {colony} {sync} />
       {/if}
     {/snippet}
   </Tabs>

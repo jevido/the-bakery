@@ -4,7 +4,7 @@
   import type { Colony } from '../lib/colony.svelte'
   import type { AgentSync } from '../lib/agentsync.svelte'
 
-  // RimWorld's work tab: one row per agent, one column per work type of the
+  // Work priorities, like RimWorld's work tab: one row per agent, one column per work type of the
   // open guild, each cell a priority from 1 (first) to 4 (last), or empty
   // for never. Priorities for work types this guild doesn't have are left
   // alone; they count in other guilds.
@@ -113,7 +113,7 @@
 </script>
 
 <div class="work">
-  <Panel title={`Work · ${colony.guild?.name ?? ''}`}>
+  <Panel title={`Work priorities · ${colony.guild?.name ?? ''}`}>
     {#snippet actions()}
       <Button onclick={() => (editing = !editing)}>{editing ? 'Done editing' : 'Edit work types'}</Button>
     {/snippet}

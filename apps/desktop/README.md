@@ -121,6 +121,13 @@ directory and logs a warning.
 - Reporting: right-click a guild in the sidebar for **Report this guild…**
   (`components/ReportGuild.svelte`, `BoardsService.ReportGuild`,
   `POST /api/reports`).
+- Screens: **Boards** plans the work (columns, tasks, the task and run
+  panels); **Agents** holds the roster, **Work priorities** (the grid of
+  1–4 per work type, `components/WorkPriorities.svelte`) and recruiting;
+  **Work** is Work mode (`components/WorkMode.svelte`): one board, its
+  agents on the canvas at the left and the supervisor chat at the right,
+  with the time controls (`components/TimeControls.svelte`, also in the
+  board header).
 - The RimWorld feel, all presentation (the scheduler and the API never read
   it): portraits from `@bakery/ui` (the member's own in the sidebar, click
   to re-roll); **needs and mood** (`needs.go`, `internal/workshop/needs.go`,
@@ -171,9 +178,10 @@ directory and logs a warning.
   `CharacterCard.svelte` (name, title, backstory, traits, model, permission
   mode, allowed tools, skills with import from `~/.claude/skills` or a folder,
   sharing per guild, delete), and a Recruit tab for the guild's shared agents.
-  `Portrait.svelte` draws a stand-in portrait from the agent's portrait seed;
-  `lib/roster.svelte.ts` holds the screen's state.
-- `frontend/src/components/WorkTab.svelte` — the Work screen: agents against
+  Portraits come from `@bakery/ui`; `lib/roster.svelte.ts` holds the
+  screen's state.
+- `frontend/src/components/WorkPriorities.svelte` — Agents → Work
+  priorities: agents against
   the open guild's work types, each cell a work priority (click raises it,
   right-click lowers it, saved to `agent.toml` a second after the last click),
   and the work type editor (add, rename, drag to reorder, delete). Task cards
@@ -188,7 +196,7 @@ directory and logs a warning.
   going (`lib/workshop.svelte.ts`, from `workshop:runs` and the board's
   `run.started` / `run.finished` events).
 - `frontend/src/components/ColonyView.svelte` — the colony from above (the
-  board header's **Colony** switch): a workbench per work type, each agent
+  canvas of Work mode, for now): a workbench per work type, each agent
   with a run going at the bench of its task's work type, agents enabled on
   the board and idle at the table. Pixel art is drawn from character maps
   in `lib/sprites.ts`. What an agent does comes from Go as the Wails event

@@ -5,7 +5,7 @@
   import TaskPanel from '../components/TaskPanel.svelte'
   import ConflictDialog from '../components/ConflictDialog.svelte'
   import AgentsScreen from '../components/AgentsScreen.svelte'
-  import WorkTab from '../components/WorkTab.svelte'
+  import WorkMode from '../components/WorkMode.svelte'
   import BoardSettings from '../components/BoardSettings.svelte'
   import RunPanel from '../components/RunPanel.svelte'
   import Letters from '../components/Letters.svelte'
@@ -60,15 +60,19 @@
   // goToAlert opens what an alert is about.
   async function goToAlert(a: Alert) {
     if (a.guild_id && a.guild_id !== colony.guildId) await colony.openGuild(a.guild_id)
+    if (a.board_id && a.board_id !== colony.boardId) await colony.openBoard(a.board_id)
+    // A work type nobody covers is fixed in the agents' work priorities.
     if (a.kind === 'uncovered_work') {
-      if (a.board_id !== colony.boardId) await colony.openBoard(a.board_id)
-      view = 'work'
+      view = 'agents'
+      return
+    }
+    // A letter opens over any screen; anything else is on the board.
+    if (a.kind === 'question_waiting' && a.letter) {
+      letters.openId = a.letter
       return
     }
     view = 'board'
-    if (a.board_id && a.board_id !== colony.boardId) await colony.openBoard(a.board_id)
-    if (a.kind === 'question_waiting' && a.letter) letters.openId = a.letter
-    else if (a.kind === 'run_failed' && a.run_id) colony.openRun(a.run_id)
+    if (a.kind === 'run_failed' && a.run_id) colony.openRun(a.run_id)
     else if (a.task_id) colony.openTask(a.task_id)
   }
   // The guild list's right-click menu, and the guild being reported.
@@ -227,15 +231,22 @@
         <p class="dim small">Once you are in a guild, it shows up here. {#if colony.loaded}<button class="link" onclick={() => colony.load()}>Check again</button>{/if}</p>
       </Panel>
     {:else if view === 'agents'}
-      <AgentsScreen sync={agentSync} guilds={colony.guilds} guildId={colony.guildId} />
+      <AgentsScreen sync={agentSync} {colony} guilds={colony.guilds} guildId={colony.guildId} />
     {:else if view === 'work'}
-      <WorkTab {colony} sync={agentSync} />
+      <WorkMode
+        {colony}
+        {letters}
+        onsettings={() => {
+          view = 'board'
+          colony.openSettings()
+        }}
+      />
     {:else if view === 'settings'}
       <SettingsScreen />
     {:else if colony.view}
       {@const openRun = colony.openRunId ? colony.workshop.byId(colony.openRunId) : undefined}
       <div class={['work', { 'with-panel': colony.openTaskId !== null || colony.settingsOpen || openRun }]}>
-        <BoardView {colony} {letters} />
+        <BoardView {colony} />
         {#if colony.settingsOpen}
           <BoardSettings {colony} onclose={() => (colony.settingsOpen = false)} />
         {:else if openRun}
