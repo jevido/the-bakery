@@ -47,7 +47,7 @@ document; list them here when people outside the context use them too.
 | Skillset | agents | An agent's skills: the files of its `.claude/skills` directory. | Plugin, toolkit |
 | Skill | agents | One directory of a skillset with a `SKILL.md` (name and description in its front matter) and any supporting files. | Command, prompt |
 | Trait | agents | A fixed personality or working-style option of an agent; each adds one line to its instructions, and some traits conflict. | Setting, flag |
-| Work priority | agents | How much an agent wants a kind of work: 1 (first) to 4 (last), or off, per work type key. | Skill level, weight |
+| Work priority | agents | How much an agent wants a kind of work: 1 (first) to 4 (last), or off, per work type key. Set on the Agents screen's Work priorities grid. | Skill level, weight, work tab |
 | Share | agents | An owner makes an agent available to one guild they are in, for its members to recruit. | Publish, transfer |
 | Recruit | agents | Copy an agent shared with a guild into your own roster. The copy is yours; the original stays its owner's. | Clone, fork, hire |
 | Revision | agents | A number that goes up by one with every change to an agent; a change based on an older revision is refused as a conflict. | Version (that is a release) |
@@ -63,6 +63,9 @@ document; list them here when people outside the context use them too.
 | Mood | workshop | One word summarising an agent's needs (`content`, `okay`, `stressed`, `breaking`). Changes how the agent looks and is described, never what it does or which task it takes. | Status, state (the run's) |
 | Alert | workshop | A standing condition that needs a person's attention (an idle agent, a failed run, work nobody covers, a question waiting), listed at the right edge until the condition clears. | Notification, letter |
 | Event letter | workshop | A one-off, storyteller-style notice about a moment on a board (a raid of bugs, a streak of finished work, a stale column, a newcomer). Never blocks a run, unlike a Letter. | Letter (that one asks), alert |
+| Work mode | workshop | The desktop screen for focusing on one board: the canvas of its agents beside the supervisor chat. | Colony view (the canvas is part of Work mode), dashboard |
+| Supervisor | workshop | A Claude chat on this machine for one board that reads the board and its agents and proposes who takes which task, which tasks need subtasks, and their order. It never works a task, starts nothing itself and has no tools. | Manager, orchestrator, agent (it is not on the roster) |
+| Proposal | workshop | One change the supervisor suggests (assign, split, reorder), carried out only when a person approves it. | Plan (that is Plan it's) |
 | Quiet colony | workshop | The setting that turns every flavor element off (mood, needs in the colony view, event letters, flavor lines, sounds, idle animations); portraits, alerts and letters stay. | Plain mode, focus mode |
 | Run | boards | One attempt by an Agent to work a Task on a member's machine: `running`, then once `succeeded`, `failed` or `stopped` (read as `lost` when still running after 24 hours), with cost, turns, summary and diff stats. | Job, session (Claude's own) |
 | Board config | workshop | The per-machine folder `~/.config/the-bakery/boards/<board-id>/` saying how this machine works a board (linked repo, base branch, worktree root, run limit, budget, finish column, `CLAUDE.md`, `skills/`, `mcp.json`). Never synced. | Board settings on the server (there are none) |

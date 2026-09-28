@@ -32,6 +32,9 @@ an agent works on next (the scheduler, later).
 | Alert | A standing condition needing attention, shown at the right edge until it clears. |
 | Event letter | A one-off storyteller notice about a moment on a board; never blocks anything. |
 | Quiet colony | The setting that turns all flavor off; portraits, alerts and letters stay. |
+| Work mode | The screen for focusing on one board: the canvas of its agents beside the supervisor chat. |
+| Supervisor | A Claude chat on this machine for one board. It reads a snapshot of the board and its agents and proposes; it never works a task, starts nothing itself and has no tools. |
+| Proposal | One change the supervisor suggests: assign a task to an agent, split a task into subtasks, or reorder the ready column. Carried out only when a person approves it. |
 
 ## Model
 
@@ -58,6 +61,20 @@ The workshop keeps no aggregate of its own on the server. On the machine:
 - **Stop a run**; **list** a run's events; **finish** a run (diff stats,
   summary comment, move to the finish column); **remove** a run's worktree,
   keeping its branch.
+
+### The supervisor
+
+- **Input**, fresh for every message: the board (its columns in order, each
+  task with its id, title, work type, subtasks done and total, whether it is
+  claimed, prioritized for an agent or forbidden), the ready column, and the
+  agents enabled on the board here (slug, name, work priorities, busy or not).
+- **Output**: a reply to the member and zero or more proposals. A proposal
+  names only tasks and agents from the snapshot; any other is dropped.
+- **Rules**: no tools and no repository, one board per conversation, nothing
+  happens without the member's approval, and an approved proposal goes
+  through the same commands as the member's own clicks (start a run or
+  prioritize, expand, move). The conversation and each proposal's outcome
+  stay on this machine, in the board config folder.
 
 ### Domain events
 
@@ -99,11 +116,21 @@ and its result (status, cost, turns, duration).
   to ask, so the desktop passes its own MCP tool as Claude's permission
   prompt tool; a request becomes a letter and the tool call waits for the
   answer.
+- **The supervisor proposes; a person decides.** It has no tools, so it
+  cannot act behind the member's back, and every message costs one short
+  call on a snapshot instead of a session reading the repository. Splitting
+  work that needs the code read stays with Plan it. Its proposals reuse the
+  existing commands, so an approved proposal and a click can never behave
+  differently.
 - **The run spec is a pure function.** Building the command line from its
   inputs without I/O keeps it testable with golden files; only the runner
   executes it.
 
 ## Presentation
+
+The canvas in Work mode belongs here too: the supervisor figure handing
+out tasks and agents bringing back their notes act out what runs already
+do. It reads run state and nothing else, and costs no tokens.
 
 Needs, mood, alerts, event letters, flavor lines and sounds live in the
 desktop only. They are computed on this machine from what the workshop
