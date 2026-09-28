@@ -72,9 +72,10 @@ func main() {
 	live.app = app
 	agentsSvc.app = app
 	workshopSvc.app = app
-	live.onBoardEvent = func(api.BoardEvent) {
+	live.onBoardEvent = func(ev api.BoardEvent) {
 		workshopSvc.Wake()
 		workshopSvc.nudgeAlerts()
+		workshopSvc.hearBoardEvent(ev)
 	}
 	website.app = app
 

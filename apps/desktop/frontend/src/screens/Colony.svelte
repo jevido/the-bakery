@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { empty } from '../lib/flavor/lines'
   import { Panel, Button, TextField, Portrait } from '@bakery/ui'
   import BoardView from '../components/BoardView.svelte'
   import TaskPanel from '../components/TaskPanel.svelte'
@@ -11,6 +12,7 @@
   import ReportGuild from '../components/ReportGuild.svelte'
   import AlertsColumn from '../components/AlertsColumn.svelte'
   import { Alerts } from '../lib/alerts.svelte'
+  import { Story } from '../lib/story.svelte'
   import { Letters as LetterBox } from '../lib/letters.svelte'
   import { AgentSync } from '../lib/agentsync.svelte'
   import { Colony } from '../lib/colony.svelte'
@@ -46,6 +48,12 @@
   // What needs attention, at the right edge.
   const alerts = new Alerts()
   $effect(() => alerts.listen())
+  // The storyteller's event letters for the open board.
+  const story = new Story()
+  $effect(() => story.listen())
+  $effect(() => {
+    story.load(colony.boardId)
+  })
 
   // goToAlert opens what an alert is about.
   async function goToAlert(a: Alert) {
@@ -250,7 +258,7 @@
       </div>
     {:else if colony.guild}
       <Panel title={colony.guild.name}>
-        <p class="dim">No boards yet. Add one on the left.</p>
+        <p class="dim">{empty('board', colony.guild.id)}</p>
       </Panel>
     {/if}
   </main>
@@ -262,7 +270,7 @@
   <ConflictDialog sync={agentSync} onclose={() => (showConflicts = false)} />
 {/if}
 
-<Letters {letters} {colony} />
+<Letters {letters} {colony} {story} />
 
 {#if guildMenu}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->

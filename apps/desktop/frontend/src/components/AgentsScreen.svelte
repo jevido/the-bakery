@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { empty } from '../lib/flavor/lines'
   import { Panel, Button, TextField, Tabs, Portrait } from '@bakery/ui'
   import CharacterCard from './CharacterCard.svelte'
   import { Roster } from '../lib/roster.svelte'
@@ -60,7 +61,7 @@
         <div class="split">
           <Panel title={`Colonists · ${roster.agents.length}`}>
             {#if roster.loaded && roster.agents.length === 0}
-              <p class="dim">No one has joined the colony yet.</p>
+              <p class="dim">{empty('roster')}</p>
             {/if}
             <ul class="list">
               {#each roster.agents as a (a.slug)}

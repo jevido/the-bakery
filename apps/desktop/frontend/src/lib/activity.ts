@@ -1,16 +1,17 @@
-// How a task's history reads. Every sentence is built in activityLine, so
-// the wording (later: flavour text) can change in one place.
+// How a task's history reads. Every sentence is built in activityLine, from
+// the text library in flavor/lines.ts: plain, or with the colony's dry
+// narration unless quiet colony is on.
 
 import type { Activity } from './bindings'
+import { ACTIVITY, pick } from './flavor/lines'
 
 // Activity keeps each column's name as it was then.
 const column = (c: unknown) => String(c ?? '')
 const quoted = (s: unknown) => `“${String(s ?? '')}”`
 
-const RUN_END: Record<string, string> = {
-  succeeded: 'finished working on this',
-  failed: 'could not finish this',
-  stopped: 'was stopped',
+function line(e: Activity, kind: string, w: { who: string; from?: string; to?: string; what?: string; agent?: string; title?: string }): string {
+  const entry = ACTIVITY[kind]
+  return pick(e.id, entry.plain(w), entry.flavored.map((f) => f(w)))
 }
 
 export function activityLine(e: Activity): string {
@@ -18,23 +19,28 @@ export function activityLine(e: Activity): string {
   const d = e.data ?? {}
   switch (e.kind) {
     case 'created':
-      return `${who} created this in ${column(d.column)}`
+      return line(e, 'created', { who, to: column(d.column) })
     case 'edited': {
       const what = [d.title && 'the title', d.description && 'the description'].filter(Boolean).join(' and ')
-      return `${who} changed ${what || 'this'}`
+      return line(e, 'edited', { who, what: what || 'this' })
     }
     case 'moved':
-      return d.from === d.to ? `${who} reordered this in ${column(d.to)}` : `${who} moved this from ${column(d.from)} to ${column(d.to)}`
+      return d.from === d.to
+        ? line(e, 'reordered', { who, to: column(d.to) })
+        : line(e, 'moved', { who, from: column(d.from), to: column(d.to) })
     case 'commented':
-      return `${who} commented`
+      return line(e, 'commented', { who })
     case 'subtask_added':
-      return `${who} added the subtask ${quoted(d.title)}`
+      return line(e, 'subtask_added', { who, title: quoted(d.title) })
     case 'subtask_done':
-      return `${who} ticked off ${quoted(d.title)}`
+      return line(e, 'subtask_done', { who, title: quoted(d.title) })
     case 'run_started':
-      return `${who} put ${d.agent_name ?? 'an agent'} to work on this`
-    case 'run_finished':
-      return `${d.agent_name ?? 'The agent'} ${RUN_END[String(d.status)] ?? 'finished'}`
+      return line(e, 'run_started', { who, agent: String(d.agent_name ?? 'an agent') })
+    case 'run_finished': {
+      const agent = String(d.agent_name ?? 'The agent')
+      const kind = `run_${String(d.status)}`
+      return ACTIVITY[kind] ? line(e, kind, { who, agent }) : `${agent} finished`
+    }
     default:
       return `${who}: ${e.kind}`
   }

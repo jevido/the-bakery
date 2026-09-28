@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { empty } from '../lib/flavor/lines'
   import { Panel, Button, TextField, Tabs } from '@bakery/ui'
   import type { OpenTask } from '../lib/task.svelte'
   import { renderMarkdown, openLinksOutside } from '../lib/markdown'
@@ -459,7 +460,7 @@
             </div>
           {:else if active === 'runs'}
             {#if open.runs.length === 0}
-              <p class="dim">No agent has worked on this yet.</p>
+              <p class="dim">{empty('runs', open.task?.id ?? 'runs')}</p>
             {/if}
             <ul class="runs">
               {#each open.runs as r (r.id)}

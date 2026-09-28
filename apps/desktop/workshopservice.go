@@ -44,6 +44,8 @@ type WorkshopService struct {
 	wake chan struct{}
 	// alerts is what the alerts column remembers between rounds.
 	alerts *alertBook
+	// story is the storyteller behind event letters.
+	story *storyBook
 	// needsNudge asks for the agents' needs to be worked out again.
 	needsNudge chan struct{}
 	// desk turns runs' permission prompts and questions into letters.
@@ -62,6 +64,7 @@ func NewWorkshopService(client *api.Client, s *session.Session, agentFolders *ag
 		wake:       make(chan struct{}, 1),
 		needsNudge: make(chan struct{}, 1),
 		alerts:     newAlertBook(),
+		story:      newStoryBook(),
 		desk:       workshop.NewDesk(),
 	}
 }

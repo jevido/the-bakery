@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { empty } from '../lib/flavor/lines'
   import { Panel, TextField, Portrait } from '@bakery/ui'
   import TaskCard from './TaskCard.svelte'
   import ColumnHeader from './ColumnHeader.svelte'
@@ -301,6 +302,7 @@
           {/each}
           {#if at === col.tasks.length}<li class="indicator" aria-hidden="true"></li>{/if}
         </ul>
+        {#if col.tasks.length === 0}<p class="empty-col">{empty('column', col.id)}</p>{/if}
         {#if c === 0}
           <div class="add">
             <TextField placeholder="New task, then Enter" maxlength={200} bind:value={newTitle} onkeydown={addTask} />
@@ -666,5 +668,13 @@
     margin: -4px 0;
     background: var(--steel-bright);
     box-shadow: 0 0 4px var(--steel);
+  }
+
+  .empty-col {
+    margin: 0;
+    padding: 4px 6px;
+    font-size: 12px;
+    color: var(--text-faint);
+    pointer-events: none;
   }
 </style>

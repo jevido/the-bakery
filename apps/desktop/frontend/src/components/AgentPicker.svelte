@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { empty } from '../lib/flavor/lines'
   import { Button, Portrait } from '@bakery/ui'
   import { AgentsService, messageOf, type AgentSummary } from '../lib/bindings'
 
@@ -54,7 +55,7 @@
   {#if error}<p class="error" role="alert">{error}</p>{/if}
   {#if loadError}<p class="error">{loadError}</p>{/if}
   {#if loaded && agents.length === 0}
-    <p class="dim">No agents yet. Make one on the Agents screen.</p>
+    <p class="dim">{empty('pickAgents')}</p>
   {/if}
   <ul>
     {#each sorted as a (a.slug)}
