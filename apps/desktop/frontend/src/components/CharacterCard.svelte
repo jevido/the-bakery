@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Panel, Button, TextField, Portrait } from '@bakery/ui'
+  import { Panel, Button, TextField, Portrait, NeedBar } from '@bakery/ui'
+  import { needs, NEED_HINTS } from '../lib/needs.svelte'
   import Confirm from './Confirm.svelte'
   import type { Roster } from '../lib/roster.svelte'
   import type { Guild, SkillEntry } from '../lib/bindings'
@@ -10,6 +11,7 @@
 
   let detail = $derived(roster.detail)
   let draft = $derived(roster.draft)
+  let mine = $derived(detail ? needs.bySlug[detail.slug] : undefined)
   let saving = $state(false)
   let confirmingDelete = $state(false)
   let importing = $state<SkillEntry[] | null>(null)
@@ -34,6 +36,8 @@
     if (!draft) return
     draft.traits = draft.traits.includes(key) ? draft.traits.filter((t) => t !== key) : [...draft.traits, key]
   }
+
+  const MOOD_WORDS = { content: 'Content', okay: 'Okay', stressed: 'Stressed', breaking: 'Breaking' }
 
   // reroll draws a new face; like every edit it is kept once saved.
   function reroll() {
@@ -82,6 +86,18 @@
           <TextField label="Title" maxlength={60} placeholder="Backend engineer" bind:value={draft.title} />
         </div>
       </div>
+
+      {#if mine}
+        <section class="needs" aria-label="Needs">
+          <p class="mood">
+            <strong class={['word', mine.mood]}>{MOOD_WORDS[mine.mood]}</strong>{#if mine.reason}: {mine.reason}{/if}
+          </p>
+          <NeedBar label="Budget" value={mine.needs.budget} hint={NEED_HINTS.budget} />
+          <NeedBar label="Focus" value={mine.needs.focus} hint={NEED_HINTS.focus} />
+          <NeedBar label="Morale" value={mine.needs.morale} hint={NEED_HINTS.morale} />
+          <NeedBar label="Rest" value={mine.needs.rest} hint={NEED_HINTS.rest} />
+        </section>
+      {/if}
 
       {#if detail.recruited}
         <p class="origin">
@@ -446,5 +462,37 @@
     border: none;
     cursor: pointer;
     text-decoration: underline;
+  }
+
+  .needs {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px 8px;
+    background: var(--panel-inset);
+    border: 1px solid var(--frame-dim);
+    border-radius: var(--radius);
+  }
+
+  .mood {
+    margin: 0 0 3px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .word.content {
+    color: var(--olive-bright);
+  }
+
+  .word.okay {
+    color: var(--text);
+  }
+
+  .word.stressed {
+    color: var(--amber);
+  }
+
+  .word.breaking {
+    color: var(--rust-bright);
   }
 </style>

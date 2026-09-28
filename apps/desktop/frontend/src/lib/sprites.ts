@@ -76,6 +76,13 @@ export const MARKS: Record<string, Sprite> = {
   },
 }
 
+// Mood marks, 3×3, beside a colonist's head. An okay agent has none.
+export const MOODS: Record<string, Sprite> = {
+  content: { rows: ['g.g', '...', 'ggg'], palette: { g: '#98a856' } },
+  stressed: { rows: ['.a.', 'aaa', '.a.'], palette: { a: '#b8913a' } },
+  breaking: { rows: ['r.r', '.r.', 'r.r'], palette: { r: '#c06c43' } },
+}
+
 // A hammer, 4×4, swung while editing or running a command.
 export const HAMMER: Sprite = {
   rows: ['mmm.', 'mmm.', '.w..', '.w..'],

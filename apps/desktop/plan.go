@@ -167,6 +167,7 @@ func (s *WorkshopService) PlanTask(ctx context.Context, boardID, taskID uint64, 
 	}
 	run.mu.Lock()
 	run.info.Status, run.info.CostUSD, run.info.Turns = status, res.Proposal.CostUSD, res.Turns
+	run.info.EndedAt = time.Now()
 	run.info.State = map[bool]string{true: "done", false: "failed"}[status == "succeeded"]
 	run.mu.Unlock()
 	s.emitRuns()

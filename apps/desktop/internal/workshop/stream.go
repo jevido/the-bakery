@@ -9,8 +9,9 @@ import (
 // RunEvent is one thing that happened in a run, as the run panel shows it.
 // Kind says which fields are set.
 type RunEvent struct {
-	// Kind is "init", "text", "tool_call", "tool_result", "result", or
-	// "note" (something the workshop itself says: a missing skill, an exit).
+	// Kind is "init", "text", "tool_call", "tool_result", "result",
+	// "note" (something the workshop itself says: a missing skill, an exit),
+	// or "usage" (how full the context is; the panel does not show it).
 	Kind string `json:"kind"`
 	// Seq numbers a run's events from 1, so a panel that loads the past and
 	// listens for the new can drop the ones it has twice.
@@ -31,6 +32,9 @@ type RunEvent struct {
 	// Input is the tool call's input as JSON, cut to toolTextMax.
 	Input   string `json:"input,omitempty"`
 	IsError bool   `json:"is_error,omitempty"`
+
+	// usage: the tokens the turn's context held.
+	ContextTokens int `json:"context_tokens,omitempty"`
 
 	// result
 	Subtype    string  `json:"subtype,omitempty"`
@@ -59,6 +63,11 @@ type streamLine struct {
 	MCPServers     []MCPServer `json:"mcp_servers"`
 	Message        struct {
 		Content json.RawMessage `json:"content"`
+		Usage   *struct {
+			InputTokens              int `json:"input_tokens"`
+			CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+			CacheReadInputTokens     int `json:"cache_read_input_tokens"`
+		} `json:"usage"`
 	} `json:"message"`
 	IsError      bool    `json:"is_error"`
 	TotalCostUSD float64 `json:"total_cost_usd"`
@@ -105,6 +114,11 @@ func DecodeLine(line []byte) (events []RunEvent, ok bool) {
 				}
 			case "tool_use":
 				events = append(events, RunEvent{Kind: "tool_call", ToolID: b.ID, Tool: b.Name, Input: cut(string(b.Input))})
+			}
+		}
+		if u := l.Message.Usage; u != nil {
+			if n := u.InputTokens + u.CacheCreationInputTokens + u.CacheReadInputTokens; n > 0 {
+				events = append(events, RunEvent{Kind: "usage", ContextTokens: n})
 			}
 		}
 	case "user":

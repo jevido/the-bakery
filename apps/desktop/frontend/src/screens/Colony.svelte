@@ -12,6 +12,7 @@
   import { Letters as LetterBox } from '../lib/letters.svelte'
   import { AgentSync } from '../lib/agentsync.svelte'
   import { Colony } from '../lib/colony.svelte'
+  import { needs } from '../lib/needs.svelte'
   import { SessionService, WebsiteService, WorkshopService, messageOf, type Member } from '../lib/bindings'
 
   let {
@@ -38,6 +39,8 @@
   colony.load()
   // Follow the open board's live events while this screen is up.
   $effect(() => colony.listen())
+  // Every agent's needs and mood, for the agent card and the colony view.
+  $effect(() => needs.listen())
   // The guild list's right-click menu, and the guild being reported.
   let guildMenu = $state<{ guild: { id: number; name: string }; x: number; y: number } | null>(null)
   let reporting = $state<{ id: number; name: string } | null>(null)

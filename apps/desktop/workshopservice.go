@@ -42,6 +42,8 @@ type WorkshopService struct {
 	machineID string
 	// wake nudges the scheduler: a run ended, a board changed.
 	wake chan struct{}
+	// needsNudge asks for the agents' needs to be worked out again.
+	needsNudge chan struct{}
 	// desk turns runs' permission prompts and questions into letters.
 	desk *workshop.Desk
 	// notify, when set, tells the desktop about a new letter (main sends it
@@ -52,11 +54,12 @@ type WorkshopService struct {
 func NewWorkshopService(client *api.Client, s *session.Session, agentFolders *agents.Engine, logger *slog.Logger) *WorkshopService {
 	return &WorkshopService{
 		client: client, session: s, agents: agentFolders, log: logger,
-		boards:    workshop.NewBoards(configBase(), apiHost(client)),
-		runs:      map[string]*localRun{},
-		machineID: machineID(),
-		wake:      make(chan struct{}, 1),
-		desk:      workshop.NewDesk(),
+		boards:     workshop.NewBoards(configBase(), apiHost(client)),
+		runs:       map[string]*localRun{},
+		machineID:  machineID(),
+		wake:       make(chan struct{}, 1),
+		needsNudge: make(chan struct{}, 1),
+		desk:       workshop.NewDesk(),
 	}
 }
 
@@ -324,6 +327,10 @@ type RunInfo struct {
 	CostUSD    float64 `json:"cost_usd"`
 	Turns      int     `json:"turns"`
 	DurationMS int64   `json:"duration_ms"`
+	// ContextTokens is how full the context was at the last turn.
+	ContextTokens int `json:"context_tokens"`
+	// EndedAt is set once the run has ended.
+	EndedAt time.Time `json:"ended_at,omitzero"`
 	// Once the run has ended: what it left in its worktree, the column the
 	// task moved to ("" when it did not move), and whether the worktree was
 	// removed since.
@@ -478,6 +485,11 @@ func (s *WorkshopService) record(run *localRun, ev workshop.RunEvent) {
 		}
 	case "result":
 		run.info.CostUSD, run.info.Turns, run.info.DurationMS = ev.CostUSD, ev.Turns, ev.DurationMS
+	case "usage":
+		// Only the needs read it; the panel never shows it.
+		run.info.ContextTokens = ev.ContextTokens
+		run.mu.Unlock()
+		return
 	}
 	all := append([]workshop.RunEvent{ev}, notes...)
 	for i := range all {
@@ -567,6 +579,7 @@ func (s *WorkshopService) end(run *localRun, out workshop.Outcome) {
 
 	run.mu.Lock()
 	run.info.Status = status
+	run.info.EndedAt = time.Now()
 	run.info.State = map[string]string{"succeeded": "done", "stopped": "done"}[status]
 	if run.info.State == "" {
 		run.info.State = "failed"
@@ -675,12 +688,21 @@ type runFile struct {
 	PID int `json:"pid,omitempty"`
 	// ClaimID is the claim holding the task while the run goes.
 	ClaimID uint64 `json:"claim_id,omitempty"`
+	// What the agent's needs read after a restart.
+	AgentSlug     string    `json:"agent_slug,omitempty"`
+	Model         string    `json:"model,omitempty"`
+	StartedAt     time.Time `json:"started_at,omitzero"`
+	EndedAt       time.Time `json:"ended_at,omitzero"`
+	CostUSD       float64   `json:"cost_usd,omitempty"`
+	ContextTokens int       `json:"context_tokens,omitempty"`
 }
 
 func (s *WorkshopService) saveRunFile(run *localRun) {
 	run.mu.Lock()
 	f := runFile{APIRunID: run.info.APIRunID, BoardID: run.info.BoardID, TaskID: run.info.TaskID, Status: run.info.Status,
-		Repo: run.repo, Worktree: run.info.Worktree, Branch: run.info.Branch, ClaimID: run.claimID}
+		Repo: run.repo, Worktree: run.info.Worktree, Branch: run.info.Branch, ClaimID: run.claimID,
+		AgentSlug: run.info.AgentSlug, Model: run.info.Model, StartedAt: run.info.StartedAt, EndedAt: run.info.EndedAt,
+		CostUSD: run.info.CostUSD, ContextTokens: run.info.ContextTokens}
 	if run.proc != nil && run.info.Status == "running" {
 		f.PID = run.proc.PID()
 	}
@@ -727,6 +749,9 @@ func (s *WorkshopService) finishOrphans(ctx context.Context) {
 			}
 		}
 		f.Status = "failed"
+		if f.EndedAt.IsZero() {
+			f.EndedAt = time.Now()
+		}
 		raw, _ = json.MarshalIndent(f, "", "  ")
 		_ = os.WriteFile(path, raw, 0o600)
 	}
@@ -749,6 +774,7 @@ func (s *WorkshopService) ServiceStartup(ctx context.Context, _ application.Serv
 		s.logger().Warn("the desk did not start; runs cannot ask for permission", "err", err)
 	}
 	go s.schedule(ctx)
+	go s.watchNeeds(ctx)
 	go func() {
 		tick := time.NewTicker(2 * time.Second)
 		defer tick.Stop()
@@ -859,6 +885,7 @@ func (s *WorkshopService) emitRuns() {
 	if s.app != nil {
 		s.app.Event.Emit(eventRuns, s.Runs())
 	}
+	s.nudgeNeeds()
 }
 
 // ServiceShutdown stops the runs still going, and waits a little for them

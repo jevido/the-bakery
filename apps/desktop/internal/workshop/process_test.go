@@ -18,20 +18,23 @@ func TestDecodeRecordedRun(t *testing.T) {
 	}
 	var kinds []string
 	var init, result RunEvent
-	notJSON := 0
+	notJSON, contextTokens := 0, 0
 	for line := range strings.SplitSeq(strings.TrimSpace(string(raw)), "\n") {
 		events, ok := DecodeLine([]byte(line))
 		if !ok {
 			notJSON++
 		}
 		for _, ev := range events {
-			kinds = append(kinds, ev.Kind)
 			switch ev.Kind {
 			case "init":
 				init = ev
 			case "result":
 				result = ev
+			case "usage":
+				contextTokens = ev.ContextTokens
+				continue
 			}
+			kinds = append(kinds, ev.Kind)
 		}
 	}
 	if notJSON != 1 {
@@ -42,6 +45,10 @@ func TestDecodeRecordedRun(t *testing.T) {
 		if !strings.HasPrefix(got, "init,") || !strings.HasSuffix(got, ",result") || !strings.Contains(got, "tool_call,tool_result") {
 			t.Errorf("kinds = %s", got)
 		}
+	}
+	// The recording's turns held 21,181 tokens and more.
+	if contextTokens < 21_181 {
+		t.Errorf("context tokens = %d", contextTokens)
 	}
 	if init.Model == "" || init.PermissionMode == "" || len(init.Skills) == 0 {
 		t.Errorf("init = %+v", init)

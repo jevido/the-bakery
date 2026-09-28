@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Portrait } from '@bakery/ui'
-  import { BENCH, COLONIST, FLOOR, HAMMER, MARKS, TABLE, colonistColours, draw, size } from '../lib/sprites'
+  import { BENCH, COLONIST, FLOOR, HAMMER, MARKS, MOODS, TABLE, colonistColours, draw, size } from '../lib/sprites'
+  import { needs, type Mood } from '../lib/needs.svelte'
   import type { Colony } from '../lib/colony.svelte'
   import type { Letters } from '../lib/letters.svelte'
   import type { RunInfo } from '../lib/bindings'
@@ -27,6 +28,7 @@
     name: string
     seed: string
     state: string // idle, thinking, editing, running, waiting, done, failed
+    mood?: Mood
     run?: RunInfo
     bench: number // -1: at the table
   }
@@ -61,14 +63,22 @@
       const workType = tasks.get(r.task_id)?.work_type ?? ''
       const bench = benches.findIndex((b) => b.key === workType)
       const agent = colony.agents.find((a) => a.slug === r.agent_slug)
-      out.push({ slug: r.agent_slug, name: r.agent_name, seed: agent?.portrait_seed || r.agent_slug, state, run: r, bench: bench < 0 ? benches.length - 1 : bench })
+      out.push({
+        slug: r.agent_slug,
+        name: r.agent_name,
+        seed: agent?.portrait_seed || r.agent_slug,
+        state,
+        mood: needs.bySlug[r.agent_slug]?.mood,
+        run: r,
+        bench: bench < 0 ? benches.length - 1 : bench,
+      })
       seen.add(r.agent_slug)
     }
     for (const slug of colony.settings?.config.agents ?? []) {
       if (seen.has(slug)) continue
       const agent = colony.agents.find((a) => a.slug === slug)
       if (!agent) continue
-      out.push({ slug, name: agent.name, seed: agent.portrait_seed || slug, state: 'idle', bench: -1 })
+      out.push({ slug, name: agent.name, seed: agent.portrait_seed || slug, state: 'idle', mood: needs.bySlug[slug]?.mood, bench: -1 })
     }
     return out
   })
@@ -90,7 +100,9 @@
     return { spots, tableX: GAP, tableY, height: tableY + table.h + person.h + 40 }
   })
 
-  const animated = $derived(!reduced && figures.some((f) => ['thinking', 'editing', 'running', 'waiting'].includes(f.state)))
+  const animated = $derived(
+    !reduced && figures.some((f) => ['thinking', 'editing', 'running', 'waiting'].includes(f.state) || (f.state === 'idle' && f.mood === 'breaking')),
+  )
   const flashing = $derived(figures.some((f) => f.state === 'done' || f.state === 'failed'))
 
   // A check or cross goes after a few seconds.
@@ -142,7 +154,13 @@
       const phase = t / 1000
       let dy = 0
       if (!reduced && f.state === 'thinking') dy = Math.round(Math.sin(phase * 4) * 1.5) * S
+      // An idle agent shows its mood: slumped when stressed, pacing when
+      // breaking. Looks only; nothing it does changes.
+      if (f.state === 'idle' && f.mood === 'stressed') dy = S
+      if (f.state === 'idle' && f.mood === 'breaking' && !reduced) x += Math.round(Math.sin(phase * 2) * 3) * S
       draw(ctx, COLONIST, x, y + dy, S, colonistColours(f.seed))
+      const mark = f.mood ? MOODS[f.mood] : undefined
+      if (mark) draw(ctx, mark, x + person.w, y - 3 * S + dy, S)
       const headX = x + person.w / 2 - 2.5 * S
       const headY = y - 7 * S
       if (f.state === 'editing' || f.state === 'running') {

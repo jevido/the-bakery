@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -412,4 +414,13 @@ func (e *Engine) trash(f Folder) error {
 		return err
 	}
 	return os.Rename(f.Dir, filepath.Join(e.trashDir(), f.Slug+"-"+e.now().Format("20060102-150405")))
+}
+
+// Slugs lists the agents on this machine.
+func (e *Engine) Slugs() ([]string, error) {
+	fs, err := e.folders()
+	if err != nil {
+		return nil, err
+	}
+	return slices.Sorted(maps.Keys(fs)), nil
 }
