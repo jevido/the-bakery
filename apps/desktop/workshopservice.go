@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,16 +32,25 @@ type WorkshopService struct {
 	session *session.Session
 	agents  *agents.Engine
 	boards  *workshop.Boards
+	log     *slog.Logger
 
 	runsMu sync.Mutex
 	runs   map[string]*localRun
+
+	startMu   sync.Mutex
+	ends      sync.WaitGroup
+	machineID string
+	// wake nudges the scheduler: a run ended, a board changed.
+	wake chan struct{}
 }
 
-func NewWorkshopService(client *api.Client, s *session.Session, agentFolders *agents.Engine) *WorkshopService {
+func NewWorkshopService(client *api.Client, s *session.Session, agentFolders *agents.Engine, logger *slog.Logger) *WorkshopService {
 	return &WorkshopService{
-		client: client, session: s, agents: agentFolders,
-		boards: workshop.NewBoards(configBase(), apiHost(client)),
-		runs:   map[string]*localRun{},
+		client: client, session: s, agents: agentFolders, log: logger,
+		boards:    workshop.NewBoards(configBase(), apiHost(client)),
+		runs:      map[string]*localRun{},
+		machineID: machineID(),
+		wake:      make(chan struct{}, 1),
 	}
 }
 
@@ -313,8 +323,13 @@ type localRun struct {
 	// and the run's folder.
 	repo, base, finishColumn, dir string
 	seq                           int
-	events                        []workshop.RunEvent
-	proc                          *workshop.Process
+	// The claim holding the task while the run goes, kept by heartbeat
+	// until stopHeartbeat closes.
+	claimID       uint64
+	agentID       uint64
+	stopHeartbeat chan struct{}
+	events        []workshop.RunEvent
+	proc          *workshop.Process
 }
 
 func (r *localRun) snapshot() RunInfo {
@@ -331,6 +346,9 @@ func (s *WorkshopService) claudeBinary() string {
 // the worktree and the run's files, records the run with the API, and
 // starts Claude. It returns the run's id on this machine.
 func (s *WorkshopService) StartRun(ctx context.Context, boardID, taskID uint64, agentSlug string) (RunInfo, error) {
+	// One start at a time, so two starts never both fit under the limit.
+	s.startMu.Lock()
+	defer s.startMu.Unlock()
 	cfg, err := s.boards.Load(boardID)
 	if err != nil {
 		return RunInfo{}, err
@@ -346,12 +364,18 @@ func (s *WorkshopService) StartRun(ctx context.Context, boardID, taskID uint64, 
 			s.runsMu.Unlock()
 			return RunInfo{}, fmt.Errorf("%s is already working on this task", info.AgentName)
 		}
+		if info.AgentSlug == agentSlug {
+			s.runsMu.Unlock()
+			return RunInfo{}, fmt.Errorf("%s is busy with another task", info.AgentName)
+		}
 		if info.BoardID == boardID {
 			running++
 		}
 	}
 	s.runsMu.Unlock()
-	if running >= cfg.MaxConcurrentRuns {
+	// A person may assign up to the normal limit even while the board is
+	// paused; the scheduler keeps to the limit of the board's speed.
+	if running >= max(cfg.RunLimit(), cfg.MaxConcurrentRuns) {
 		return RunInfo{}, fmt.Errorf("this board already has %d runs going on this machine, its limit; wait for one to end or raise it in Board settings", running)
 	}
 	if _, err := exec.LookPath(s.claudeBinary()); err != nil {
@@ -365,13 +389,23 @@ func (s *WorkshopService) StartRun(ctx context.Context, boardID, taskID uint64, 
 		return RunInfo{}, fmt.Errorf("%s has not synced yet; wait for the sync, then try again", folder.Manifest.Name)
 	}
 
+	// The claim first: if another machine has the task, nothing is made.
+	claim, err := s.client.ClaimTask(ctx, s.session.Token(), taskID, folder.Sync.AgentID, s.machineID)
+	if err != nil {
+		return RunInfo{}, err
+	}
+	release := func() {
+		_ = s.client.ReleaseClaim(context.WithoutCancel(ctx), s.session.Token(), claim.ID)
+	}
 	prep, err := s.prepareRun(ctx, boardID, taskID, agentSlug)
 	if err != nil {
+		release()
 		return RunInfo{}, err
 	}
 	host, _ := os.Hostname()
 	apiRun, err := s.client.StartRun(ctx, s.session.Token(), taskID, folder.Sync.AgentID, prep.Agent.Name, host, prep.Worktree.Branch)
 	if err != nil {
+		release()
 		return RunInfo{}, fmt.Errorf("recording the run: %w", err)
 	}
 	run := &localRun{
@@ -382,6 +416,7 @@ func (s *WorkshopService) StartRun(ctx context.Context, boardID, taskID uint64, 
 		},
 		skills: prep.Skills,
 		repo:   prep.Config.Repo, base: prep.Worktree.Base, finishColumn: prep.Config.FinishColumn, dir: prep.Dir,
+		claimID: claim.ID, agentID: folder.Sync.AgentID, stopHeartbeat: make(chan struct{}),
 	}
 	s.runsMu.Lock()
 	s.runs[prep.ID] = run
@@ -399,7 +434,8 @@ func (s *WorkshopService) StartRun(ctx context.Context, boardID, taskID uint64, 
 	run.mu.Unlock()
 	s.saveRunFile(run)
 	s.emitRuns()
-	go func() { s.end(run, proc.Wait()) }()
+	go s.heartbeat(run)
+	s.ends.Go(func() { s.end(run, proc.Wait()) })
 	return run.snapshot(), nil
 }
 
@@ -484,6 +520,19 @@ func (s *WorkshopService) end(run *localRun, out workshop.Outcome) {
 	if status == "succeeded" && finishColumn != "" {
 		moved = s.moveToFinish(ctx, run, token, info, finishColumn)
 	}
+	// Let the task go, now that the run is over and the task has moved on.
+	run.mu.Lock()
+	claimID := run.claimID
+	if run.stopHeartbeat != nil {
+		close(run.stopHeartbeat)
+		run.stopHeartbeat = nil
+	}
+	run.mu.Unlock()
+	if claimID != 0 {
+		if err := s.client.ReleaseClaim(ctx, token, claimID); err != nil {
+			s.record(run, workshop.RunEvent{Kind: "note", Text: "Could not let go of the task: " + err.Error()})
+		}
+	}
 
 	run.mu.Lock()
 	run.info.Status = status
@@ -493,6 +542,66 @@ func (s *WorkshopService) end(run *localRun, out workshop.Outcome) {
 	s.saveRunFile(run)
 	s.record(run, workshop.RunEvent{Kind: "note", Text: "Run " + status + "."})
 	s.emitRuns()
+	s.Wake()
+}
+
+// heartbeatEvery is how often a run renews its claim; a claim lasts two
+// minutes.
+const heartbeatEvery = 30 * time.Second
+
+// heartbeat keeps the run's claim until the run ends. A claim that lapsed
+// anyway (the machine slept) is taken again; if another machine has the
+// task by then, the run stops.
+func (s *WorkshopService) heartbeat(run *localRun) {
+	run.mu.Lock()
+	stop := run.stopHeartbeat
+	run.mu.Unlock()
+	tick := time.NewTicker(heartbeatEvery)
+	defer tick.Stop()
+	for {
+		select {
+		case <-stop:
+			return
+		case <-tick.C:
+		}
+		run.mu.Lock()
+		claimID, taskID, agentID := run.claimID, run.info.TaskID, run.agentID
+		run.mu.Unlock()
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		_, err := s.client.HeartbeatClaim(ctx, s.session.Token(), claimID)
+		var apiErr *api.Error
+		if errors.As(err, &apiErr) && apiErr.Status == 410 {
+			c, cerr := s.client.ClaimTask(ctx, s.session.Token(), taskID, agentID, s.machineID)
+			if cerr == nil {
+				run.mu.Lock()
+				run.claimID = c.ID
+				run.mu.Unlock()
+				s.saveRunFile(run)
+			} else {
+				s.record(run, workshop.RunEvent{Kind: "note", Text: "Lost the task to another machine; stopping."})
+				run.mu.Lock()
+				proc := run.proc
+				run.mu.Unlock()
+				if proc != nil {
+					proc.Stop()
+				}
+			}
+		}
+		cancel()
+	}
+}
+
+// machineID names this machine to the API's claims: a random id made once
+// and kept in the config folder.
+func machineID() string {
+	path := filepath.Join(configBase(), "machine")
+	if raw, err := os.ReadFile(path); err == nil && len(strings.TrimSpace(string(raw))) > 0 {
+		return strings.TrimSpace(string(raw))
+	}
+	id := newUUID()
+	_ = os.MkdirAll(configBase(), 0o755)
+	_ = os.WriteFile(path, []byte(id+"\n"), 0o644)
+	return id
 }
 
 // moveToFinish moves a finished task to the board's finish column, found by
@@ -529,12 +638,14 @@ type runFile struct {
 	Branch   string `json:"branch"`
 	// PID is claude's process (and process group) while it runs.
 	PID int `json:"pid,omitempty"`
+	// ClaimID is the claim holding the task while the run goes.
+	ClaimID uint64 `json:"claim_id,omitempty"`
 }
 
 func (s *WorkshopService) saveRunFile(run *localRun) {
 	run.mu.Lock()
 	f := runFile{APIRunID: run.info.APIRunID, BoardID: run.info.BoardID, TaskID: run.info.TaskID, Status: run.info.Status,
-		Repo: run.repo, Worktree: run.info.Worktree, Branch: run.info.Branch}
+		Repo: run.repo, Worktree: run.info.Worktree, Branch: run.info.Branch, ClaimID: run.claimID}
 	if run.proc != nil && run.info.Status == "running" {
 		f.PID = run.proc.PID()
 	}
@@ -568,6 +679,9 @@ func (s *WorkshopService) finishOrphans(ctx context.Context) {
 		// (Its process group id is its pid; a reused pid would have to
 		// belong to a group of that id too.)
 		workshop.KillGroup(f.PID)
+		if f.ClaimID != 0 {
+			_ = s.client.ReleaseClaim(ctx, s.session.Token(), f.ClaimID)
+		}
 		end := api.RunEnd{Status: "failed", Summary: "Desktop closed during the run."}
 		if _, err := s.client.FinishRun(ctx, s.session.Token(), f.APIRunID, end); err != nil {
 			// Out of reach or signed out: try again next launch. Refused
@@ -583,9 +697,17 @@ func (s *WorkshopService) finishOrphans(ctx context.Context) {
 	}
 }
 
-// ServiceStartup finishes, once the member is signed in, the runs the app
-// left running when it last went away.
+func (s *WorkshopService) logger() *slog.Logger {
+	if s.log == nil {
+		return slog.Default()
+	}
+	return s.log
+}
+
+// ServiceStartup starts the colony's scheduler and finishes, once the
+// member is signed in, the runs the app left running when it last went away.
 func (s *WorkshopService) ServiceStartup(ctx context.Context, _ application.ServiceOptions) error {
+	go s.schedule(ctx)
 	go func() {
 		tick := time.NewTicker(2 * time.Second)
 		defer tick.Stop()
@@ -709,16 +831,17 @@ func (s *WorkshopService) ServiceShutdown() error {
 	for _, p := range procs {
 		p.Stop()
 	}
-	deadline := time.After(8 * time.Second)
-	for _, p := range procs {
-		select {
-		case <-p.Done():
-		case <-deadline:
-			return nil
-		}
+	// Wait for the runs to be finished: recorded, commented, and their
+	// claims released.
+	done := make(chan struct{})
+	go func() {
+		s.ends.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(20 * time.Second):
 	}
-	// Give the last API calls a moment.
-	time.Sleep(500 * time.Millisecond)
 	return nil
 }
 

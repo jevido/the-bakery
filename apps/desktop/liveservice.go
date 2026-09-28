@@ -40,6 +40,9 @@ type LiveService struct {
 	session *session.Session
 	logger  *slog.Logger
 	app     *application.App
+	// onBoardEvent, when set, hears every event of the watched board too
+	// (the workshop's scheduler wakes on them).
+	onBoardEvent func(api.BoardEvent)
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -101,7 +104,12 @@ func (s *LiveService) follow(ctx context.Context, boardID uint64) {
 				}
 				first = false
 			},
-			func(ev api.BoardEvent) { s.emit(ctx, eventBoard, ev) },
+			func(ev api.BoardEvent) {
+				s.emit(ctx, eventBoard, ev)
+				if s.onBoardEvent != nil {
+					s.onBoardEvent(ev)
+				}
+			},
 		)
 		if ctx.Err() != nil {
 			return

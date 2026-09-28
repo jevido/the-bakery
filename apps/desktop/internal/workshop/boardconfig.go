@@ -41,6 +41,31 @@ type BoardConfig struct {
 	// IsolateUserSettings runs Claude with --setting-sources project,local,
 	// so the member's own ~/.claude skills, hooks and plugins stay out.
 	IsolateUserSettings bool `toml:"isolate_user_settings" json:"isolate_user_settings"`
+
+	// The colony: which agents take work here by themselves, from which
+	// column, how many at fast speed, and the speed (paused, normal, fast).
+	ReadyColumn           string   `toml:"ready_column" json:"ready_column"`
+	Agents                []string `toml:"agents" json:"agents"`
+	MaxConcurrentRunsFast int      `toml:"max_concurrent_runs_fast" json:"max_concurrent_runs_fast"`
+	Speed                 string   `toml:"speed" json:"speed"`
+}
+
+// The time controls.
+const (
+	SpeedPaused = "paused"
+	SpeedNormal = "normal"
+	SpeedFast   = "fast"
+)
+
+// RunLimit is how many runs the board may have going at its speed.
+func (c BoardConfig) RunLimit() int {
+	switch c.Speed {
+	case SpeedFast:
+		return c.MaxConcurrentRunsFast
+	case SpeedNormal:
+		return c.MaxConcurrentRuns
+	}
+	return 0
 }
 
 // DefaultBoardConfig is what a board has before this machine saved one.
@@ -51,6 +76,11 @@ func DefaultBoardConfig() BoardConfig {
 		MaxBudgetUSD:        2,
 		FinishColumn:        "Review",
 		IsolateUserSettings: true,
+
+		ReadyColumn:           "To do",
+		Agents:                []string{},
+		MaxConcurrentRunsFast: 4,
+		Speed:                 SpeedPaused,
 	}
 }
 
@@ -83,6 +113,14 @@ func (c BoardConfig) Validate(ctx context.Context) error {
 	}
 	if c.MaxBudgetUSD <= 0 {
 		return &ConfigError{"max_budget_usd", "the budget per run must be more than $0"}
+	}
+	if c.MaxConcurrentRunsFast < c.MaxConcurrentRuns || c.MaxConcurrentRunsFast > 8 {
+		return &ConfigError{"max_concurrent_runs_fast", "at fast speed, as many runs as at normal speed up to 8"}
+	}
+	switch c.Speed {
+	case SpeedPaused, SpeedNormal, SpeedFast:
+	default:
+		return &ConfigError{"speed", "speed is paused, normal or fast"}
 	}
 	if !c.Linked() {
 		return nil

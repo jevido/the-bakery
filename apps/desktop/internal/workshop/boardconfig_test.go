@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -49,6 +50,8 @@ func TestValidate(t *testing.T) {
 		{"too many runs", with(func(c *BoardConfig) { c.MaxConcurrentRuns = 9 }), "max_concurrent_runs"},
 		{"free runs", with(func(c *BoardConfig) { c.MaxBudgetUSD = 0 }), "max_budget_usd"},
 		{"relative worktree root", with(func(c *BoardConfig) { c.WorktreeRoot = "trees" }), "worktree_root"},
+		{"fast below normal", with(func(c *BoardConfig) { c.MaxConcurrentRunsFast = 1 }), "max_concurrent_runs_fast"},
+		{"made-up speed", with(func(c *BoardConfig) { c.Speed = "ludicrous" }), "speed"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -73,7 +76,7 @@ func TestLoadGivesDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg != DefaultBoardConfig() {
+	if !reflect.DeepEqual(cfg, DefaultBoardConfig()) {
 		t.Fatalf("Load() = %+v, want the defaults", cfg)
 	}
 	if cfg.Linked() {
@@ -87,6 +90,7 @@ func TestSaveAndLoad(t *testing.T) {
 	want := BoardConfig{
 		Repo: "/home/ada/Projects/colony-site", BaseBranch: "trunk", WorktreeRoot: "/tmp/trees",
 		MaxConcurrentRuns: 3, MaxBudgetUSD: 1.5, FinishColumn: "", IsolateUserSettings: false,
+		ReadyColumn: "Ready", Agents: []string{"vera", "ivo"}, MaxConcurrentRunsFast: 5, Speed: SpeedFast,
 	}
 	if err := b.Save(12, want); err != nil {
 		t.Fatal(err)
@@ -95,7 +99,7 @@ func TestSaveAndLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Load() = %+v, want %+v", got, want)
 	}
 	dir := filepath.Join(base, "boards-127.0.0.1_4810", "12")

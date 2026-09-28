@@ -77,6 +77,16 @@ directory and logs a warning.
   ("Desktop closed during the run."). The run panel's footer opens the
   worktree, copies the branch name, and removes the worktree (the branch
   stays).
+- `colony.go` — the colony's scheduler, in `WorkshopService`: every 10
+  seconds, when a run ends and on the open board's events, each board on
+  this machine that is not paused and has agents enabled (`speed`,
+  `agents`, `ready_column` in `board.toml`) hands free tasks of its ready
+  column to idle agents. `workshop.PickNext` decides (a task prioritized for
+  an agent first, then work priority 1 to 4, then board order, within the
+  run limit of the board's speed). Every run, the scheduler's or a person's,
+  first claims its task (`POST /api/tasks/{task}/claim`, with this machine's
+  id from `~/.config/the-bakery/machine`), heartbeats it every 30 seconds and
+  releases it when the run ends, so two machines never work the same task.
 - `internal/session/runner.go` — the runner token: a personal token the app
   makes for itself (`desktop runner (<host>)`) so Claude can use the Bakery
   MCP server as the member during a run. Kept in its own keyring entry,

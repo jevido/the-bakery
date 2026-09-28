@@ -35,6 +35,20 @@ type Task struct {
 	WorkType      *string `json:"work_type"`
 	SubtasksTotal int     `json:"subtasks_total"`
 	SubtasksDone  int     `json:"subtasks_done"`
+	// Steering agents: the one agent that may take it, whether agents are
+	// kept off it, and (on a board's tasks) the claim holding it now.
+	PrioritizedAgentID *uint64 `json:"prioritized_agent_id"`
+	Forbidden          bool    `json:"forbidden"`
+	Claim              *Claim  `json:"claim"`
+}
+
+// Claim is an agent's hold on a task.
+type Claim struct {
+	ID        uint64    `json:"id"`
+	AgentID   uint64    `json:"agent_id"`
+	MemberID  uint64    `json:"member_id"`
+	MachineID string    `json:"machine_id"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
 // TaskDetail is one task with its subtasks in order.
@@ -368,4 +382,45 @@ func (c *Client) FinishRun(ctx context.Context, token string, runID uint64, end 
 	}
 	err := c.do(ctx, http.MethodPatch, fmt.Sprintf("/api/runs/%d", runID), token, end, &res)
 	return res.Run, err
+}
+
+// ClaimTask holds the task for one of the member's agents on this machine.
+func (c *Client) ClaimTask(ctx context.Context, token string, taskID, agentID uint64, machineID string) (Claim, error) {
+	var res struct {
+		Claim Claim `json:"claim"`
+	}
+	in := map[string]any{"agent_id": agentID, "machine_id": machineID}
+	err := c.do(ctx, http.MethodPost, fmt.Sprintf("/api/tasks/%d/claim", taskID), token, in, &res)
+	return res.Claim, err
+}
+
+// HeartbeatClaim keeps a claim for another two minutes.
+func (c *Client) HeartbeatClaim(ctx context.Context, token string, claimID uint64) (Claim, error) {
+	var res struct {
+		Claim Claim `json:"claim"`
+	}
+	err := c.do(ctx, http.MethodPost, fmt.Sprintf("/api/claims/%d/heartbeat", claimID), token, nil, &res)
+	return res.Claim, err
+}
+
+// ReleaseClaim lets the task go.
+func (c *Client) ReleaseClaim(ctx context.Context, token string, claimID uint64) error {
+	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/api/claims/%d", claimID), token, nil, nil)
+}
+
+// DraftTask prioritizes a task for an agent (0 clears it) and/or forbids
+// it for agents; nil leaves either as it is.
+func (c *Client) DraftTask(ctx context.Context, token string, taskID uint64, prioritized *uint64, forbidden *bool) (Task, error) {
+	var res struct {
+		Task Task `json:"task"`
+	}
+	in := map[string]any{}
+	if prioritized != nil {
+		in["prioritized_agent_id"] = *prioritized
+	}
+	if forbidden != nil {
+		in["forbidden"] = *forbidden
+	}
+	err := c.do(ctx, http.MethodPatch, fmt.Sprintf("/api/tasks/%d", taskID), token, in, &res)
+	return res.Task, err
 }
