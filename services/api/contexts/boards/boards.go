@@ -34,6 +34,10 @@ func (memberNames) DisplayNames(ctx context.Context, ids []uint64) (map[uint64]s
 	return identity.DisplayNames(ctx, ids)
 }
 
+func (memberNames) PortraitSeeds(ctx context.Context, ids []uint64) (map[uint64]string, error) {
+	return identity.PortraitSeeds(ctx, ids)
+}
+
 var service = app.NewService(
 	guilds.NewMemberships(), infra.Boards{}, infra.Tasks{}, infra.Comments{}, infra.ActivityLog{}, infra.PresenceLog{}, infra.WorkTypes{}, infra.Runs{}, infra.Claims{}, agentOwners{}, memberNames{},
 	app.NewDispatcher(infra.LogEvents{}.Handle, infra.ActivityProjector{}.Handle, infra.BoardEventPublisher{}.Handle),

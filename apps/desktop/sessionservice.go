@@ -46,6 +46,11 @@ func (s *SessionService) Logout(ctx context.Context) error {
 	return s.session.Logout(ctx)
 }
 
+// RerollPortrait gives the signed-in member a new portrait and returns them.
+func (s *SessionService) RerollPortrait(ctx context.Context) (api.Member, error) {
+	return s.session.RerollPortrait(ctx)
+}
+
 // Me returns the signed-in member, or null when nobody is signed in.
 func (s *SessionService) Me() *api.Member {
 	return s.session.Member()

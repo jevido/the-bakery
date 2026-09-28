@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { Panel, Button, TextField } from '@bakery/ui'
-  import Portrait from './Portrait.svelte'
+  import { Panel, Button, TextField, Portrait } from '@bakery/ui'
   import Confirm from './Confirm.svelte'
   import type { Roster } from '../lib/roster.svelte'
   import type { Guild, SkillEntry } from '../lib/bindings'
@@ -36,6 +35,12 @@
     draft.traits = draft.traits.includes(key) ? draft.traits.filter((t) => t !== key) : [...draft.traits, key]
   }
 
+  // reroll draws a new face; like every edit it is kept once saved.
+  function reroll() {
+    if (!draft) return
+    draft.portrait_seed = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join('')
+  }
+
   async function save() {
     saving = true
     await roster.save()
@@ -68,7 +73,10 @@
 
     <div class="card">
       <div class="identity">
-        <Portrait seed={draft.portrait_seed || detail.slug} size={88} />
+        <div class="face">
+          <Portrait seed={draft.portrait_seed || detail.slug} size={88} alt={`${draft.name || detail.slug}'s portrait`} />
+          <button class="reroll" onclick={reroll}>Re-roll</button>
+        </div>
         <div class="names">
           <TextField label="Name" maxlength={40} bind:value={draft.name} />
           <TextField label="Title" maxlength={60} placeholder="Backend engineer" bind:value={draft.title} />
@@ -421,5 +429,22 @@
     background: color-mix(in srgb, var(--rust) 35%, transparent);
     border: 1px solid var(--rust);
     border-radius: var(--radius);
+  }
+
+  .face {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .reroll {
+    font: inherit;
+    font-size: 11px;
+    color: var(--steel-bright);
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-decoration: underline;
   }
 </style>

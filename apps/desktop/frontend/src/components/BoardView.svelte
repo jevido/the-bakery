@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Panel, TextField } from '@bakery/ui'
+  import { Panel, TextField, Portrait } from '@bakery/ui'
   import TaskCard from './TaskCard.svelte'
   import ColumnHeader from './ColumnHeader.svelte'
   import type { Colony, LiveState } from '../lib/colony.svelte'
@@ -66,12 +66,7 @@
     return a ? { name: a.name, seed: a.portrait_seed || a.slug } : { name: "Another member's agent", seed: '?' + t.claim.agent_id }
   }
 
-  // Portraits come later; for now initials.
   const MAX_FACES = 5
-  function initials(name: string): string {
-    const parts = name.trim().split(/\s+/).filter(Boolean)
-    return ((parts[0]?.[0] ?? '?') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase()
-  }
 
   // Columns are dragged by their header, with their own data type so a
   // column never lands in a task list and a card never moves a column.
@@ -235,7 +230,7 @@
     {#if colony.present.length}
       <ul class="faces" aria-label="Who has this board open">
         {#each colony.present.slice(0, MAX_FACES) as m (m.id)}
-          <li class="face" title={m.name}>{initials(m.name)}</li>
+          <li class="face" title={m.name}><Portrait seed={m.seed} size={22} alt={m.name} /></li>
         {/each}
         {#if colony.present.length > MAX_FACES}
           <li
@@ -536,22 +531,20 @@
   }
 
   .face {
-    width: 22px;
-    height: 22px;
     display: grid;
     place-items: center;
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--text);
-    background: var(--panel-title);
-    border: 1px solid var(--frame);
-    border-radius: 50%;
     cursor: default;
   }
 
   .face.more {
+    width: 22px;
+    height: 22px;
+    font-size: 10px;
+    font-weight: 600;
     color: var(--text-dim);
     background: var(--panel-inset);
+    border: 1px solid var(--frame);
+    border-radius: var(--radius);
   }
 
   .live {

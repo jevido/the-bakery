@@ -66,6 +66,24 @@ func (s *Session) Logout(ctx context.Context) error {
 	return errors.Join(err, s.store.Delete())
 }
 
+// RerollPortrait gives the signed-in member a new portrait.
+func (s *Session) RerollPortrait(ctx context.Context) (api.Member, error) {
+	token := s.Token()
+	if token == "" {
+		return api.Member{}, errors.New("not signed in")
+	}
+	m, err := s.client.RerollPortrait(ctx, token)
+	if err != nil {
+		return api.Member{}, err
+	}
+	s.mu.Lock()
+	if s.token == token {
+		s.member = &m
+	}
+	s.mu.Unlock()
+	return m, nil
+}
+
 // Member is the signed-in member, or nil.
 func (s *Session) Member() *api.Member {
 	s.mu.Lock()

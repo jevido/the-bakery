@@ -17,7 +17,7 @@ export class ApiError extends Error {
   }
 }
 
-export type Member = { id: number; email: string; display_name: string }
+export type Member = { id: number; email: string; display_name: string; portrait_seed: string }
 
 export async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
   let res: Response

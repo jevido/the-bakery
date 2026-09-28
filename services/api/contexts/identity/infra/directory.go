@@ -8,10 +8,11 @@ import (
 
 // Listed is a member as the platform's directory lists them.
 type Listed struct {
-	ID          uint64
-	Email       string
-	DisplayName string
-	JoinedAt    time.Time
+	ID           uint64
+	Email        string
+	DisplayName  string
+	PortraitSeed string
+	JoinedAt     time.Time
 }
 
 // Directory searches every member, for the operator console.
@@ -51,7 +52,7 @@ func (Directory) ByIDs(ctx context.Context, ids []uint64) ([]Listed, error) {
 func listed(recs []memberRecord) []Listed {
 	out := make([]Listed, len(recs))
 	for i, r := range recs {
-		out[i] = Listed{ID: r.ID, Email: r.Email, DisplayName: r.DisplayName, JoinedAt: joinedAt(r)}
+		out[i] = Listed{ID: r.ID, Email: r.Email, DisplayName: r.DisplayName, PortraitSeed: r.PortraitSeed, JoinedAt: joinedAt(r)}
 	}
 	return out
 }

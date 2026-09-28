@@ -22,13 +22,14 @@ type memberRecord struct {
 	Email        string
 	DisplayName  string
 	PasswordHash string
+	PortraitSeed string
 	orm.Timestamps
 }
 
 func (memberRecord) TableName() string { return "members" }
 
 func (r memberRecord) toDomain() domain.Member {
-	return domain.Member{ID: r.ID, Email: r.Email, DisplayName: r.DisplayName, PasswordHash: r.PasswordHash}
+	return domain.Member{ID: r.ID, Email: r.Email, DisplayName: r.DisplayName, PasswordHash: r.PasswordHash, PortraitSeed: r.PortraitSeed}
 }
 
 type Members struct{}
@@ -38,7 +39,7 @@ func (Members) query(ctx context.Context) contractsorm.Query {
 }
 
 func (m Members) Add(ctx context.Context, member domain.Member) (domain.Member, error) {
-	rec := memberRecord{Email: member.Email, DisplayName: member.DisplayName, PasswordHash: member.PasswordHash}
+	rec := memberRecord{Email: member.Email, DisplayName: member.DisplayName, PasswordHash: member.PasswordHash, PortraitSeed: member.PortraitSeed}
 	if err := m.query(ctx).Create(&rec); err != nil {
 		// The unique index on email catches two registrations racing past
 		// the service's own check.
@@ -75,6 +76,11 @@ func (m Members) ByIDs(ctx context.Context, ids []uint64) ([]domain.Member, erro
 		out[i] = r.toDomain()
 	}
 	return out, nil
+}
+
+func (m Members) SetPortraitSeed(ctx context.Context, id uint64, seed string) error {
+	_, err := m.query(ctx).Model(&memberRecord{}).Where("id", id).Update("portrait_seed", seed)
+	return err
 }
 
 func (Members) first(q contractsorm.Query) (domain.Member, bool, error) {

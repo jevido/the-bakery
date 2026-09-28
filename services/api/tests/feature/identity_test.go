@@ -50,3 +50,23 @@ func (s *IdentityTestSuite) TestMeWithoutToken() {
 	s.get("", "/api/me").AssertUnauthorized()
 	s.get("not-a-token", "/api/me").AssertUnauthorized()
 }
+
+func (s *IdentityTestSuite) TestPortraitSeedAndReroll() {
+	_, ada := s.register()
+	me := s.jsonOf(s.get(ada, "/api/me"))["member"].(map[string]any)
+	seed := me["portrait_seed"].(string)
+	s.NotEmpty(seed)
+
+	res := s.post(ada, "/api/me/portrait", "")
+	res.AssertOk()
+	rerolled := s.jsonOf(res)["member"].(map[string]any)["portrait_seed"].(string)
+	s.NotEmpty(rerolled)
+	s.NotEqual(seed, rerolled)
+	s.Equal(rerolled, s.jsonOf(s.get(ada, "/api/me"))["member"].(map[string]any)["portrait_seed"])
+
+	// Guild member lists show it too.
+	guildID := s.foundGuild(ada, "Portrait Colony")
+	members := s.jsonOf(s.get(ada, fmt.Sprintf("/api/guilds/%d/members", guildID)))["members"].([]any)
+	s.Equal(rerolled, members[0].(map[string]any)["portrait_seed"])
+	s.post("", "/api/me/portrait", "").AssertUnauthorized()
+}

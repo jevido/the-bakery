@@ -12,10 +12,11 @@ import (
 )
 
 type memberCardJSON struct {
-	ID          uint64    `json:"id"`
-	Email       string    `json:"email"`
-	DisplayName string    `json:"display_name"`
-	JoinedAt    time.Time `json:"joined_at"`
+	ID           uint64    `json:"id"`
+	Email        string    `json:"email"`
+	DisplayName  string    `json:"display_name"`
+	PortraitSeed string    `json:"portrait_seed"`
+	JoinedAt     time.Time `json:"joined_at"`
 }
 
 type guildCardJSON struct {
@@ -27,7 +28,7 @@ type guildCardJSON struct {
 }
 
 func memberCardToJSON(c app.MemberCard) memberCardJSON {
-	return memberCardJSON{ID: c.ID, Email: c.Email, DisplayName: c.DisplayName, JoinedAt: c.JoinedAt}
+	return memberCardJSON{ID: c.ID, Email: c.Email, DisplayName: c.DisplayName, PortraitSeed: c.PortraitSeed, JoinedAt: c.JoinedAt}
 }
 
 func guildCardToJSON(c app.GuildCard) guildCardJSON {

@@ -40,9 +40,10 @@ type Membership struct {
 
 // Member is a guild member as the members list shows them.
 type Member struct {
-	MemberID    uint64
-	DisplayName string
-	JoinedAt    time.Time
+	MemberID     uint64
+	DisplayName  string
+	PortraitSeed string
+	JoinedAt     time.Time
 }
 
 // MemberLookup is what guilds asks identity: a member id by email, and
@@ -50,6 +51,7 @@ type Member struct {
 type MemberLookup interface {
 	MemberIDByEmail(ctx context.Context, email string) (uint64, bool, error)
 	DisplayNames(ctx context.Context, ids []uint64) (map[uint64]string, error)
+	PortraitSeeds(ctx context.Context, ids []uint64) (map[uint64]string, error)
 }
 
 // Events receives the domain events guilds announce.
@@ -164,9 +166,13 @@ func (s *Service) Members(ctx context.Context, guildID, by uint64) ([]Member, er
 	if err != nil {
 		return nil, err
 	}
+	seeds, err := s.members.PortraitSeeds(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]Member, len(ms))
 	for i, m := range ms {
-		out[i] = Member{MemberID: m.MemberID, DisplayName: names[m.MemberID], JoinedAt: m.JoinedAt}
+		out[i] = Member{MemberID: m.MemberID, DisplayName: names[m.MemberID], PortraitSeed: seeds[m.MemberID], JoinedAt: m.JoinedAt}
 	}
 	return out, nil
 }

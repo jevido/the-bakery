@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Panel, Button, TextField } from '@bakery/ui'
+  import { Panel, Button, TextField, Portrait } from '@bakery/ui'
+  import { session } from '../lib/session.svelte'
   import { guilds, type Guild } from '../lib/guilds'
   import { router } from '../lib/router.svelte'
   import { ApiError } from '../lib/api'
@@ -25,6 +26,18 @@
     load()
   })
 
+  let rerolling = $state(false)
+
+  async function reroll() {
+    rerolling = true
+    try {
+      await session.rerollPortrait()
+    } catch (err) {
+      error = err instanceof ApiError ? err.message : String(err)
+    }
+    rerolling = false
+  }
+
   async function found(event: SubmitEvent) {
     event.preventDefault()
     founding = true
@@ -46,6 +59,17 @@
 <AdminNav />
 
 <h1>Your guilds</h1>
+
+{#if session.member}
+  <div class="me">
+    <Portrait seed={session.member.portrait_seed} size={64} alt="Your portrait" />
+    <div>
+      <strong>{session.member.display_name}</strong>
+      <p class="dim">Your portrait is drawn for you. Don't like it?</p>
+      <Button onclick={reroll} disabled={rerolling}>Re-roll portrait</Button>
+    </div>
+  </div>
+{/if}
 
 {#if error}<p class="error" role="alert">{error}</p>{/if}
 
@@ -146,5 +170,16 @@
     background: color-mix(in srgb, var(--rust) 35%, transparent);
     border: 1px solid var(--rust);
     border-radius: var(--radius);
+  }
+
+  .me {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    margin-bottom: 18px;
+  }
+
+  .me p {
+    margin: 2px 0 6px;
   }
 </style>

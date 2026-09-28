@@ -81,10 +81,10 @@ export class Colony {
   // The run shown in the side panel in place of the task, by its id here.
   openRunId = $state<string | null>(null)
   // Open streams on the board, by stream id: who has it open right now.
-  #streams = $state<Record<string, { id: number; name: string }>>({})
+  #streams = $state<Record<string, { id: number; name: string; seed: string }>>({})
   // One entry per member, however many windows they have open.
   present = $derived.by(() => {
-    const seen = new Map<number, { id: number; name: string }>()
+    const seen = new Map<number, { id: number; name: string; seed: string }>()
     for (const m of Object.values(this.#streams)) seen.set(m.id, m)
     return [...seen.values()]
   })
@@ -152,13 +152,17 @@ export class Colony {
       case 'presence': {
         const d = ev.data
         if (d.state === 'snapshot') {
-          const streams: Record<string, { id: number; name: string }> = {}
-          for (const p of (d.present as { conn_id: string; member_id: number; display_name: string }[]) ?? []) {
-            streams[p.conn_id] = { id: p.member_id, name: p.display_name }
+          const streams: Record<string, { id: number; name: string; seed: string }> = {}
+          for (const p of (d.present as { conn_id: string; member_id: number; display_name: string; portrait_seed?: string }[]) ?? []) {
+            streams[p.conn_id] = { id: p.member_id, name: p.display_name, seed: p.portrait_seed || `member-${p.member_id}` }
           }
           this.#streams = streams
         } else if (d.state === 'joined') {
-          this.#streams[String(d.conn_id)] = { id: Number(d.member_id), name: String(d.display_name ?? '') }
+          this.#streams[String(d.conn_id)] = {
+            id: Number(d.member_id),
+            name: String(d.display_name ?? ''),
+            seed: String(d.portrait_seed || `member-${d.member_id}`),
+          }
         } else if (d.state === 'left') {
           delete this.#streams[String(d.conn_id)]
         }

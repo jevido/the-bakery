@@ -33,19 +33,21 @@ type PresenceLog interface {
 // It is not a domain event: presence is not part of the model's history,
 // only of the board event stream.
 type PresenceChanged struct {
-	BoardID     uint64
-	ActorID     uint64
-	DisplayName string
-	ConnID      string
+	BoardID      uint64
+	ActorID      uint64
+	DisplayName  string
+	PortraitSeed string
+	ConnID       string
 	// State is "joined" or "left".
 	State string
 }
 
 // PresentMember is one open stream with its member's display name.
 type PresentMember struct {
-	ConnID      string
-	MemberID    uint64
-	DisplayName string
+	ConnID       string
+	MemberID     uint64
+	DisplayName  string
+	PortraitSeed string
 }
 
 // EnterBoard records that the member opened the board's stream connID, and
@@ -62,7 +64,11 @@ func (s *Service) EnterBoard(ctx context.Context, boardID, memberID uint64, conn
 	if err != nil {
 		return nil, err
 	}
-	s.events.Publish(ctx, PresenceChanged{BoardID: boardID, ActorID: memberID, DisplayName: names[memberID], ConnID: connID, State: "joined"})
+	seeds, err := s.names.PortraitSeeds(ctx, []uint64{memberID})
+	if err != nil {
+		return nil, err
+	}
+	s.events.Publish(ctx, PresenceChanged{BoardID: boardID, ActorID: memberID, DisplayName: names[memberID], PortraitSeed: seeds[memberID], ConnID: connID, State: "joined"})
 	return s.presentOn(ctx, boardID)
 }
 
@@ -109,9 +115,13 @@ func (s *Service) presentOn(ctx context.Context, boardID uint64) ([]PresentMembe
 	if err != nil {
 		return nil, err
 	}
+	seeds, err := s.names.PortraitSeeds(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]PresentMember, len(ps))
 	for i, p := range ps {
-		out[i] = PresentMember{ConnID: p.ConnID, MemberID: p.MemberID, DisplayName: names[p.MemberID]}
+		out[i] = PresentMember{ConnID: p.ConnID, MemberID: p.MemberID, DisplayName: names[p.MemberID], PortraitSeed: seeds[p.MemberID]}
 	}
 	return out, nil
 }

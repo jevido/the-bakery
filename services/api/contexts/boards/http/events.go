@@ -83,7 +83,7 @@ func (c *EventsController) Stream(ctx contractshttp.Context) contractshttp.Respo
 	// Everyone here now, before any other event.
 	snapshot := make([]map[string]any, len(present))
 	for i, p := range present {
-		snapshot[i] = map[string]any{"conn_id": p.ConnID, "member_id": p.MemberID, "display_name": p.DisplayName}
+		snapshot[i] = map[string]any{"conn_id": p.ConnID, "member_id": p.MemberID, "display_name": p.DisplayName, "portrait_seed": p.PortraitSeed}
 	}
 	b, _ := json.Marshal(map[string]any{
 		"type": "presence", "board_id": boardID, "at": time.Now().UTC(), "actor_id": me,

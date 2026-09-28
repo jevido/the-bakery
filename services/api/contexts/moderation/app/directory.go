@@ -16,10 +16,11 @@ var (
 // MemberCard is a member as the console shows them, translated from the
 // identity context.
 type MemberCard struct {
-	ID          uint64
-	Email       string
-	DisplayName string
-	JoinedAt    time.Time
+	ID           uint64
+	Email        string
+	DisplayName  string
+	PortraitSeed string
+	JoinedAt     time.Time
 }
 
 // GuildCard is a guild as the console shows it, translated from the

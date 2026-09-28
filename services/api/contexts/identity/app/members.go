@@ -4,6 +4,8 @@ package app
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 
 	"github.com/jevido/the-bakery/services/api/contexts/identity/domain"
@@ -22,6 +24,7 @@ type Members interface {
 	ByID(ctx context.Context, id uint64) (domain.Member, bool, error)
 	// ByIDs returns the members that exist among ids, in no particular order.
 	ByIDs(ctx context.Context, ids []uint64) ([]domain.Member, error)
+	SetPortraitSeed(ctx context.Context, id uint64, seed string) error
 }
 
 type Service struct {
@@ -42,6 +45,7 @@ func (s *Service) Register(ctx context.Context, email, displayName, password str
 	if err != nil {
 		return domain.Member{}, err
 	}
+	m.PortraitSeed = newPortraitSeed()
 	if _, found, err := s.members.ByEmail(ctx, m.Email); err != nil {
 		return domain.Member{}, err
 	} else if found {
@@ -96,6 +100,39 @@ func (s *Service) MemberIDByEmail(ctx context.Context, email string) (uint64, bo
 
 // DisplayNames maps member ids to display names, for other contexts that show
 // members. Unknown ids are left out.
+// RerollPortrait gives the member a new portrait seed, so a new portrait.
+func (s *Service) RerollPortrait(ctx context.Context, id uint64) (domain.Member, error) {
+	m, err := s.CurrentMember(ctx, id)
+	if err != nil {
+		return domain.Member{}, err
+	}
+	m.PortraitSeed = newPortraitSeed()
+	if err := s.members.SetPortraitSeed(ctx, id, m.PortraitSeed); err != nil {
+		return domain.Member{}, err
+	}
+	return m, nil
+}
+
+// PortraitSeeds maps member ids to their portrait seeds; unknown ids are
+// left out.
+func (s *Service) PortraitSeeds(ctx context.Context, ids []uint64) (map[uint64]string, error) {
+	members, err := s.members.ByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	seeds := make(map[uint64]string, len(members))
+	for _, m := range members {
+		seeds[m.ID] = m.PortraitSeed
+	}
+	return seeds, nil
+}
+
+func newPortraitSeed() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
 func (s *Service) DisplayNames(ctx context.Context, ids []uint64) (map[uint64]string, error) {
 	members, err := s.members.ByIDs(ctx, ids)
 	if err != nil {

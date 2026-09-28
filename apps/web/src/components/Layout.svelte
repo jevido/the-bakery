@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
+  import { Portrait } from '@bakery/ui'
   import { router } from '../lib/router.svelte'
   import { session } from '../lib/session.svelte'
 
@@ -34,7 +35,7 @@
     </nav>
     <div class="account">
       {#if session.member}
-        <a href="/admin">{session.member.display_name}</a>
+        <a class="me" href="/admin"><Portrait seed={session.member.portrait_seed} size={22} />{session.member.display_name}</a>
         <button class="link" onclick={signOut}>Sign out</button>
       {:else if session.member === null}
         <a href={`/signin${back}`}>Sign in</a>
@@ -150,5 +151,11 @@
     padding: 14px 16px;
     color: var(--text-faint);
     border-top: 1px solid var(--frame-dim);
+  }
+
+  .me {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
   }
 </style>

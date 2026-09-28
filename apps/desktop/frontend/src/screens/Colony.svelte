@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Panel, Button, TextField } from '@bakery/ui'
+  import { Panel, Button, TextField, Portrait } from '@bakery/ui'
   import BoardView from '../components/BoardView.svelte'
   import TaskPanel from '../components/TaskPanel.svelte'
   import ConflictDialog from '../components/ConflictDialog.svelte'
@@ -12,13 +12,27 @@
   import { Letters as LetterBox } from '../lib/letters.svelte'
   import { AgentSync } from '../lib/agentsync.svelte'
   import { Colony } from '../lib/colony.svelte'
-  import { WebsiteService, WorkshopService, messageOf, type Member } from '../lib/bindings'
+  import { SessionService, WebsiteService, WorkshopService, messageOf, type Member } from '../lib/bindings'
 
   let {
     member,
     onclockout,
     onsignedout,
   }: { member: Member; onclockout: () => void; onsignedout: () => void } = $props()
+
+  // The member's own portrait seed; a re-roll replaces it here.
+  let seed = $derived(member.portrait_seed)
+  let rerolling = $state(false)
+
+  async function reroll() {
+    rerolling = true
+    try {
+      seed = (await SessionService.RerollPortrait()).portrait_seed
+    } catch (err) {
+      colony.error = messageOf(err)
+    }
+    rerolling = false
+  }
 
   const colony = new Colony(() => onsignedout())
   colony.load()
@@ -156,6 +170,9 @@
     </div>
 
     <div class="who">
+      <button class="face" title="Re-roll portrait" aria-label="Re-roll portrait" disabled={rerolling} onclick={reroll}>
+        <Portrait {seed} size={28} />
+      </button>
       <span>{member.display_name}</span>
       <Button onclick={onclockout}>Clock out</Button>
     </div>
@@ -439,5 +456,17 @@
 
   .guild-menu button:hover {
     background: var(--panel-inset);
+  }
+
+  .face {
+    padding: 0;
+    line-height: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+
+  .face:disabled {
+    opacity: 0.6;
   }
 </style>

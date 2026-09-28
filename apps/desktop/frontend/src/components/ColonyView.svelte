@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { BENCH, COLONIST, FLOOR, HAMMER, MARKS, TABLE, clothesFor, draw, size } from '../lib/sprites'
+  import { Portrait } from '@bakery/ui'
+  import { BENCH, COLONIST, FLOOR, HAMMER, MARKS, TABLE, colonistColours, draw, size } from '../lib/sprites'
   import type { Colony } from '../lib/colony.svelte'
   import type { Letters } from '../lib/letters.svelte'
   import type { RunInfo } from '../lib/bindings'
@@ -141,7 +142,7 @@
       const phase = t / 1000
       let dy = 0
       if (!reduced && f.state === 'thinking') dy = Math.round(Math.sin(phase * 4) * 1.5) * S
-      draw(ctx, COLONIST, x, y + dy, S, clothesFor(f.seed))
+      draw(ctx, COLONIST, x, y + dy, S, colonistColours(f.seed))
       const headX = x + person.w / 2 - 2.5 * S
       const headY = y - 7 * S
       if (f.state === 'editing' || f.state === 'running') {
@@ -222,7 +223,7 @@
   ></canvas>
   {#if hover}
     <div class="tip" style:left="{hover.x}px" style:top="{hover.y}px">
-      <strong>{hover.who.name}</strong>
+      <span class="who"><Portrait seed={hover.who.seed} size={32} /><strong>{hover.who.name}</strong></span>
       <span>{WORDS[hover.who.state] ?? hover.who.state}</span>
       {#if hover.who.run}
         <span class="dim">{hover.who.run.task_title}</span>
@@ -280,5 +281,11 @@
     bottom: 12px;
     margin: 0;
     color: var(--text-dim);
+  }
+
+  .who {
+    display: flex;
+    gap: 6px;
+    align-items: center;
   }
 </style>

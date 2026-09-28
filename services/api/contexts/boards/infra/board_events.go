@@ -88,6 +88,7 @@ func boardEventOf(event any) (ev BoardEvent, ok bool) {
 		data := map[string]any{"state": e.State, "member_id": e.ActorID, "conn_id": e.ConnID}
 		if e.DisplayName != "" {
 			data["display_name"] = e.DisplayName
+			data["portrait_seed"] = e.PortraitSeed
 		}
 		return BoardEvent{Type: "presence", BoardID: e.BoardID, ActorID: e.ActorID, Data: data}, true
 	case domain.ColumnDeleted:

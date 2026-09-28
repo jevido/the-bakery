@@ -1,6 +1,5 @@
 <script lang="ts">
-  import Portrait from './Portrait.svelte'
-  import { Button } from '@bakery/ui'
+  import { Portrait, Button } from '@bakery/ui'
   import type { Task } from '../lib/bindings'
   import { workTypeStyle } from '../lib/worktype'
 

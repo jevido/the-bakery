@@ -18,10 +18,11 @@ type Comments interface {
 	OfTask(ctx context.Context, taskID uint64) ([]domain.Comment, error)
 }
 
-// MemberNames is identity's answer to "what are these members called?".
-// Boards keeps only member ids.
+// MemberNames is identity's answer to "what are these members called, and
+// what do their portraits look like?". Boards keeps only member ids.
 type MemberNames interface {
 	DisplayNames(ctx context.Context, ids []uint64) (map[uint64]string, error)
+	PortraitSeeds(ctx context.Context, ids []uint64) (map[uint64]string, error)
 }
 
 // AuthoredComment is a comment with its author's display name, for reading.

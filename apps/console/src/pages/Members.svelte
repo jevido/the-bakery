@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Panel, TextField } from '@bakery/ui'
+  import { Panel, Portrait, TextField } from '@bakery/ui'
   import { api, ApiError, type MemberCard, type Sanction } from '../lib/api'
   import { sanctionLine, when } from '../lib/format'
 
@@ -40,7 +40,7 @@
     <tbody>
       {#each rows as m (m.id)}
         <tr>
-          <td><a href="/members/{m.id}">{m.display_name}</a></td>
+          <td><a class="who" href="/members/{m.id}"><Portrait seed={m.portrait_seed} size={20} />{m.display_name}</a></td>
           <td>{m.email}</td>
           <td>{m.guild_count}</td>
           <td class="dim">{when(m.joined_at)}</td>
@@ -54,6 +54,12 @@
 </Panel>
 
 <style>
+  .who {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+  }
+
   .search {
     max-width: 360px;
     margin-bottom: 10px;

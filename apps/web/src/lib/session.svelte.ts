@@ -53,6 +53,12 @@ class Session {
     this.adopt(res.member)
   }
 
+  // rerollPortrait gives the member a new portrait.
+  async rerollPortrait() {
+    const res = await api<{ member: Member }>('POST', '/api/me/portrait')
+    this.member = res.member
+  }
+
   async signOut() {
     await api('POST', '/api/web/logout')
     this.adopt(null)

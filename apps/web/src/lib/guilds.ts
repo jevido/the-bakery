@@ -3,7 +3,7 @@
 import { api } from './api'
 
 export type Guild = { id: number; name: string; archived: boolean }
-export type GuildMember = { id: number; display_name: string; joined_at: string }
+export type GuildMember = { id: number; display_name: string; portrait_seed: string; joined_at: string }
 
 export const guilds = {
   list: (archived: boolean) =>

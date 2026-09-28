@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Panel } from '@bakery/ui'
+  import { Panel, Portrait } from '@bakery/ui'
   import { api, ApiError, type AuditEntry, type GuildCard, type MemberCard, type Names, type Report, type Sanction } from '../lib/api'
   import { when } from '../lib/format'
   import AuditTable from '../components/AuditTable.svelte'
@@ -37,6 +37,7 @@
   {@const m = record.member}
   <div class="stack">
     <Panel title={m.display_name}>
+      <div class="head"><Portrait seed={m.portrait_seed} size={48} /></div>
       <dl>
         <dt>Email</dt><dd>{m.email}</dd>
         <dt>Member id</dt><dd>{m.id}</dd>
@@ -69,6 +70,10 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+  }
+
+  .head {
+    margin-bottom: 8px;
   }
 
   dl {

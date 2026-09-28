@@ -13,7 +13,8 @@ which guilds a Member belongs to or what they may do there; that is guilds.
 
 | Term | Meaning |
 | ---- | ------- |
-| Member | A person with an account: email, display name, password. |
+| Member | A person with an account: email, display name, password, and a portrait seed. |
+| Portrait seed | Draws the member's generated pixel portrait; a re-roll replaces it. Presentation only. |
 | Credentials | A Member's email and hashed password. |
 | Token | The JWT a Member receives on register or login. |
 | Web session | A sign-in from the website: the same JWT, carried in an httpOnly cookie instead of a bearer header. |
@@ -28,7 +29,7 @@ which guilds a Member belongs to or what they may do there; that is guilds.
 | Aggregate | Invariants |
 | --------- | ---------- |
 | PersonalToken (root) | Belongs to one member. Name is 1–60 characters. The secret is `bky_` + 32 URL-safe random characters and is only ever stored as its SHA-256. A revoked token never authenticates. Only a session (desktop JWT or web cookie) can create or list tokens, so a leaked token cannot mint more. |
-| Member (root) | Email is a bare address, unique, stored trimmed and lowercased. The password is at least 8 characters and only ever stored hashed. Display name is 1–60 characters (trimmed). |
+| Member (root) | Email is a bare address, unique, stored trimmed and lowercased. The password is at least 8 characters and only ever stored hashed. Display name is 1–60 characters (trimmed). The portrait seed is set at registration and replaced by a re-roll; no rule depends on it. |
 
 ### Commands
 

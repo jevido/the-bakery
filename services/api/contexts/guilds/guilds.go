@@ -73,6 +73,10 @@ func (memberLookup) DisplayNames(ctx context.Context, ids []uint64) (map[uint64]
 	return identity.DisplayNames(ctx, ids)
 }
 
+func (memberLookup) PortraitSeeds(ctx context.Context, ids []uint64) (map[uint64]string, error) {
+	return identity.PortraitSeeds(ctx, ids)
+}
+
 var service = app.NewService(infra.Guilds{}, infra.Invites{}, infra.Codes{}, memberLookup{}, infra.LogEvents{})
 
 // Routes registers the guild routes, all behind identity.RequireMember.

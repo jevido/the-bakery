@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { Button } from '@bakery/ui'
-  import Portrait from './Portrait.svelte'
+  import { Button, Portrait } from '@bakery/ui'
   import { AgentsService, messageOf, type AgentSummary } from '../lib/bindings'
 
   // Choosing who works a task, the way RimWorld lists colonists for a job:

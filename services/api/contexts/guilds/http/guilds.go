@@ -148,9 +148,10 @@ func (c *Controller) guildAction(ctx contractshttp.Context, f func(context.Conte
 }
 
 type memberJSON struct {
-	ID          uint64    `json:"id"`
-	DisplayName string    `json:"display_name"`
-	JoinedAt    time.Time `json:"joined_at"`
+	ID           uint64    `json:"id"`
+	DisplayName  string    `json:"display_name"`
+	PortraitSeed string    `json:"portrait_seed"`
+	JoinedAt     time.Time `json:"joined_at"`
 }
 
 func (c *Controller) Members(ctx contractshttp.Context) contractshttp.Response {
@@ -165,7 +166,7 @@ func (c *Controller) Members(ctx contractshttp.Context) contractshttp.Response {
 	}
 	out := make([]memberJSON, len(members))
 	for i, m := range members {
-		out[i] = memberJSON{ID: m.MemberID, DisplayName: m.DisplayName, JoinedAt: m.JoinedAt}
+		out[i] = memberJSON{ID: m.MemberID, DisplayName: m.DisplayName, PortraitSeed: m.PortraitSeed, JoinedAt: m.JoinedAt}
 	}
 	return ctx.Response().Success().Json(contractshttp.Json{"members": out})
 }

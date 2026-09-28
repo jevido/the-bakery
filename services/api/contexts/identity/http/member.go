@@ -47,13 +47,14 @@ func NewController(service *app.Service) *Controller {
 }
 
 type memberJSON struct {
-	ID          uint64 `json:"id"`
-	Email       string `json:"email"`
-	DisplayName string `json:"display_name"`
+	ID           uint64 `json:"id"`
+	Email        string `json:"email"`
+	DisplayName  string `json:"display_name"`
+	PortraitSeed string `json:"portrait_seed"`
 }
 
 func toJSON(m domain.Member) memberJSON {
-	return memberJSON{ID: m.ID, Email: m.Email, DisplayName: m.DisplayName}
+	return memberJSON{ID: m.ID, Email: m.Email, DisplayName: m.DisplayName, PortraitSeed: m.PortraitSeed}
 }
 
 type registerRequest struct {
@@ -107,6 +108,19 @@ func (c *Controller) Login(ctx contractshttp.Context) contractshttp.Response {
 		return serverError(ctx, err)
 	}
 	return c.withToken(ctx, contractshttp.StatusOK, m)
+}
+
+// RerollPortrait gives the signed-in member a new portrait.
+func (c *Controller) RerollPortrait(ctx contractshttp.Context) contractshttp.Response {
+	id, _ := MemberID(ctx)
+	m, err := c.service.RerollPortrait(ctx.Context(), id)
+	if errors.Is(err, app.ErrMemberNotFound) {
+		return unauthorized(ctx, "not signed in")
+	}
+	if err != nil {
+		return serverError(ctx, err)
+	}
+	return ctx.Response().Success().Json(contractshttp.Json{"member": toJSON(m)})
 }
 
 func (c *Controller) Me(ctx contractshttp.Context) contractshttp.Response {

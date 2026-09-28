@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { Panel, Button, TextField } from '@bakery/ui'
-  import Portrait from './Portrait.svelte'
+  import { Panel, Button, TextField, Portrait } from '@bakery/ui'
   import { AgentsService, BoardsService, messageOf, type AgentSummary } from '../lib/bindings'
   import type { Colony } from '../lib/colony.svelte'
   import type { AgentSync } from '../lib/agentsync.svelte'

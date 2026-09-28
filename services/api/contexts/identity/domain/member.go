@@ -26,6 +26,9 @@ type Member struct {
 	Email        string
 	DisplayName  string
 	PasswordHash string
+	// PortraitSeed draws the member's generated portrait. Presentation
+	// only: no rule depends on it, and a re-roll replaces it.
+	PortraitSeed string
 }
 
 // PasswordHasher turns a password into a hash and checks one against it.

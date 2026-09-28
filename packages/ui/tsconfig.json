@@ -6,7 +6,8 @@
     "moduleResolution": "bundler",
     "isolatedModules": true,
     "allowJs": true,
-    "checkJs": true
+    "checkJs": true,
+    "types": ["bun"]
   },
   "include": ["src/**/*.ts", "src/**/*.svelte"]
 }

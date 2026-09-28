@@ -46,6 +46,7 @@ func Routes(r route.Router) {
 	r.Middleware(registering).Post("/api/register", c.Register)
 	r.Middleware(signingIn).Post("/api/login", c.Login)
 	r.Middleware(RequireMember).Get("/api/me", c.Me)
+	r.Middleware(RequireMember).Post("/api/me/portrait", c.RerollPortrait)
 	r.Middleware(registering).Post("/api/web/register", c.WebRegister)
 	r.Middleware(signingIn).Post("/api/web/login", c.WebLogin)
 	r.Post("/api/web/logout", c.WebLogout)
@@ -105,6 +106,11 @@ func MemberExists(ctx context.Context, id uint64) (bool, error) {
 	return ok, nil
 }
 
+// PortraitSeeds maps member ids to portrait seeds; unknown ids are left out.
+func PortraitSeeds(ctx context.Context, ids []uint64) (map[uint64]string, error) {
+	return service.PortraitSeeds(ctx, ids)
+}
+
 // DisplayNames maps member ids to display names; unknown ids are left out.
 func DisplayNames(ctx context.Context, ids []uint64) (map[uint64]string, error) {
 	return service.DisplayNames(ctx, ids)
@@ -134,10 +140,11 @@ func (f auditRecorder) Record(ctx context.Context, e app.AuditRecord) {
 
 // MemberCard is a member as the operator console sees them.
 type MemberCard struct {
-	ID          uint64
-	Email       string
-	DisplayName string
-	JoinedAt    time.Time
+	ID           uint64
+	Email        string
+	DisplayName  string
+	PortraitSeed string
+	JoinedAt     time.Time
 }
 
 func cardsOf(ls []infra.Listed) []MemberCard {

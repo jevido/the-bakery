@@ -2,10 +2,12 @@
 // are no image files to keep in step. One character is one pixel; '.' is
 // see-through. Each sprite names its colours in a palette.
 
+import { face, shade } from '@bakery/ui'
+
 export type Sprite = { rows: string[]; palette: Record<string, string> }
 
-// A colonist, 10×14. 'b' is the body colour, 'd' its shade; both come from
-// the agent's portrait seed.
+// A colonist, 10×14. 's' skin, 'h' hair, 'b' the body colour and 'd' its
+// shade come from the agent's portrait (colonistColours).
 export const COLONIST: Sprite = {
   rows: [
     '...hhhh...',
@@ -102,23 +104,9 @@ export function size(s: Sprite, scale: number) {
   return { w: s.rows[0].length * scale, h: s.rows.length * scale }
 }
 
-// Body colours from a portrait seed: the same seed, the same clothes.
-const CLOTHES = [
-  ['#7c8a42', '#5a6530'],
-  ['#6a8cab', '#4b6781'],
-  ['#a55a36', '#7a4228'],
-  ['#b98a5e', '#8a6242'],
-  ['#9c8f76', '#6f6553'],
-  ['#c9b27a', '#96834f'],
-  ['#8a5e8f', '#653f69'],
-]
-
-export function clothesFor(seed: string): Record<string, string> {
-  let h = 0x811c9dc5
-  for (const ch of seed || 'agent') {
-    h ^= ch.charCodeAt(0)
-    h = Math.imul(h, 0x01000193) >>> 0
-  }
-  const [b, d] = CLOTHES[h % CLOTHES.length]
-  return { b, d }
+// colonistColours colours a colonist like the agent's portrait: the same
+// skin, hair and clothes, so the figure and the portrait read as one person.
+export function colonistColours(seed: string): Record<string, string> {
+  const f = face(seed || 'agent')
+  return { s: f.skin, h: f.bald ? shade(f.skin) : f.hairColour, b: f.cloth, d: shade(f.cloth) }
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Panel, Button, TextField } from '@bakery/ui'
+  import { Panel, Button, TextField, Portrait } from '@bakery/ui'
   import Confirm from '../components/Confirm.svelte'
   import InvitesTab from '../components/InvitesTab.svelte'
   import ReportForm from '../components/ReportForm.svelte'
@@ -129,7 +129,7 @@
         <tbody>
           {#each members as m (m.id)}
             <tr>
-              <td>{m.display_name}{#if m.id === session.member?.id} <span class="dim">(you)</span>{/if}</td>
+              <td><span class="member"><Portrait seed={m.portrait_seed} size={24} />{m.display_name}{#if m.id === session.member?.id} <span class="dim">(you)</span>{/if}</span></td>
               <td class="dim">{joinedOn(m.joined_at)}</td>
               <td class="actions">
                 {#if !guild.archived}
@@ -304,5 +304,11 @@
     background: color-mix(in srgb, var(--rust) 35%, transparent);
     border: 1px solid var(--rust);
     border-radius: var(--radius);
+  }
+
+  .member {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
   }
 </style>

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Portrait from './Portrait.svelte'
+  import { Portrait } from '@bakery/ui'
   import LetterDialog from './LetterDialog.svelte'
   import type { Letters } from '../lib/letters.svelte'
   import type { Colony } from '../lib/colony.svelte'

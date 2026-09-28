@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: The Bakery API
-  version: 1.9.1
+  version: 1.10.0
   description: >-
     The JSON API behind The Bakery: members, guilds, invites, boards, tasks,
     work types, agents and reports. The desktop app (bearer token) and the website (session cookie)
@@ -224,6 +224,24 @@ paths:
                 properties:
                   member: { $ref: "#/components/schemas/Member" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/me/portrait:
+    post:
+      tags: [Identity]
+      summary: Re-roll your portrait
+      description: Gives you a new random portrait seed, so a new portrait.
+      responses:
+        "200":
+          description: You, with the new seed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [member]
+                properties:
+                  member: { $ref: "#/components/schemas/Member" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooMany" }
 
   /api/web/register:
     post:
@@ -564,10 +582,11 @@ paths:
                     type: array
                     items:
                       type: object
-                      required: [id, display_name, joined_at]
+                      required: [id, display_name, portrait_seed, joined_at]
                       properties:
                         id: { type: integer }
                         display_name: { type: string }
+                        portrait_seed: { type: string }
                         joined_at: { type: string, format: date-time }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/NotMember" }
@@ -1348,7 +1367,7 @@ paths:
         `status`, `cost_usd`), `presence` (who has the board open: `state` is
         `snapshot`, first on every stream, with the `present` streams, or
         `joined` / `left` with the stream's `conn_id`, `member_id` and, when
-        joining, `display_name`; a stream that stops pinging counts as left
+        joining, `display_name` and `portrait_seed`; a stream that stops pinging counts as left
         after a minute).
       parameters:
         - name: board
@@ -2146,11 +2165,14 @@ components:
         field: { type: string, description: "The field to blame, when there is one." }
     Member:
       type: object
-      required: [id, email, display_name]
+      required: [id, email, display_name, portrait_seed]
       properties:
         id: { type: integer }
         email: { type: string, format: email }
         display_name: { type: string }
+        portrait_seed:
+          type: string
+          description: Draws the member's generated pixel portrait; the same seed always draws the same face.
     PersonalToken:
       type: object
       required: [id, name, created_at, last_used_at]
@@ -2184,7 +2206,7 @@ components:
         member: { $ref: "#/components/schemas/Member" }
       example:
         token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-        member: { id: 1, email: ada@bakery.test, display_name: Ada }
+        member: { id: 1, email: ada@bakery.test, display_name: Ada, portrait_seed: 3f9c2a71b0d4e815 }
     Guild:
       type: object
       required: [id, name, archived]

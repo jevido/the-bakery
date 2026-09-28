@@ -90,5 +90,5 @@ export type AuditEntry = {
 // Names maps ids (as strings) to display names and guild names.
 export type Names = { members: Record<string, string>; guilds: Record<string, string> }
 
-export type MemberCard = { id: number; email: string; display_name: string; joined_at: string }
+export type MemberCard = { id: number; email: string; display_name: string; portrait_seed: string; joined_at: string }
 export type GuildCard = { id: number; name: string; archived: boolean; founded_at: string; member_count: number }

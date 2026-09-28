@@ -52,9 +52,10 @@ func (e *Unreachable) Error() string {
 func (e *Unreachable) Unwrap() error { return e.Err }
 
 type Member struct {
-	ID          uint64 `json:"id"`
-	Email       string `json:"email"`
-	DisplayName string `json:"display_name"`
+	ID           uint64 `json:"id"`
+	Email        string `json:"email"`
+	DisplayName  string `json:"display_name"`
+	PortraitSeed string `json:"portrait_seed"`
 }
 
 type Client struct {
@@ -99,6 +100,17 @@ func (c *Client) Me(ctx context.Context, token string) (Member, error) {
 		Member Member `json:"member"`
 	}
 	if err := c.do(ctx, http.MethodGet, "/api/me", token, nil, &res); err != nil {
+		return Member{}, err
+	}
+	return res.Member, nil
+}
+
+// RerollPortrait gives the member a new portrait seed.
+func (c *Client) RerollPortrait(ctx context.Context, token string) (Member, error) {
+	var res struct {
+		Member Member `json:"member"`
+	}
+	if err := c.do(ctx, http.MethodPost, "/api/me/portrait", token, nil, &res); err != nil {
 		return Member{}, err
 	}
 	return res.Member, nil
