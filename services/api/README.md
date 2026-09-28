@@ -30,6 +30,25 @@ an httpOnly cookie `bakery_session` (host-only, SameSite=Lax, Secure outside
 changes something must carry `X-Bakery-Web: 1`, which cross-site forms cannot
 send; CORS (`config/cors.go`) lets only `WEB_ORIGIN` call with credentials.
 
+## Operators (the console)
+
+`/api/console/*` is for operators only: accounts of the moderation context,
+apart from members, with their own JWT guards (`operator`, and
+`operator_challenge` between the password and the code; set
+`OPERATOR_JWT_SECRET` to sign them apart from members' tokens). Signing in
+takes two steps, `POST /api/console/login` (email and password → a
+five-minute challenge) and `POST /api/console/totp/verify` (challenge and a
+TOTP code → a two-hour token), each limited to five tries a minute per
+client. There is no sign-up:
+
+```sh
+go run . artisan operator:create owner@example.com   # asks for a password; prints an otpauth:// URL
+go run . artisan operator:confirm owner@example.com 123456
+```
+
+`operator:create` reads the password from stdin when stdin is not a
+terminal. An operator signs in only after confirming a first code.
+
 ## MCP server
 
 `/mcp` serves MCP over streamable HTTP (stateless, JSON replies) with the

@@ -32,11 +32,31 @@ func init() {
 				"driver":   "jwt",
 				"provider": "member",
 			},
+			// Operators (the console) have guards of their own: a token
+			// names its guard, so a member's token is refused here and an
+			// operator's on member routes. OPERATOR_JWT_SECRET, when set,
+			// signs them apart from members' tokens too.
+			"operator": map[string]any{
+				"driver":   "jwt",
+				"provider": "operator",
+				"secret":   config.Env("OPERATOR_JWT_SECRET", ""),
+				"ttl":      120,
+			},
+			// Between the password and the authenticator code.
+			"operator_challenge": map[string]any{
+				"driver":   "jwt",
+				"provider": "operator",
+				"secret":   config.Env("OPERATOR_JWT_SECRET", ""),
+				"ttl":      5,
+			},
 		},
 
 		// Supported: "orm"
 		"providers": map[string]any{
 			"member": map[string]any{
+				"driver": "orm",
+			},
+			"operator": map[string]any{
 				"driver": "orm",
 			},
 		},

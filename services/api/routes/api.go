@@ -16,6 +16,7 @@ import (
 	"github.com/jevido/the-bakery/services/api/contexts/boards"
 	"github.com/jevido/the-bakery/services/api/contexts/guilds"
 	"github.com/jevido/the-bakery/services/api/contexts/identity"
+	"github.com/jevido/the-bakery/services/api/contexts/moderation"
 	"github.com/jevido/the-bakery/services/api/mcp"
 )
 
@@ -58,6 +59,7 @@ func Api() {
 		guilds.Routes(r)
 		boards.Routes(r)
 		agents.Routes(r)
+		moderation.Routes(r)
 
 		// MCP over streamable HTTP. The SDK handler does its own auth (personal
 		// tokens) and writes the response itself.

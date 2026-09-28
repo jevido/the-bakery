@@ -5,6 +5,7 @@ import (
 	"github.com/goravel/framework/foundation"
 
 	"github.com/jevido/the-bakery/services/api/config"
+	"github.com/jevido/the-bakery/services/api/contexts/moderation"
 	"github.com/jevido/the-bakery/services/api/routes"
 )
 
@@ -12,6 +13,7 @@ func Boot() contractsfoundation.Application {
 	return foundation.Setup().
 		WithMigrations(Migrations).
 		WithSeeders(Seeders).
+		WithCommands(moderation.Commands).
 		WithRouting(func() {
 			routes.Api()
 			routes.Grpc()

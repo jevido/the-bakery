@@ -9,6 +9,7 @@ require (
 	github.com/goravel/postgres v1.18.0
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/modelcontextprotocol/go-sdk v1.8.0
+	github.com/pquerna/otp v1.5.0
 	github.com/stretchr/testify v1.11.1
 )
 
@@ -19,6 +20,7 @@ require (
 	github.com/Masterminds/squirrel v1.5.4 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
+	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
