@@ -50,10 +50,16 @@ type taskJSON struct {
 	WorkType      *string `json:"work_type"`
 	SubtasksTotal *int    `json:"subtasks_total,omitempty"`
 	SubtasksDone  *int    `json:"subtasks_done,omitempty"`
+	// Drafting: the one agent that may take the task, and whether agents
+	// are kept off it. A board answer also says which claim holds it.
+	PrioritizedAgentID *uint64    `json:"prioritized_agent_id"`
+	Forbidden          bool       `json:"forbidden"`
+	Claim              *claimJSON `json:"claim,omitempty"`
 }
 
 func taskToJSON(t domain.Task) taskJSON {
-	out := taskJSON{ID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID, Title: t.Title, Description: t.Description, Position: t.Position, Done: t.Done}
+	out := taskJSON{ID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID, Title: t.Title, Description: t.Description, Position: t.Position, Done: t.Done,
+		PrioritizedAgentID: t.PrioritizedAgentID, Forbidden: t.Forbidden}
 	if !t.IsSubtask() {
 		out.ColumnID = &t.ColumnID
 	}
@@ -136,13 +142,19 @@ func (c *Controller) GetBoard(ctx contractshttp.Context) contractshttp.Response 
 	if !ok {
 		return notFound(ctx)
 	}
-	b, tasks, counts, err := c.service.GetBoard(ctx.Context(), boardID, c.me(ctx))
+	v, err := c.service.GetBoard(ctx.Context(), boardID, c.me(ctx))
 	if err != nil {
 		return failure(ctx, err)
 	}
+	b := v.Board
 	byColumn := map[uint64][]taskJSON{}
-	for _, t := range tasks {
-		byColumn[t.ColumnID] = append(byColumn[t.ColumnID], withCounts(taskToJSON(t), counts[t.ID]))
+	for _, t := range v.Tasks {
+		out := withCounts(taskToJSON(t), v.Counts[t.ID])
+		if cl, ok := v.Claims[t.ID]; ok {
+			j := claimToJSON(cl)
+			out.Claim = &j
+		}
+		byColumn[t.ColumnID] = append(byColumn[t.ColumnID], out)
 	}
 	columns := make([]boardColumnJSON, len(b.Columns))
 	for i, col := range b.Columns {
@@ -183,6 +195,9 @@ type updateTaskRequest struct {
 	Description *string `json:"description"`
 	WorkType    *string `json:"work_type"`
 	Done        *bool   `json:"done"`
+	// PrioritizedAgentID 0 clears the priority.
+	PrioritizedAgentID *uint64 `json:"prioritized_agent_id"`
+	Forbidden          *bool   `json:"forbidden"`
 }
 
 func (c *Controller) UpdateTask(ctx contractshttp.Context) contractshttp.Response {
@@ -194,7 +209,10 @@ func (c *Controller) UpdateTask(ctx contractshttp.Context) contractshttp.Respons
 	if err := ctx.Request().Bind(&req); err != nil {
 		return badRequest(ctx)
 	}
-	t, err := c.service.UpdateTask(ctx.Context(), taskID, c.me(ctx), app.TaskChanges{Title: req.Title, Description: req.Description, WorkType: req.WorkType, Done: req.Done})
+	t, err := c.service.UpdateTask(ctx.Context(), taskID, c.me(ctx), app.TaskChanges{
+		Title: req.Title, Description: req.Description, WorkType: req.WorkType, Done: req.Done,
+		PrioritizedAgentID: req.PrioritizedAgentID, Forbidden: req.Forbidden,
+	})
 	if err != nil {
 		return failure(ctx, err)
 	}
@@ -325,9 +343,11 @@ func failure(ctx contractshttp.Context, err error) contractshttp.Response {
 	status := contractshttp.StatusInternalServerError
 	field := ""
 	switch {
-	case errors.Is(err, app.ErrNotMember), errors.Is(err, domain.ErrNotAuthor), errors.Is(err, domain.ErrNotRunOwner):
+	case errors.Is(err, app.ErrNotMember), errors.Is(err, domain.ErrNotAuthor), errors.Is(err, domain.ErrNotRunOwner),
+		errors.Is(err, domain.ErrNotClaimant), errors.Is(err, app.ErrNotYourAgent):
 		status = contractshttp.StatusForbidden
-	case errors.Is(err, app.ErrBoardNotFound), errors.Is(err, app.ErrTaskNotFound), errors.Is(err, app.ErrCommentNotFound), errors.Is(err, app.ErrRunNotFound):
+	case errors.Is(err, app.ErrBoardNotFound), errors.Is(err, app.ErrTaskNotFound), errors.Is(err, app.ErrCommentNotFound), errors.Is(err, app.ErrRunNotFound),
+		errors.Is(err, app.ErrClaimNotFound):
 		status = contractshttp.StatusNotFound
 	case errors.Is(err, app.ErrPositionTaken), errors.Is(err, app.ErrGuildArchived):
 		status = contractshttp.StatusConflict
@@ -361,6 +381,14 @@ func failure(ctx contractshttp.Context, err error) contractshttp.Response {
 		status = contractshttp.StatusNotFound
 	case errors.Is(err, domain.ErrInvalidCommentBody):
 		status, field = contractshttp.StatusUnprocessableEntity, "body"
+	case errors.Is(err, domain.ErrTaskClaimed), errors.Is(err, domain.ErrTaskForbidden), errors.Is(err, domain.ErrPrioritizedForOther):
+		status = contractshttp.StatusConflict
+	case errors.Is(err, domain.ErrClaimEnded):
+		status = contractshttp.StatusGone
+	case errors.Is(err, domain.ErrClaimSubtask), errors.Is(err, domain.ErrDraftSubtask):
+		status = contractshttp.StatusUnprocessableEntity
+	case errors.Is(err, domain.ErrInvalidMachineID):
+		status, field = contractshttp.StatusUnprocessableEntity, "machine_id"
 	case errors.Is(err, domain.ErrRunAlreadyEnded), errors.Is(err, app.ErrRunOnSubtask):
 		status = contractshttp.StatusUnprocessableEntity
 	case errors.Is(err, domain.ErrInvalidRunStatus):

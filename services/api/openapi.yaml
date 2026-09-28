@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: The Bakery API
-  version: 1.5.0
+  version: 1.6.0
   description: >-
     The JSON API behind The Bakery: members, guilds, invites, boards, tasks,
     work types and agents. The desktop app (bearer token) and the website (session cookie)
@@ -68,6 +68,13 @@ tags:
       What happened to a task, newest first. The API writes it from what
       members (and Claude) do; nobody writes it directly. A subtask's
       entries appear on its parent.
+  - name: Claims
+    description: >-
+      An agent's hold on a task, so no other machine starts it. A task has at
+      most one active claim; it lasts 2 minutes, a heartbeat extends it, and
+      without heartbeats it lapses and the task is free again. Only the
+      member who claimed can heartbeat or release. A forbidden task cannot be
+      claimed, and a task prioritized for an agent only for that agent.
   - name: Runs
     description: >-
       Runs of agents on tasks. A run happens on a member's own machine (the
@@ -1307,7 +1314,9 @@ paths:
         `position`), `task.deleted` (`task_id`), `column.created`
         (`column_id`, `name`, `position`), `column.updated` (`column_id`,
         `name`), `column.moved` (`column_id`, `position`), `column.deleted`
-        (`column_id`), `run.started` (`run_id`, `task_id`, `agent_id`,
+        (`column_id`), `task.claimed` (`task_id`, `claim_id`, `agent_id`,
+        `member_id`, `expires_at`), `task.released` (`task_id`, `claim_id`),
+        `run.started` (`run_id`, `task_id`, `agent_id`,
         `agent_name`), `run.finished` (`run_id`, `task_id`, `agent_name`,
         `status`, `cost_usd`), `presence` (who has the board open: `state` is
         `snapshot`, first on every stream, with the `present` streams, or
@@ -1416,6 +1425,8 @@ paths:
                 description: { type: string }
                 work_type: { type: string, description: "A key of the guild's work types; an empty string clears it." }
                 done: { type: boolean, description: "Subtasks only." }
+                prioritized_agent_id: { type: integer, description: "Only this agent may claim the task, ahead of its work priorities; 0 clears it. Tasks on the board only." }
+                forbidden: { type: boolean, description: "Keep every agent off the task; people still work it. Tasks on the board only." }
             example: { title: Build a research bench near the base }
       responses:
         "200":
@@ -1665,6 +1676,64 @@ paths:
         "403": { $ref: "#/components/responses/NotMember" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /api/tasks/{task}/claim:
+    post:
+      tags: [Claims]
+      summary: Claim a task
+      description: For one of your own agents, from one machine. Tasks on the board only.
+      parameters:
+        - $ref: "#/components/parameters/Task"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agent_id, machine_id]
+              properties:
+                agent_id: { type: integer }
+                machine_id: { type: string, minLength: 1, maxLength: 100, description: "Which machine the agent runs on." }
+      responses:
+        "201":
+          description: Claimed for 2 minutes.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClaimResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { description: Not a member of the guild, or not one of your agents. }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: "Another claim holds the task, the task is forbidden or prioritized for another agent, or the guild is archived." }
+        "422": { description: "A subtask, or no machine_id." }
+  /api/claims/{claim}/heartbeat:
+    post:
+      tags: [Claims]
+      summary: Keep a claim
+      description: Extends the claim to 2 minutes from now. Send one every 30 seconds while the agent works.
+      parameters:
+        - { name: claim, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Kept.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClaimResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { description: Not your claim. }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "410": { description: The claim lapsed or was released; claim the task again. }
+  /api/claims/{claim}:
+    delete:
+      tags: [Claims]
+      summary: Release a claim
+      description: The task is free at once. Releasing twice changes nothing.
+      parameters:
+        - { name: claim, in: path, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: Released. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { description: Not your claim. }
+        "404": { $ref: "#/components/responses/NotFound" }
   /api/tasks/{task}/runs:
     get:
       tags: [Runs]
@@ -2150,6 +2219,27 @@ components:
           description: The key of one of the guild's work types, or null.
         subtasks_total: { type: integer, description: "On a board's tasks and in GET /api/tasks/{task}: how many subtasks it has." }
         subtasks_done: { type: integer, description: "How many of those are done." }
+        prioritized_agent_id:
+          type: [integer, "null"]
+          description: The one agent that may take the task, or null.
+        forbidden: { type: boolean, description: "Agents are kept off the task." }
+        claim:
+          description: "On a board's tasks: the claim holding the task now, left out when none."
+          $ref: "#/components/schemas/Claim"
+    Claim:
+      type: object
+      required: [id, agent_id, member_id, machine_id, expires_at]
+      properties:
+        id: { type: integer }
+        agent_id: { type: integer }
+        member_id: { type: integer, description: "Whose agent." }
+        machine_id: { type: string }
+        expires_at: { type: string, format: date-time }
+    ClaimResponse:
+      type: object
+      required: [claim]
+      properties:
+        claim: { $ref: "#/components/schemas/Claim" }
     TaskResponse:
       type: object
       required: [task]

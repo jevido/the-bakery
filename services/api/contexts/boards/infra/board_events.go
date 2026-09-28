@@ -41,7 +41,7 @@ func boardEventOf(event any) (ev BoardEvent, ok bool) {
 		if e.ParentID != nil {
 			return updated(*e.ParentID, e.BoardID, e.ActorID, map[string]any{"subtask_id": e.TaskID})
 		}
-		return updated(e.TaskID, e.BoardID, e.ActorID, map[string]any{"title": e.Title, "description": e.Description, "work_type": e.WorkType})
+		return updated(e.TaskID, e.BoardID, e.ActorID, map[string]any{"title": e.Title, "description": e.Description, "work_type": e.WorkType, "drafting": e.Drafting})
 	case domain.TaskMoved:
 		return BoardEvent{Type: "task.moved", BoardID: e.BoardID, ActorID: e.ActorID,
 			Data: map[string]any{"task_id": e.TaskID, "from": e.From, "to": e.To, "position": e.Position}}, true
@@ -63,6 +63,12 @@ func boardEventOf(event any) (ev BoardEvent, ok bool) {
 		return updated(e.ParentID, e.BoardID, e.ActorID, map[string]any{"subtask_id": e.SubtaskID})
 	case domain.SubtaskMoved:
 		return updated(e.ParentID, e.BoardID, e.ActorID, map[string]any{"subtask_id": e.SubtaskID})
+	case domain.TaskClaimed:
+		return BoardEvent{Type: "task.claimed", BoardID: e.BoardID, ActorID: e.ActorID,
+			Data: map[string]any{"task_id": e.TaskID, "claim_id": e.ClaimID, "agent_id": e.AgentID, "member_id": e.ActorID, "expires_at": e.ExpiresAt}}, true
+	case domain.TaskReleased:
+		return BoardEvent{Type: "task.released", BoardID: e.BoardID, ActorID: e.ActorID,
+			Data: map[string]any{"task_id": e.TaskID, "claim_id": e.ClaimID}}, true
 	case domain.RunStarted:
 		return BoardEvent{Type: "run.started", BoardID: e.BoardID, ActorID: e.ActorID,
 			Data: map[string]any{"run_id": e.RunID, "task_id": e.TaskID, "agent_id": e.AgentID, "agent_name": e.AgentName}}, true

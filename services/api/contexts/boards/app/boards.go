@@ -83,15 +83,17 @@ type Service struct {
 	presence    PresenceLog
 	workTypes   WorkTypes
 	runs        Runs
+	claims      Claims
+	owners      AgentOwners
 	names       MemberNames
 	events      Events
 	now         func() time.Time
 }
 
-func NewService(memberships Memberships, boards Boards, tasks Tasks, comments Comments, activity ActivityLog, presence PresenceLog, workTypes WorkTypes, runs Runs, names MemberNames, events Events) *Service {
+func NewService(memberships Memberships, boards Boards, tasks Tasks, comments Comments, activity ActivityLog, presence PresenceLog, workTypes WorkTypes, runs Runs, claims Claims, owners AgentOwners, names MemberNames, events Events) *Service {
 	return &Service{
 		memberships: memberships, boards: boards, tasks: tasks, comments: comments,
-		activity: activity, presence: presence, workTypes: workTypes, runs: runs, names: names, events: events, now: time.Now,
+		activity: activity, presence: presence, workTypes: workTypes, runs: runs, claims: claims, owners: owners, names: names, events: events, now: time.Now,
 	}
 }
 
@@ -194,21 +196,37 @@ func (s *Service) CreateBoard(ctx context.Context, guildID, memberID uint64, nam
 // GetBoard returns the board and its tasks, by column then position.
 // GetBoard returns the board's top-level tasks by column and position, and
 // how many subtasks each has.
-func (s *Service) GetBoard(ctx context.Context, boardID, memberID uint64) (domain.Board, []domain.Task, map[uint64]SubtaskCount, error) {
+// BoardView is a board with its tasks on it, each task's subtask count,
+// and the claims holding tasks now.
+type BoardView struct {
+	Board  domain.Board
+	Tasks  []domain.Task
+	Counts map[uint64]SubtaskCount
+	Claims map[uint64]domain.Claim
+}
+
+func (s *Service) GetBoard(ctx context.Context, boardID, memberID uint64) (BoardView, error) {
 	b, err := s.board(ctx, boardID, memberID)
 	if err != nil {
-		return domain.Board{}, nil, nil, err
+		return BoardView{}, err
 	}
 	tasks, err := s.tasks.OfBoard(ctx, b.ID)
 	if err != nil {
-		return domain.Board{}, nil, nil, err
+		return BoardView{}, err
 	}
 	ids := make([]uint64, len(tasks))
 	for i, t := range tasks {
 		ids[i] = t.ID
 	}
 	counts, err := s.tasks.SubtaskCounts(ctx, ids)
-	return b, tasks, counts, err
+	if err != nil {
+		return BoardView{}, err
+	}
+	claims, err := s.claims.ActiveOf(ctx, ids, s.now())
+	if err != nil {
+		return BoardView{}, err
+	}
+	return BoardView{Board: b, Tasks: tasks, Counts: counts, Claims: claims}, nil
 }
 
 // WatchBoard checks that the member may watch the board's events: the same
@@ -323,6 +341,10 @@ type TaskChanges struct {
 	Description *string
 	WorkType    *string
 	Done        *bool
+	// PrioritizedAgentID prioritizes the task for one agent (0 clears it);
+	// Forbidden keeps agents off it.
+	PrioritizedAgentID *uint64
+	Forbidden          *bool
 }
 
 // UpdateTask changes a task's title, description and work type, and ticks a
@@ -345,6 +367,16 @@ func (s *Service) UpdateTask(ctx context.Context, taskID, memberID uint64, c Tas
 	edited, err := t.Edit(title, description, c.WorkType)
 	if err != nil {
 		return domain.Task{}, err
+	}
+	drafted, err := t.Draft(c.PrioritizedAgentID, c.Forbidden)
+	if err != nil {
+		return domain.Task{}, err
+	}
+	if drafted {
+		if edited == nil {
+			edited = &domain.TaskEdited{TaskID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID}
+		}
+		edited.Drafting = true
 	}
 	var completed *domain.SubtaskCompleted
 	var reopened *domain.SubtaskReopened

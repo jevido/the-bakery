@@ -34,6 +34,11 @@ type Task struct {
 	Done        bool
 	// WorkType is the key of one of the guild's work types, or "" for none.
 	WorkType string
+	// PrioritizedAgentID is the agent (the agents context's id) only who
+	// may take the task, ahead of its work priorities; nil for none.
+	PrioritizedAgentID *uint64
+	// Forbidden keeps every agent off the task; people still work it.
+	Forbidden bool
 }
 
 func (t Task) IsSubtask() bool { return t.ParentID != nil }
@@ -60,6 +65,9 @@ type TaskEdited struct {
 	Title       bool
 	Description bool
 	WorkType    bool
+	// Drafting is true when who may take the task changed (prioritized or
+	// forbidden).
+	Drafting bool
 }
 
 // TaskDeleted is announced when a task (with its subtasks) or a subtask is

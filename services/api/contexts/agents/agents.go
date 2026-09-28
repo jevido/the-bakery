@@ -5,6 +5,7 @@ package agents
 
 import (
 	"context"
+	"errors"
 
 	"github.com/goravel/framework/contracts/route"
 
@@ -145,4 +146,14 @@ func GetAgent(ctx context.Context, id, memberID uint64) (Agent, error) {
 		return Agent{}, err
 	}
 	return agentOf(a.Agent, a.OwnerName), nil
+}
+
+// Owns reports whether the agent is one of the member's own, not deleted.
+// Boards asks it before a member's agent claims a task.
+func Owns(ctx context.Context, memberID, agentID uint64) (bool, error) {
+	_, err := service.GetAgent(ctx, agentID, memberID)
+	if errors.Is(err, app.ErrAgentNotFound) {
+		return false, nil
+	}
+	return err == nil, err
 }

@@ -191,7 +191,9 @@ type taskRecord struct {
 	Description string
 	Position    string
 	// WorkType is NULL for none.
-	WorkType *string
+	WorkType           *string
+	PrioritizedAgentID *uint64
+	Forbidden          bool
 	orm.Timestamps
 }
 
@@ -201,6 +203,7 @@ func (r taskRecord) toDomain() domain.Task {
 	return domain.Task{
 		ID: r.ID, BoardID: r.BoardID, ParentID: r.ParentID, ColumnID: deref(r.ColumnID), Title: r.Title,
 		Description: r.Description, Position: r.Position, Done: r.Done, WorkType: derefString(r.WorkType),
+		PrioritizedAgentID: r.PrioritizedAgentID, Forbidden: r.Forbidden,
 	}
 }
 
@@ -221,7 +224,7 @@ func deref(id *uint64) uint64 {
 func taskToRecord(t domain.Task) taskRecord {
 	rec := taskRecord{
 		BoardID: t.BoardID, ParentID: t.ParentID, Title: t.Title, Description: t.Description,
-		Position: t.Position, Done: t.Done,
+		Position: t.Position, Done: t.Done, PrioritizedAgentID: t.PrioritizedAgentID, Forbidden: t.Forbidden,
 	}
 	if t.ColumnID != 0 {
 		rec.ColumnID = &t.ColumnID
@@ -247,12 +250,14 @@ func (Tasks) Add(ctx context.Context, t domain.Task) (domain.Task, error) {
 
 func (Tasks) Save(ctx context.Context, t domain.Task) error {
 	_, err := query(ctx).Model(&taskRecord{}).Where("id", t.ID).Update(map[string]any{
-		"title":       t.Title,
-		"description": t.Description,
-		"column_id":   taskToRecord(t).ColumnID,
-		"work_type":   taskToRecord(t).WorkType,
-		"position":    t.Position,
-		"done":        t.Done,
+		"title":                t.Title,
+		"description":          t.Description,
+		"column_id":            taskToRecord(t).ColumnID,
+		"work_type":            taskToRecord(t).WorkType,
+		"position":             t.Position,
+		"done":                 t.Done,
+		"prioritized_agent_id": t.PrioritizedAgentID,
+		"forbidden":            t.Forbidden,
 	})
 	if err != nil && isUniqueViolation(err) {
 		return app.ErrPositionTaken

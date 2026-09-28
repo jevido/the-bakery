@@ -35,6 +35,10 @@ func (ActivityProjector) Handle(ctx context.Context, event any) {
 		rec = activityRecord{TaskID: ev.TaskID, BoardID: ev.BoardID, ActorID: ev.ActorID, Kind: string(app.ActivityCreated)}
 		data = map[string]any{"column": columnName(ctx, ev.ColumnID)}
 	case domain.TaskEdited:
+		if !ev.Title && !ev.Description && !ev.WorkType {
+			// Prioritizing and forbidding are steering, not history.
+			return
+		}
 		rec = activityRecord{TaskID: ev.TaskID, BoardID: ev.BoardID, ActorID: ev.ActorID, Kind: string(app.ActivityEdited)}
 		data = map[string]any{"title": ev.Title, "description": ev.Description, "work_type": ev.WorkType}
 	case domain.TaskMoved:

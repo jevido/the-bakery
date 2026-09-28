@@ -10,6 +10,7 @@ import (
 
 	"github.com/goravel/framework/contracts/route"
 
+	"github.com/jevido/the-bakery/services/api/contexts/agents"
 	"github.com/jevido/the-bakery/services/api/contexts/boards/app"
 	"github.com/jevido/the-bakery/services/api/contexts/boards/domain"
 	boardshttp "github.com/jevido/the-bakery/services/api/contexts/boards/http"
@@ -17,6 +18,14 @@ import (
 	"github.com/jevido/the-bakery/services/api/contexts/guilds"
 	"github.com/jevido/the-bakery/services/api/contexts/identity"
 )
+
+// agentOwners adapts the agents context's ownership check to boards'
+// AgentOwners.
+type agentOwners struct{}
+
+func (agentOwners) Owns(ctx context.Context, memberID, agentID uint64) (bool, error) {
+	return agents.Owns(ctx, memberID, agentID)
+}
 
 // memberNames adapts identity's display names to boards' MemberNames.
 type memberNames struct{}
@@ -26,7 +35,7 @@ func (memberNames) DisplayNames(ctx context.Context, ids []uint64) (map[uint64]s
 }
 
 var service = app.NewService(
-	guilds.NewMemberships(), infra.Boards{}, infra.Tasks{}, infra.Comments{}, infra.ActivityLog{}, infra.PresenceLog{}, infra.WorkTypes{}, infra.Runs{}, memberNames{},
+	guilds.NewMemberships(), infra.Boards{}, infra.Tasks{}, infra.Comments{}, infra.ActivityLog{}, infra.PresenceLog{}, infra.WorkTypes{}, infra.Runs{}, infra.Claims{}, agentOwners{}, memberNames{},
 	app.NewDispatcher(infra.LogEvents{}.Handle, infra.ActivityProjector{}.Handle, infra.BoardEventPublisher{}.Handle),
 )
 
@@ -64,6 +73,9 @@ func Routes(r route.Router) {
 		r.Get("/api/tasks/{task}/runs", c.ListRuns)
 		r.Post("/api/tasks/{task}/runs", c.StartRun)
 		r.Patch("/api/runs/{run}", c.FinishRun)
+		r.Post("/api/tasks/{task}/claim", c.ClaimTask)
+		r.Post("/api/claims/{claim}/heartbeat", c.HeartbeatClaim)
+		r.Delete("/api/claims/{claim}", c.ReleaseClaim)
 	})
 }
 
@@ -142,6 +154,26 @@ type Task struct {
 	Done          bool
 	SubtasksTotal int
 	SubtasksDone  int
+	// PrioritizedAgentID and Forbidden steer agents; Claim is set where the
+	// caller asked for it (GetBoard, GetTask) and an agent holds the task.
+	PrioritizedAgentID *uint64
+	Forbidden          bool
+	Claim              *Claim
+}
+
+// Claim is an agent's hold on a task.
+type Claim struct {
+	ID        uint64
+	AgentID   uint64
+	MemberID  uint64
+	ExpiresAt time.Time
+}
+
+func claimOf(c *domain.Claim) *Claim {
+	if c == nil {
+		return nil
+	}
+	return &Claim{ID: c.ID, AgentID: c.AgentID, MemberID: c.MemberID, ExpiresAt: c.ExpiresAt}
 }
 
 // Column is one of a board's columns with its tasks in order.
@@ -171,7 +203,8 @@ type BoardView struct {
 func boardOf(b domain.Board) Board { return Board{ID: b.ID, GuildID: b.GuildID, Name: b.Name} }
 
 func taskOf(t domain.Task) Task {
-	return Task{ID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID, ColumnID: t.ColumnID, Title: t.Title, Description: t.Description, WorkType: t.WorkType, Done: t.Done}
+	return Task{ID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID, ColumnID: t.ColumnID, Title: t.Title, Description: t.Description, WorkType: t.WorkType, Done: t.Done,
+		PrioritizedAgentID: t.PrioritizedAgentID, Forbidden: t.Forbidden}
 }
 
 func tasksOf(ts []domain.Task) []Task {
@@ -198,14 +231,18 @@ func ListBoards(ctx context.Context, guildID, memberID uint64) ([]Board, error) 
 // GetBoard returns a board with its columns in order, each with its tasks
 // in order.
 func GetBoard(ctx context.Context, boardID, memberID uint64) (BoardView, error) {
-	b, tasks, counts, err := service.GetBoard(ctx, boardID, memberID)
+	v, err := service.GetBoard(ctx, boardID, memberID)
 	if err != nil {
 		return BoardView{}, err
 	}
+	b := v.Board
 	byColumn := map[uint64][]Task{}
-	for _, t := range tasks {
+	for _, t := range v.Tasks {
 		out := taskOf(t)
-		out.SubtasksTotal, out.SubtasksDone = counts[t.ID].Total, counts[t.ID].Done
+		out.SubtasksTotal, out.SubtasksDone = v.Counts[t.ID].Total, v.Counts[t.ID].Done
+		if c, ok := v.Claims[t.ID]; ok {
+			out.Claim = claimOf(&c)
+		}
 		byColumn[t.ColumnID] = append(byColumn[t.ColumnID], out)
 	}
 	view := BoardView{Board: boardOf(b)}
@@ -249,6 +286,11 @@ func GetTask(ctx context.Context, taskID, memberID uint64) (Task, []Task, error)
 		return Task{}, nil, err
 	}
 	out := taskOf(t)
+	claim, err := service.ActiveClaim(ctx, t.ID)
+	if err != nil {
+		return Task{}, nil, err
+	}
+	out.Claim = claimOf(claim)
 	for _, st := range subtasks {
 		out.SubtasksTotal++
 		if st.Done {
@@ -271,6 +313,9 @@ type TaskChanges struct {
 	Description *string
 	WorkType    *string
 	Done        *bool
+	// PrioritizedAgentID 0 clears the priority.
+	PrioritizedAgentID *uint64
+	Forbidden          *bool
 }
 
 // UpdateTask changes a task's title, description or work type, and ticks a

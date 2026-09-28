@@ -25,5 +25,7 @@ func Migrations() []schema.Migration {
 		&migrations.M20260927000014CreateAgentsTables{},
 		&migrations.M20260927000015CreateAgentSharesTable{},
 		&migrations.M20260927000016CreateTaskRunsTable{},
+		&migrations.M20260927000017CreateTaskClaimsTable{},
+		&migrations.M20260927000018AddDraftingAndRunKind{},
 	}
 }

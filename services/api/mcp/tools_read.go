@@ -35,6 +35,16 @@ type taskOut struct {
 	Done          *bool   `json:"done,omitempty" jsonschema:"set on a subtask: whether it is ticked off"`
 	SubtasksTotal *int    `json:"subtasks_total,omitempty" jsonschema:"how many subtasks this task has"`
 	SubtasksDone  *int    `json:"subtasks_done,omitempty" jsonschema:"how many of them are done"`
+	// Steering agents.
+	PrioritizedAgentID *uint64   `json:"prioritized_agent_id,omitempty" jsonschema:"only this agent may take the task"`
+	Forbidden          bool      `json:"forbidden,omitempty" jsonschema:"agents are kept off this task; people still work it"`
+	Claim              *claimOut `json:"claim,omitempty" jsonschema:"set while an agent holds the task"`
+}
+
+type claimOut struct {
+	AgentID   uint64    `json:"agent_id"`
+	MemberID  uint64    `json:"member_id" jsonschema:"whose agent"`
+	ExpiresAt time.Time `json:"expires_at" jsonschema:"when the hold lapses unless the agent's app renews it"`
 }
 
 type columnOut struct {
@@ -44,7 +54,11 @@ type columnOut struct {
 }
 
 func taskOutOf(t boards.Task) taskOut {
-	out := taskOut{ID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID, Title: t.Title, Description: t.Description, ColumnID: t.ColumnID, WorkType: t.WorkType}
+	out := taskOut{ID: t.ID, BoardID: t.BoardID, ParentID: t.ParentID, Title: t.Title, Description: t.Description, ColumnID: t.ColumnID, WorkType: t.WorkType,
+		PrioritizedAgentID: t.PrioritizedAgentID, Forbidden: t.Forbidden}
+	if t.Claim != nil {
+		out.Claim = &claimOut{AgentID: t.Claim.AgentID, MemberID: t.Claim.MemberID, ExpiresAt: t.Claim.ExpiresAt}
+	}
 	if t.ParentID != nil {
 		out.Done = &t.Done
 	} else {
