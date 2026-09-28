@@ -315,7 +315,10 @@ type RunInfo struct {
 	// Status is "running", "succeeded", "failed" or "stopped".
 	Status string `json:"status"`
 	// Waiting counts the run's letters waiting for an answer.
-	Waiting    int     `json:"waiting"`
+	Waiting int `json:"waiting"`
+	// State is what the agent is doing, for the colony view: thinking,
+	// editing, running (a command), waiting (for an answer), done, failed.
+	State      string  `json:"state"`
 	CostUSD    float64 `json:"cost_usd"`
 	Turns      int     `json:"turns"`
 	DurationMS int64   `json:"duration_ms"`
@@ -425,7 +428,7 @@ func (s *WorkshopService) StartRun(ctx context.Context, boardID, taskID uint64, 
 		info: RunInfo{
 			ID: prep.ID, APIRunID: apiRun.ID, BoardID: boardID, TaskID: taskID, TaskTitle: prep.Task.Title,
 			AgentSlug: agentSlug, AgentName: prep.Agent.Name, Branch: prep.Worktree.Branch, Worktree: prep.Worktree.Path,
-			Model: prep.Agent.Model, PermissionMode: prep.Agent.PermissionMode, StartedAt: time.Now(), Status: "running",
+			Model: prep.Agent.Model, PermissionMode: prep.Agent.PermissionMode, StartedAt: time.Now(), Status: "running", State: "thinking",
 		},
 		skills: prep.Skills,
 		repo:   prep.Config.Repo, base: prep.Worktree.Base, finishColumn: prep.Config.FinishColumn, dir: prep.Dir,
@@ -456,6 +459,14 @@ func (s *WorkshopService) StartRun(ctx context.Context, boardID, taskID uint64, 
 func (s *WorkshopService) record(run *localRun, ev workshop.RunEvent) {
 	run.mu.Lock()
 	var notes []workshop.RunEvent
+	before := run.info.State
+	if st := workshop.StateAfter(run.info.State, ev); st != "" {
+		run.info.State = st
+	}
+	if run.info.Waiting > 0 && run.info.Status == "running" {
+		run.info.State = "waiting"
+	}
+	stateChanged := run.info.State != before
 	switch ev.Kind {
 	case "init":
 		for _, want := range run.skills {
@@ -476,10 +487,14 @@ func (s *WorkshopService) record(run *localRun, ev workshop.RunEvent) {
 		}
 	}
 	id := run.info.ID
+	state := agentState{Agent: run.info.AgentSlug, Run: id, Task: run.info.TaskID, State: run.info.State}
 	run.mu.Unlock()
 	if s.app != nil {
 		for _, e := range all {
 			s.app.Event.Emit(eventRunPrefix+id, e)
+		}
+		if stateChanged {
+			s.app.Event.Emit(eventAgentState, state)
 		}
 	}
 }
@@ -550,6 +565,10 @@ func (s *WorkshopService) end(run *localRun, out workshop.Outcome) {
 
 	run.mu.Lock()
 	run.info.Status = status
+	run.info.State = map[string]string{"succeeded": "done", "stopped": "done"}[status]
+	if run.info.State == "" {
+		run.info.State = "failed"
+	}
 	run.info.Diff = diff
 	run.info.MovedTo = moved
 	run.mu.Unlock()
@@ -919,6 +938,13 @@ func (s *WorkshopService) letterChanged(l workshop.Letter, delta int, event stri
 	if run != nil {
 		run.mu.Lock()
 		run.info.Waiting = max(0, run.info.Waiting+delta)
+		if run.info.Status == "running" {
+			if run.info.Waiting > 0 {
+				run.info.State = "waiting"
+			} else {
+				run.info.State = "thinking"
+			}
+		}
 		run.mu.Unlock()
 		note := "Waiting for an answer: " + l.ToolName + "."
 		if delta < 0 {
@@ -996,4 +1022,14 @@ func (s *WorkshopService) allowAlways(l workshop.Letter) error {
 	}
 	s.record(run, workshop.RunEvent{Kind: "note", Text: "Always allowed on this board: " + rule + "."})
 	return nil
+}
+
+// eventAgentState tells the colony view what an agent is doing.
+const eventAgentState = "agent:state"
+
+type agentState struct {
+	Agent string `json:"agent"`
+	Run   string `json:"run"`
+	Task  uint64 `json:"task"`
+	State string `json:"state"`
 }

@@ -3,8 +3,13 @@
   import TaskCard from './TaskCard.svelte'
   import ColumnHeader from './ColumnHeader.svelte'
   import type { Colony, LiveState } from '../lib/colony.svelte'
+  import type { Letters } from '../lib/letters.svelte'
+  import ColonyView from './ColonyView.svelte'
 
-  let { colony }: { colony: Colony } = $props()
+  let { colony, letters }: { colony: Colony; letters: Letters } = $props()
+
+  // The board as cards, or as the colony from above.
+  let mode = $state<'board' | 'colony'>('board')
 
   let draggedId = $state<number | null>(null)
   // Where the dragged task would land: a column and an index among the
@@ -219,6 +224,10 @@
       </div>
       {#if speed === 'paused'}<span class="paused">Paused</span>{/if}
     {/if}
+    <div class="modes" role="group" aria-label="View">
+      <button class={{ on: mode === 'board' }} aria-pressed={mode === 'board'} onclick={() => (mode = 'board')}>Board</button>
+      <button class={{ on: mode === 'colony' }} aria-pressed={mode === 'colony'} onclick={() => (mode = 'colony')}>Colony</button>
+    </div>
     <span class="spacer"></span>
     {#if colony.settings && !colony.settings.linked}
       <button class="linked" title="Agents cannot run on this board on this machine until it is linked to a repository" onclick={() => colony.openSettings()}>Not linked</button>
@@ -243,6 +252,9 @@
     {/if}
     <button class="gear" aria-label="Board settings" title="Board settings (this machine)" onclick={() => colony.openSettings()}>⚙</button>
   </header>
+  {#if mode === 'colony'}
+    <ColonyView {colony} {letters} />
+  {:else}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="board"
@@ -319,6 +331,7 @@
       {/if}
     </div>
   </div>
+  {/if}
     {#if menu && menuTask}
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="menu-veil" onclick={() => (menu = null)} oncontextmenu={(e) => { e.preventDefault(); menu = null }}></div>
@@ -361,6 +374,29 @@
     font-family: var(--font-display);
     font-size: 16px;
     font-weight: 600;
+  }
+
+  .modes {
+    display: flex;
+    margin-left: 6px;
+    border: 1px solid var(--frame-dim);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .modes button {
+    font: inherit;
+    font-size: 11px;
+    padding: 1px 8px;
+    color: var(--text-dim);
+    background: var(--panel-inset);
+    border: none;
+    cursor: pointer;
+  }
+
+  .modes button.on {
+    color: var(--text);
+    background: var(--panel-title);
   }
 
   .speed {

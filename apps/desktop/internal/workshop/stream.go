@@ -156,3 +156,22 @@ func cut(s string) string {
 	}
 	return s + "…"
 }
+
+// StateAfter is what an agent is doing after a run event, for the colony
+// view: "thinking" while Claude writes or reads, "editing" while it changes
+// files, "running" while a command runs; "" keeps the state it had.
+func StateAfter(current string, ev RunEvent) string {
+	switch ev.Kind {
+	case "init", "text", "tool_result":
+		return "thinking"
+	case "tool_call":
+		switch ev.Tool {
+		case "Edit", "Write", "MultiEdit", "NotebookEdit":
+			return "editing"
+		case "Bash":
+			return "running"
+		}
+		return "thinking"
+	}
+	return ""
+}

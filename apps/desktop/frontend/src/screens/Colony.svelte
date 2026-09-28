@@ -157,7 +157,7 @@
     {:else if colony.view}
       {@const openRun = colony.openRunId ? colony.workshop.byId(colony.openRunId) : undefined}
       <div class={['work', { 'with-panel': colony.openTaskId !== null || colony.settingsOpen || openRun }]}>
-        <BoardView {colony} />
+        <BoardView {colony} {letters} />
         {#if colony.settingsOpen}
           <BoardSettings {colony} onclose={() => (colony.settingsOpen = false)} />
         {:else if openRun}

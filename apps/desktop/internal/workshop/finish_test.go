@@ -118,3 +118,25 @@ func TestDiff(t *testing.T) {
 		t.Errorf("uncommitted = %+v", d.Uncommitted)
 	}
 }
+
+func TestStateAfter(t *testing.T) {
+	tests := []struct {
+		ev   RunEvent
+		want string
+	}{
+		{RunEvent{Kind: "init"}, "thinking"},
+		{RunEvent{Kind: "text"}, "thinking"},
+		{RunEvent{Kind: "tool_call", Tool: "Edit"}, "editing"},
+		{RunEvent{Kind: "tool_call", Tool: "Write"}, "editing"},
+		{RunEvent{Kind: "tool_call", Tool: "Bash"}, "running"},
+		{RunEvent{Kind: "tool_call", Tool: "Read"}, "thinking"},
+		{RunEvent{Kind: "tool_result"}, "thinking"},
+		{RunEvent{Kind: "note"}, ""},
+		{RunEvent{Kind: "result"}, ""},
+	}
+	for _, tt := range tests {
+		if got := StateAfter("editing", tt.ev); got != tt.want {
+			t.Errorf("StateAfter(%s %s) = %q, want %q", tt.ev.Kind, tt.ev.Tool, got, tt.want)
+		}
+	}
+}

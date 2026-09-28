@@ -1,0 +1,124 @@
+// Pixel art for the colony view, drawn from small character maps so there
+// are no image files to keep in step. One character is one pixel; '.' is
+// see-through. Each sprite names its colours in a palette.
+
+export type Sprite = { rows: string[]; palette: Record<string, string> }
+
+// A colonist, 10×14. 'b' is the body colour, 'd' its shade; both come from
+// the agent's portrait seed.
+export const COLONIST: Sprite = {
+  rows: [
+    '...hhhh...',
+    '..hhhhhh..',
+    '..hssssh..',
+    '..sesses..',
+    '..ssssss..',
+    '...ssss...',
+    '..bbbbbb..',
+    '.bbbbbbbb.',
+    '.sbbddbbs.',
+    '.sbbddbbs.',
+    '..bbbbbb..',
+    '..ll..ll..',
+    '..ll..ll..',
+    '..kk..kk..',
+  ],
+  palette: { h: '#4a3526', s: '#d9a877', e: '#1c1d1a', b: '#7c8a42', d: '#5a6530', l: '#3d3a33', k: '#26241f' },
+}
+
+// A workbench, 20×10.
+export const BENCH: Sprite = {
+  rows: [
+    '....................',
+    '.tttttttttttttttttt.',
+    '.TTTTTTTTTTTTTTTTTT.',
+    '.w.gg.........ii..w.',
+    '.w.gg.........ii..w.',
+    '.w................w.',
+    '.w................w.',
+    '.w................w.',
+    '.w................w.',
+    '....................',
+  ],
+  palette: { t: '#9a7a52', T: '#6f5537', w: '#5a4430', g: '#6a8cab', i: '#a55a36' },
+}
+
+// The table idle colonists stand around, 16×8.
+export const TABLE: Sprite = {
+  rows: [
+    '................',
+    '.tttttttttttttt.',
+    '.TTTTTTTTTTTTTT.',
+    '..w..........w..',
+    '..w..........w..',
+    '..w..........w..',
+    '..w..........w..',
+    '................',
+  ],
+  palette: { t: '#8a7a5e', T: '#5f5340', w: '#4a3f30' },
+}
+
+// Small marks over a colonist's head, 5×5.
+export const MARKS: Record<string, Sprite> = {
+  waiting: {
+    rows: ['.yyy.', 'y...y', '...y.', '..y..', '..y..'],
+    palette: { y: '#e5c14a' },
+  },
+  done: {
+    rows: ['....g', '...g.', 'g.g..', '.g...', '.....'],
+    palette: { g: '#98a856' },
+  },
+  failed: {
+    rows: ['r...r', '.r.r.', '..r..', '.r.r.', 'r...r'],
+    palette: { r: '#c06c43' },
+  },
+}
+
+// A hammer, 4×4, swung while editing or running a command.
+export const HAMMER: Sprite = {
+  rows: ['mmm.', 'mmm.', '.w..', '.w..'],
+  palette: { m: '#9aa3a8', w: '#6f5537' },
+}
+
+// The floor tile, 8×8.
+export const FLOOR: Sprite = {
+  rows: ['aaaaaaab', 'aaaaaaab', 'aaaaaaab', 'aaaaaaab', 'aaaaaaab', 'aaaaaaab', 'aaaaaaab', 'bbbbbbbb'],
+  palette: { a: '#2c2b25', b: '#252420' },
+}
+
+export function draw(ctx: CanvasRenderingContext2D, s: Sprite, x: number, y: number, scale: number, override: Record<string, string> = {}) {
+  for (let r = 0; r < s.rows.length; r++) {
+    const row = s.rows[r]
+    for (let c = 0; c < row.length; c++) {
+      const ch = row[c]
+      if (ch === '.') continue
+      ctx.fillStyle = override[ch] ?? s.palette[ch]
+      ctx.fillRect(Math.round(x + c * scale), Math.round(y + r * scale), scale, scale)
+    }
+  }
+}
+
+export function size(s: Sprite, scale: number) {
+  return { w: s.rows[0].length * scale, h: s.rows.length * scale }
+}
+
+// Body colours from a portrait seed: the same seed, the same clothes.
+const CLOTHES = [
+  ['#7c8a42', '#5a6530'],
+  ['#6a8cab', '#4b6781'],
+  ['#a55a36', '#7a4228'],
+  ['#b98a5e', '#8a6242'],
+  ['#9c8f76', '#6f6553'],
+  ['#c9b27a', '#96834f'],
+  ['#8a5e8f', '#653f69'],
+]
+
+export function clothesFor(seed: string): Record<string, string> {
+  let h = 0x811c9dc5
+  for (const ch of seed || 'agent') {
+    h ^= ch.charCodeAt(0)
+    h = Math.imul(h, 0x01000193) >>> 0
+  }
+  const [b, d] = CLOTHES[h % CLOTHES.length]
+  return { b, d }
+}

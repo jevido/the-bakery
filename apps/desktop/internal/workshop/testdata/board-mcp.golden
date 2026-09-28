@@ -85,7 +85,8 @@ Steel is in the stockpile.
 - Commit your work on this branch with clear messages. Do not push.
 - Keep the task up to date with the bakery MCP tools: tick off subtasks as
   you finish them (task 12's subtasks, from get_task), and add a comment when
-  you are blocked or need a decision.
+  you are blocked or need a decision. Do not move the task; the app moves
+  it when you are done.
 - If a tool is refused, say so and go on without it; never guess what it
   would have returned.
 - End with a short summary of what you did and what is left.

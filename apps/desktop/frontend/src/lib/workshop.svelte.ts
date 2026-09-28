@@ -14,8 +14,15 @@ export class Workshop {
     WorkshopService.Runs()
       .then((r) => (this.runs = r ?? []))
       .catch(() => {})
-    const off = Events.On('workshop:runs', (e) => (this.runs = (e.data as RunInfo[]) ?? []))
-    return () => off()
+    const offs = [
+      Events.On('workshop:runs', (e) => (this.runs = (e.data as RunInfo[]) ?? [])),
+      // What an agent is doing changes often; only that run is patched.
+      Events.On('agent:state', (e) => {
+        const s = e.data as { run: string; state: string }
+        this.runs = this.runs.map((r) => (r.id === s.run ? { ...r, state: s.state } : r))
+      }),
+    ]
+    return () => offs.forEach((off) => off())
   }
 
   // A board event about a run, from any member.
