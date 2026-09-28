@@ -2,6 +2,7 @@
   import { Portrait } from '@bakery/ui'
   import { BENCH, COLONIST, FLOOR, HAMMER, MARKS, MOODS, TABLE, colonistColours, draw, size } from '../lib/sprites'
   import { needs, type Mood } from '../lib/needs.svelte'
+  import { settings } from '../lib/settings.svelte'
   import type { Colony } from '../lib/colony.svelte'
   import type { Letters } from '../lib/letters.svelte'
   import type { RunInfo } from '../lib/bindings'
@@ -101,7 +102,9 @@
   })
 
   const animated = $derived(
-    !reduced && figures.some((f) => ['thinking', 'editing', 'running', 'waiting'].includes(f.state) || (f.state === 'idle' && f.mood === 'breaking')),
+    !reduced && figures.some(
+        (f) => ['thinking', 'editing', 'running', 'waiting'].includes(f.state) || (f.state === 'idle' && f.mood === 'breaking' && !settings.quiet),
+      ),
   )
   const flashing = $derived(figures.some((f) => f.state === 'done' || f.state === 'failed'))
 
@@ -156,10 +159,12 @@
       if (!reduced && f.state === 'thinking') dy = Math.round(Math.sin(phase * 4) * 1.5) * S
       // An idle agent shows its mood: slumped when stressed, pacing when
       // breaking. Looks only; nothing it does changes.
-      if (f.state === 'idle' && f.mood === 'stressed') dy = S
-      if (f.state === 'idle' && f.mood === 'breaking' && !reduced) x += Math.round(Math.sin(phase * 2) * 3) * S
+      // Quiet colony: no mood, no idle acting.
+      const mood = settings.quiet ? undefined : f.mood
+      if (f.state === 'idle' && mood === 'stressed') dy = S
+      if (f.state === 'idle' && mood === 'breaking' && !reduced) x += Math.round(Math.sin(phase * 2) * 3) * S
       draw(ctx, COLONIST, x, y + dy, S, colonistColours(f.seed))
-      const mark = f.mood ? MOODS[f.mood] : undefined
+      const mark = mood ? MOODS[mood] : undefined
       if (mark) draw(ctx, mark, x + person.w, y - 3 * S + dy, S)
       const headX = x + person.w / 2 - 2.5 * S
       const headY = y - 7 * S
@@ -186,6 +191,7 @@
     canvas.width = width
     canvas.height = layout.height
     void figures
+    void settings.quiet
     render(performance.now())
     if (!animated) return
     let raf = 0

@@ -11,6 +11,8 @@
   import Letters from '../components/Letters.svelte'
   import ReportGuild from '../components/ReportGuild.svelte'
   import AlertsColumn from '../components/AlertsColumn.svelte'
+  import SettingsScreen from '../components/SettingsScreen.svelte'
+  import { loadSettings } from '../lib/settings.svelte'
   import { Alerts } from '../lib/alerts.svelte'
   import { Story } from '../lib/story.svelte'
   import { Letters as LetterBox } from '../lib/letters.svelte'
@@ -83,7 +85,8 @@
   let showConflicts = $state(false)
 
   // The main area shows the board or the roster.
-  let view = $state<'board' | 'agents' | 'work'>('board')
+  let view = $state<'board' | 'agents' | 'work' | 'settings'>('board')
+  loadSettings()
 
   const SYNC_LABEL: Record<string, string> = {
     idle: 'Agents in sync',
@@ -140,6 +143,7 @@
       <button class={['view', { active: view === 'board' }]} onclick={() => (view = 'board')}>Boards</button>
       <button class={['view', { active: view === 'agents' }]} onclick={() => (view = 'agents')}>Agents</button>
       <button class={['view', { active: view === 'work' }]} onclick={() => (view = 'work')}>Work</button>
+      <button class={['view', 'icon', { active: view === 'settings' }]} title="Settings" aria-label="Settings" onclick={() => (view = 'settings')}>⚙</button>
     </nav>
 
     <Panel title="Guilds">
@@ -226,6 +230,8 @@
       <AgentsScreen sync={agentSync} guilds={colony.guilds} guildId={colony.guildId} />
     {:else if view === 'work'}
       <WorkTab {colony} sync={agentSync} />
+    {:else if view === 'settings'}
+      <SettingsScreen />
     {:else if colony.view}
       {@const openRun = colony.openRunId ? colony.workshop.byId(colony.openRunId) : undefined}
       <div class={['work', { 'with-panel': colony.openTaskId !== null || colony.settingsOpen || openRun }]}>
@@ -328,6 +334,10 @@
     border: 1px solid var(--frame-dim);
     border-radius: var(--radius);
     cursor: pointer;
+  }
+
+  .view.icon {
+    flex: 0 0 auto;
   }
 
   .view.active {

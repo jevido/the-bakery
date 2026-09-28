@@ -6,6 +6,7 @@
 import { Events } from '@wailsio/runtime'
 import { WorkshopService, type StoredEventLetter } from './bindings'
 import { settings } from './settings.svelte'
+import { play } from './sound'
 
 export class Story {
   boardId = $state<number | null>(null)
@@ -26,7 +27,9 @@ export class Story {
   listen() {
     return Events.On('story:letter', (e) => {
       const l = e.data as StoredEventLetter
-      if (l.board_id === this.boardId) this.history = [l, ...this.history.filter((h) => h.id !== l.id)]
+      if (l.board_id !== this.boardId) return
+      this.history = [l, ...this.history.filter((h) => h.id !== l.id)]
+      play('letter')
     })
   }
 

@@ -3,6 +3,7 @@
 
 import { Events } from '@wailsio/runtime'
 import { WorkshopService, messageOf, type RunInfo } from './bindings'
+import { play } from './sound'
 
 export class Workshop {
   // This app's runs since it opened, newest first.
@@ -15,7 +16,18 @@ export class Workshop {
       .then((r) => (this.runs = r ?? []))
       .catch(() => {})
     const offs = [
-      Events.On('workshop:runs', (e) => (this.runs = (e.data as RunInfo[]) ?? [])),
+      Events.On('workshop:runs', (e) => {
+        const next = (e.data as RunInfo[]) ?? []
+        // A run of this machine that just ended gets its cue.
+        for (const r of next) {
+          const was = this.runs.find((p) => p.id === r.id)
+          if (was?.status === 'running' && r.kind !== 'plan') {
+            if (r.status === 'succeeded') play('run-finished')
+            else if (r.status === 'failed') play('run-failed')
+          }
+        }
+        this.runs = next
+      }),
       // What an agent is doing changes often; only that run is patched.
       Events.On('agent:state', (e) => {
         const s = e.data as { run: string; state: string }

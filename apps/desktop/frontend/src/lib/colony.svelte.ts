@@ -6,6 +6,8 @@ import { Events } from '@wailsio/runtime'
 import { AgentsService, BoardsService, LiveService, WorkshopService, isSignedOut, messageOf, type AgentSummary, type Board, type BoardSettings, type BoardView, type Guild, type Task, type WorkType } from './bindings'
 import { OpenTask } from './task.svelte'
 import { Workshop } from './workshop.svelte'
+import { play } from './sound'
+import { measure } from './timing'
 
 export type ColumnState = { id: number; name: string; tasks: Task[] }
 
@@ -176,6 +178,7 @@ export class Colony {
         if (!target || !from || !task) return this.#reloadSoon()
         if (from === target && task.position === position) return
         from.tasks.splice(from.tasks.indexOf(task), 1)
+        if (from !== target && target.name.toLowerCase() === 'done') play('task-done')
         task.column_id = target.id
         task.position = position
         // Positions sort as plain strings (the keys are ASCII).
@@ -385,6 +388,8 @@ export class Colony {
     const task = await this.#run(() => BoardsService.CreateTask(this.boardId!, title))
     if (!task) return false
     const first = this.view?.columns[0]
+    // Measured from the API's answer: the render is the part flavor could slow.
+    measure('create')
     if (first && !first.tasks.some((t) => t.id === task.id)) first.tasks.push(task)
     return true
   }
@@ -459,6 +464,7 @@ export class Colony {
   async moveTask(id: number, columnId: number, index: number) {
     const view = this.view
     if (!view) return
+    measure('move')
     let task
     for (const col of view.columns) {
       const i = col.tasks.findIndex((t) => t.id === id)
@@ -467,8 +473,10 @@ export class Colony {
     const target = view.columns.find((c) => c.id === columnId)
     if (!task || !target) return this.reloadBoard()
     index = Math.max(0, Math.min(index, target.tasks.length))
+    const moving = task.column_id !== columnId
     task.column_id = columnId
     target.tasks.splice(index, 0, task)
+    if (moving && target.name.toLowerCase() === 'done') play('task-done')
 
     const afterId = target.tasks[index - 1]?.id ?? null
     const beforeId = target.tasks[index + 1]?.id ?? null

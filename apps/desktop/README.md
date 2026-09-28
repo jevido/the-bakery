@@ -121,6 +121,21 @@ directory and logs a warning.
 - Reporting: right-click a guild in the sidebar for **Report this guild…**
   (`components/ReportGuild.svelte`, `BoardsService.ReportGuild`,
   `POST /api/reports`).
+- The RimWorld feel, all presentation (the scheduler and the API never read
+  it): portraits from `@bakery/ui` (the member's own in the sidebar, click
+  to re-roll); **needs and mood** (`needs.go`, `internal/workshop/needs.go`,
+  event `agent:needs`) on the agent card and in the colony view; the
+  **alerts column** at the right edge (`alerts.go`,
+  `internal/workshop/alerts.go`, event `alerts:changed`,
+  `components/AlertsColumn.svelte`); **event letters** from the storyteller
+  (`story.go`, `internal/workshop/storyteller.go`, event `story:letter`,
+  history in the board config folder's `event-letters.json`); flavor lines
+  from `src/lib/flavor/lines.ts`; and sound cues
+  (`src/assets/sounds/`, synthesised by `make.py`, licences in
+  `LICENSES.md`). The ⚙ screen (`SettingsService`,
+  `~/.config/the-bakery/settings.toml`) holds **Quiet colony**, which turns
+  the flavor off, and **Sound** (off by default) with its volume.
+  `src/lib/timing.ts` keeps how long moves and creates take to render.
 - `internal/session/runner.go` — the runner token: a personal token the app
   makes for itself (`desktop runner (<host>)`) so Claude can use the Bakery
   MCP server as the member during a run. Kept in its own keyring entry,

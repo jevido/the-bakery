@@ -4,6 +4,7 @@
 
 import { Events } from '@wailsio/runtime'
 import { WorkshopService, messageOf, type Letter } from './bindings'
+import { play } from './sound'
 
 export type Choice = 'allow' | 'allow_always' | 'deny'
 
@@ -22,6 +23,7 @@ export class Letters {
       .catch(() => {})
     const offs = [
       Events.On('letter:new', (e) => {
+        play('letter')
         const l = e.data as Letter
         if (!this.list.some((x) => x.id === l.id)) this.list = [...this.list, l]
       }),

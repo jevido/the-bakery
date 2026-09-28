@@ -59,6 +59,7 @@ func main() {
 			application.NewService(notifier),
 			application.NewService(updates),
 			application.NewService(website),
+			application.NewService(NewSettingsService()),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
