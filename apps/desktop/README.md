@@ -195,15 +195,15 @@ directory and logs a warning.
   every member's runs of the task; a card shows **Working** while a run is
   going (`lib/workshop.svelte.ts`, from `workshop:runs` and the board's
   `run.started` / `run.finished` events).
-- `frontend/src/components/ColonyView.svelte` — the colony from above (the
-  canvas of Work mode, for now): a workbench per work type, each agent
-  with a run going at the bench of its task's work type, agents enabled on
-  the board and idle at the table. Pixel art is drawn from character maps
-  in `lib/sprites.ts`. What an agent does comes from Go as the Wails event
-  `agent:state` (thinking, editing, running a command, waiting for a letter,
-  done, failed). It animates at most 30 frames a second, only while an
-  agent is busy, and not at all with reduced motion; hover for the task and
-  cost, click to open the run, or the letter of an agent that waits.
+- `frontend/src/components/WorkCanvas.svelte` and `lib/choreography.ts` —
+  Work mode's canvas: a bench per work type, the supervisor at a desk, and
+  the board's enabled agents dilly-dallying until the supervisor walks up
+  with a task; the agent works at its bench while its run goes and brings
+  its notes back when it ends. `choreography.ts` is a pure state machine
+  (`step`, tested with `bun test`) driven only by the runs the app already
+  has; the room's floor and benches are drawn once into a backdrop. It loops
+  at 30 fps only while something moves, never with quiet colony or reduced
+  motion. In development, `bakeryCanvas.advance(ms)` draws frames by hand.
 - `frontend/src/components/ColumnHeader.svelte` — a column's title bar: drag
   handle, name (double-click to rename), task count, and a menu whose Delete is
   off for a column with tasks or the last one.

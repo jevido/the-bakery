@@ -43,11 +43,12 @@ tasks:
       - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
 
   check:
-    desc: Generate bindings, svelte-check, build the frontend, go vet and go test
+    desc: Generate bindings, svelte-check, frontend unit tests, build the frontend, go vet and go test
     cmds:
       - task: common:install:frontend:deps
       - wails3 generate bindings -clean=true -ts -i
       - cd frontend && bun run check
+      - cd frontend && bun test
       # go vet needs frontend/dist to exist for the embed directive.
       - cd frontend && bun run build
       - gofmt -l . | (! grep .)

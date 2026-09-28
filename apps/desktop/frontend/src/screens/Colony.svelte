@@ -240,6 +240,10 @@
           view = 'board'
           colony.openSettings()
         }}
+        onopenrun={(id) => {
+          view = 'board'
+          colony.openRun(id)
+        }}
       />
     {:else if view === 'settings'}
       <SettingsScreen />

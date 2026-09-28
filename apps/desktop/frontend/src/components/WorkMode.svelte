@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Panel } from '@bakery/ui'
-  import ColonyView from './ColonyView.svelte'
+  import WorkCanvas from './WorkCanvas.svelte'
   import TimeControls from './TimeControls.svelte'
   import type { Colony } from '../lib/colony.svelte'
   import type { Letters } from '../lib/letters.svelte'
@@ -9,7 +9,8 @@
   // and the supervisor chat at the right. Boards is where the work is
   // planned; this is where it is watched and steered.
   // onsettings opens the board's settings, which live on the Boards screen.
-  let { colony, letters, onsettings }: { colony: Colony; letters: Letters; onsettings: () => void } = $props()
+  // onopenrun shows a run in the run panel, on the Boards screen.
+  let { colony, letters, onsettings, onopenrun }: { colony: Colony; letters: Letters; onsettings: () => void; onopenrun: (id: string) => void } = $props()
 </script>
 
 <section class="work-mode">
@@ -37,7 +38,7 @@
   <div class="split">
     <div class="canvas">
       {#if colony.view}
-        <ColonyView {colony} {letters} />
+        {#key colony.boardId}<WorkCanvas {colony} {letters} {onopenrun} />{/key}
       {:else}
         <p class="dim">Pick a board.</p>
       {/if}
@@ -107,7 +108,6 @@
   .canvas {
     min-width: 0;
     min-height: 0;
-    overflow: auto;
   }
 
   .dim {

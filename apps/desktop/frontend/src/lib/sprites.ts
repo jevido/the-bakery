@@ -28,6 +28,33 @@ export const COLONIST: Sprite = {
   palette: { h: '#4a3526', s: '#d9a877', e: '#1c1d1a', b: '#7c8a42', d: '#5a6530', l: '#3d3a33', k: '#26241f' },
 }
 
+// The supervisor, 10×14: a long coat, a cap and a clipboard.
+export const SUPERVISOR: Sprite = {
+  rows: [
+    '..cccccc..',
+    '.cccccccc.',
+    '..hssssh..',
+    '..sesses..',
+    '..ssssss..',
+    '...ssss...',
+    '..oooooo..',
+    '.oooooooop',
+    '.soowwoopp',
+    '.soowwoopp',
+    '..oooooo..',
+    '..oo..oo..',
+    '..ll..ll..',
+    '..kk..kk..',
+  ],
+  palette: { c: '#3d4a5c', h: '#4a3526', s: '#d9a877', e: '#1c1d1a', o: '#5c6670', w: '#e8e2cf', p: '#c9b27a', l: '#3d3a33', k: '#26241f' },
+}
+
+// A note being handed over, 4×4.
+export const NOTE: Sprite = {
+  rows: ['pppp', 'plpp', 'pplp', 'pppp'],
+  palette: { p: '#e8e2cf', l: '#8c8676' },
+}
+
 // A workbench, 20×10.
 export const BENCH: Sprite = {
   rows: [
