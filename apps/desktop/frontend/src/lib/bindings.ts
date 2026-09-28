@@ -1,6 +1,6 @@
 // One import point for the generated Wails bindings (`wails3 generate
 // bindings`, run by `task desktop:dev` and `task desktop:check`).
-export { SessionService, BoardsService, TaskService, LiveService, AgentsService, WorkshopService, UpdateService, WebsiteService, SettingsService } from '../../bindings/github.com/jevido/the-bakery/apps/desktop'
+export { SessionService, BoardsService, TaskService, LiveService, AgentsService, WorkshopService, UpdateService, WebsiteService, SettingsService, SupervisorService } from '../../bindings/github.com/jevido/the-bakery/apps/desktop'
 export type {
   Member,
   Guild,
@@ -31,7 +31,7 @@ export function isSignedOut(err: unknown): boolean {
   return messageOf(err).toLowerCase().startsWith('signed out')
 }
 
-export type { AgentDetail, AgentSummary, SkillEntry, TraitList, BoardSettings, ConfigProblem, RunInfo, StoredEventLetter, AppSettings } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/models'
+export type { AgentDetail, AgentSummary, SkillEntry, TraitList, BoardSettings, ConfigProblem, RunInfo, StoredEventLetter, AppSettings, ChatEntry, ChatProposal } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/models'
 export type { BoardConfig, RunEvent, Letter, Question, Proposal } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/internal/workshop/models'
 export type { Manifest } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/internal/agents/models'
 export type { Agent, Trait } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/internal/api/models'

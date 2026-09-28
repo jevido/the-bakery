@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { Panel } from '@bakery/ui'
   import WorkCanvas from './WorkCanvas.svelte'
+  import SupervisorChat from './SupervisorChat.svelte'
+  import { SupervisorChat as Chat } from '../lib/supervisor.svelte'
   import TimeControls from './TimeControls.svelte'
   import type { Colony } from '../lib/colony.svelte'
   import type { Letters } from '../lib/letters.svelte'
@@ -11,6 +12,11 @@
   // onsettings opens the board's settings, which live on the Boards screen.
   // onopenrun shows a run in the run panel, on the Boards screen.
   let { colony, letters, onsettings, onopenrun }: { colony: Colony; letters: Letters; onsettings: () => void; onopenrun: (id: string) => void } = $props()
+
+  const chat = new Chat()
+  $effect(() => {
+    chat.load(colony.boardId)
+  })
 </script>
 
 <section class="work-mode">
@@ -43,9 +49,9 @@
         <p class="dim">Pick a board.</p>
       {/if}
     </div>
-    <Panel title="Supervisor">
-      <p class="dim">The supervisor will sit here.</p>
-    </Panel>
+    <div class="side">
+      <SupervisorChat {chat} {colony} />
+    </div>
   </div>
 </section>
 
@@ -103,6 +109,18 @@
     display: grid;
     grid-template-columns: minmax(0, 4fr) minmax(280px, 1fr);
     gap: var(--gap);
+  }
+
+  .side {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .side > :global(.panel) {
+    flex: 1;
+    min-height: 0;
   }
 
   .canvas {

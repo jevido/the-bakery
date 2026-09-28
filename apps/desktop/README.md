@@ -202,7 +202,15 @@ directory and logs a warning.
   snapshot of the board and the agents enabled on it, and keeps the chat in
   `supervisor.jsonl` beside `board.toml`. `ParseSupervisorOutput` keeps only
   proposals that fit the snapshot. The model is a desktop setting
-  (`supervisor_model`, default `sonnet`).
+  (`supervisor_model`, default `sonnet`). `components/SupervisorChat.svelte`
+  shows the chat in Work mode; each proposal is a card with Approve and
+  Decline. `supervisor_approve.go` reads the board again and carries an
+  approved proposal out through the same calls as a click: an assign starts
+  the run (`WorkshopService.StartRun`), or prioritizes the task for the
+  agent when it is busy or the board is at its limit; a split expands the
+  task with the member's edited rows; a reorder moves the ready column's
+  tasks in order. What became of each proposal is written into the history
+  and told to the supervisor with the next message.
 - `frontend/src/components/WorkCanvas.svelte` and `lib/choreography.ts` —
   Work mode's canvas: a bench per work type, the supervisor at a desk, and
   the board's enabled agents dilly-dallying until the supervisor walks up

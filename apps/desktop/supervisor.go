@@ -142,10 +142,12 @@ func (s *SupervisorService) Send(ctx context.Context, boardID uint64, text strin
 	}
 	s.thinking[boardID] = true
 	s.mu.Unlock()
+	s.emitThinking(boardID, true)
 	defer func() {
 		s.mu.Lock()
 		delete(s.thinking, boardID)
 		s.mu.Unlock()
+		s.emitThinking(boardID, false)
 	}()
 
 	snap, err := s.snapshot(ctx, boardID)
@@ -321,6 +323,12 @@ func (s *SupervisorService) snapshot(ctx context.Context, boardID uint64) (works
 		snap.Columns = append(snap.Columns, col)
 	}
 	return snap, nil
+}
+
+func (s *SupervisorService) emitThinking(boardID uint64, thinking bool) {
+	if s.work.app != nil {
+		s.work.app.Event.Emit(eventSupervisorThinking, map[string]any{"board_id": boardID, "thinking": thinking})
+	}
 }
 
 // Thinking reports whether the supervisor is answering on the board now.
