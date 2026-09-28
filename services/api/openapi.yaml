@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
   title: The Bakery API
-  version: 1.9.0
+  version: 1.9.1
   description: >-
     The JSON API behind The Bakery: members, guilds, invites, boards, tasks,
-    work types and agents. The desktop app (bearer token) and the website (session cookie)
+    work types, agents and reports. The desktop app (bearer token) and the website (session cookie)
     use the same endpoints. Refusals are
     `{"error": "<sentence>"}`, with `field` added when one field is to blame.
     A member or a guild under a suspension or a ban is refused with 403 and
@@ -107,6 +107,11 @@ tags:
       sees it (404 for anyone else). A change replaces the whole agent and
       names the revision it was based on in `If-Match`; a stale revision
       answers 409 with the agent as it is now. Bodies are at most 3 MB.
+  - name: Reports
+    description: >-
+      Telling the platform's operators about a member or a guild that breaks
+      the rules. A member files at most 10 reports a day. The reporter sees
+      that the report was filed, not how it is handled.
 
 paths:
   /api/health:
@@ -1912,6 +1917,61 @@ paths:
               example: { error: only its author can change a comment }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/ArchivedBoard" }
+
+  /api/reports:
+    post:
+      tags: [Reports]
+      summary: Report a member or a guild
+      description: >-
+        Files a report for the operators. You cannot report yourself.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_kind, target_id, reason]
+              properties:
+                target_kind: { type: string, enum: [member, guild] }
+                target_id: { type: integer, minimum: 1 }
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 1000
+                  description: What happened, in your own words.
+            example: { target_kind: guild, target_id: 12, reason: Posts spam boards into every invite. }
+      responses:
+        "201":
+          description: Filed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [report]
+                properties:
+                  report:
+                    type: object
+                    required: [id, target_kind, target_id, created_at]
+                    properties:
+                      id: { type: integer }
+                      target_kind: { type: string, enum: [member, guild] }
+                      target_id: { type: integer }
+                      created_at: { type: string, format: date-time }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: No member or guild with that id.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: no such member or guild }
+        "422": { $ref: "#/components/responses/Invalid" }
+        "429":
+          description: You have filed 10 reports today.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: you have filed 10 reports today; try again tomorrow }
 
 components:
   securitySchemes:
