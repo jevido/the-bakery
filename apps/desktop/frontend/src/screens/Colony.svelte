@@ -143,7 +143,6 @@
       <button class={['view', { active: view === 'board' }]} onclick={() => (view = 'board')}>Boards</button>
       <button class={['view', { active: view === 'agents' }]} onclick={() => (view = 'agents')}>Agents</button>
       <button class={['view', { active: view === 'work' }]} onclick={() => (view = 'work')}>Work</button>
-      <button class={['view', 'icon', { active: view === 'settings' }]} title="Settings" aria-label="Settings" onclick={() => (view = 'settings')}>⚙</button>
     </nav>
 
     <Panel title="Guilds">
@@ -210,6 +209,7 @@
       </button>
       <span>{member.display_name}</span>
       <Button onclick={onclockout}>Clock out</Button>
+      <button class={['settings', { active: view === 'settings' }]} title="Settings" aria-label="Settings" onclick={() => (view = 'settings')}>⚙</button>
     </div>
   </aside>
 
@@ -336,8 +336,19 @@
     cursor: pointer;
   }
 
-  .view.icon {
-    flex: 0 0 auto;
+  .settings {
+    font: inherit;
+    padding: 2px 7px;
+    color: var(--text-dim);
+    background: var(--panel);
+    border: 1px solid var(--frame-dim);
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+
+  .settings.active {
+    color: var(--text);
+    border-color: var(--frame);
   }
 
   .view.active {
@@ -431,9 +442,17 @@
   .who {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 6px;
     padding: 4px 2px;
     color: var(--text-dim);
+  }
+
+  .who > span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   p {
