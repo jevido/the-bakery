@@ -97,7 +97,11 @@ func (s *WorkshopService) SaveBoardConfig(ctx context.Context, boardID uint64, c
 		}
 		return nil, err
 	}
-	return nil, s.boards.Save(boardID, cfg)
+	if err := s.boards.Save(boardID, cfg); err != nil {
+		return nil, err
+	}
+	s.Wake()
+	return nil, nil
 }
 
 // OpenBoardConfigFolder shows the board's config folder in the file
@@ -851,4 +855,24 @@ func lastLine(s string) string {
 		s = s[i+1:]
 	}
 	return s
+}
+
+// SetSpeed sets a board's time controls on this machine: paused (no new
+// runs start; running ones carry on), normal or fast.
+func (s *WorkshopService) SetSpeed(boardID uint64, speed string) (BoardSettings, error) {
+	switch speed {
+	case workshop.SpeedPaused, workshop.SpeedNormal, workshop.SpeedFast:
+	default:
+		return BoardSettings{}, errors.New("speed is paused, normal or fast")
+	}
+	cfg, err := s.boards.Load(boardID)
+	if err != nil {
+		return BoardSettings{}, err
+	}
+	cfg.Speed = speed
+	if err := s.boards.Save(boardID, cfg); err != nil {
+		return BoardSettings{}, err
+	}
+	s.Wake()
+	return s.GetBoardConfig(context.Background(), boardID)
 }

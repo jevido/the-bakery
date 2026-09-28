@@ -128,3 +128,11 @@ func (s *BoardsService) DeleteWorkType(ctx context.Context, guildID uint64, key 
 	})
 	return err
 }
+
+// DraftTask prioritizes a task for one agent (0 clears it) and/or forbids
+// it for agents (nil leaves either as it is).
+func (s *BoardsService) DraftTask(ctx context.Context, taskID uint64, prioritizedAgentID *uint64, forbidden *bool) (api.Task, error) {
+	return call(s.session, func(t string) (api.Task, error) {
+		return s.client.DraftTask(ctx, t, taskID, prioritizedAgentID, forbidden)
+	})
+}

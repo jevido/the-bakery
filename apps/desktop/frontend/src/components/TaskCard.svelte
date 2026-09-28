@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Portrait from './Portrait.svelte'
   import { Button } from '@bakery/ui'
   import type { Task } from '../lib/bindings'
   import { workTypeStyle } from '../lib/worktype'
@@ -9,6 +10,9 @@
     selected = false,
     workTypeName = '',
     working = false,
+    claimant = null,
+    prioritizedFor = '',
+    onmenu,
     ondragstart,
     ondragend,
     onopen,
@@ -20,6 +24,11 @@
     workTypeName?: string
     // working marks a task an agent is on right now.
     working?: boolean
+    // claimant is the agent holding the task (a name and a portrait seed;
+    // "?" for another member's); prioritizedFor the agent it is set aside for.
+    claimant?: { name: string; seed: string } | null
+    prioritizedFor?: string
+    onmenu?: (event: MouseEvent) => void
     ondragstart: (event: DragEvent) => void
     ondragend: () => void
     onopen: () => void
@@ -31,11 +40,16 @@
 </script>
 
 <li
-  class={['card', { dragging, selected }]}
+  class={['card', { dragging, selected, forbidden: task.forbidden, claimed: !!claimant }]}
   draggable={!confirming}
   data-task-id={task.id}
   {ondragstart}
   {ondragend}
+  oncontextmenu={(e) => {
+    if (!onmenu) return
+    e.preventDefault()
+    onmenu(e)
+  }}
 >
   {#if confirming}
     <div class="confirm">
@@ -48,7 +62,13 @@
   {:else}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <span class="title" ondblclick={onopen} title="Double-click to open">{task.title}</span>
-    {#if working}<span class="working" title="An agent is working on this">Working</span>{/if}
+    {#if claimant}
+      <span class="claimant" title={`${claimant.name} is working on this`}>
+        <Portrait seed={claimant.seed} size={16} />
+      </span>
+    {:else if working}<span class="working" title="An agent is working on this">Working</span>{/if}
+    {#if prioritizedFor}<span class="flag" title={`Set aside for ${prioritizedFor}`}>⚑</span>{/if}
+    {#if task.forbidden}<span class="forbid" title="Forbidden for agents">⊘</span>{/if}
     {#if task.work_type}
       <span class="wt" style={workTypeStyle(task.work_type)} title="Work type">{workTypeName || task.work_type}</span>
     {/if}
@@ -95,6 +115,55 @@
     border-radius: var(--radius);
   }
 
+  .claimant {
+    display: inline-flex;
+  }
+
+  /* A thin moving stripe along the bottom while an agent holds the card. */
+  .card.claimed {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card.claimed::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--olive-bright), transparent);
+    background-size: 50% 100%;
+    background-repeat: no-repeat;
+    animation: stripe 1.8s linear infinite;
+  }
+
+  @keyframes stripe {
+    from {
+      background-position: -50% 0;
+    }
+    to {
+      background-position: 150% 0;
+    }
+  }
+
+  .card.forbidden {
+    border-color: var(--rust);
+  }
+
+  .flag {
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--steel-bright);
+  }
+
+  .forbid {
+    font-size: 13px;
+    line-height: 16px;
+    font-weight: 700;
+    color: var(--rust-bright);
+  }
+
   .working {
     padding: 0 5px;
     font-size: 11px;
@@ -112,7 +181,8 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .working {
+    .working,
+    .card.claimed::after {
       animation: none;
     }
   }

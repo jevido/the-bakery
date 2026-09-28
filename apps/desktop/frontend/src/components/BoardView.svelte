@@ -20,6 +20,47 @@
   }
   let newTitle = $state('')
 
+  // Time controls, like RimWorld's: Space pauses or resumes, 1 normal, 2
+  // fast. Not while typing, and not with a modifier held.
+  const SPEEDS = [
+    { id: 'paused', label: '⏸', title: 'Pause (Space): no new runs start' },
+    { id: 'normal', label: '▶', title: 'Normal speed (1)' },
+    { id: 'fast', label: '▶▶', title: 'Fast (2): more runs at once' },
+  ] as const
+  const speed = $derived(colony.settings?.config.speed ?? 'paused')
+  let lastSpeed: 'normal' | 'fast' = 'normal'
+
+  function typing(target: EventTarget | null): boolean {
+    const el = target as HTMLElement | null
+    return !!el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))
+  }
+
+  function speedKeys(e: KeyboardEvent) {
+    if (e.ctrlKey || e.metaKey || e.altKey || typing(e.target) || !colony.settings?.linked) return
+    if (e.key === ' ') {
+      e.preventDefault()
+      if (speed === 'paused') colony.setSpeed(lastSpeed)
+      else {
+        lastSpeed = speed === 'fast' ? 'fast' : 'normal'
+        colony.setSpeed('paused')
+      }
+    } else if (e.key === '1') colony.setSpeed('normal')
+    else if (e.key === '2') colony.setSpeed('fast')
+  }
+
+  // The card menu: prioritize for one of my agents, forbid or allow.
+  let menu = $state<{ taskId: number; x: number; y: number } | null>(null)
+  const menuTask = $derived(menu ? colony.view?.columns.flatMap((c) => c.tasks).find((t) => t.id === menu!.taskId) : undefined)
+  const enabledAgents = $derived(
+    colony.agents.filter((a) => a.agent_id && (colony.settings?.config.agents ?? []).includes(a.slug)),
+  )
+
+  function claimantOf(t: { claim?: { agent_id: number } | null }) {
+    if (!t.claim) return null
+    const a = colony.agentById(t.claim.agent_id)
+    return a ? { name: a.name, seed: a.portrait_seed || a.slug } : { name: "Another member's agent", seed: '?' + t.claim.agent_id }
+  }
+
   // Portraits come later; for now initials.
   const MAX_FACES = 5
   function initials(name: string): string {
@@ -157,6 +198,8 @@
   }
 </script>
 
+<svelte:window onkeydown={speedKeys} />
+
 {#if colony.view}
   <!-- One element, so the screen's grid (board beside the task panel) sees
        one cell, not the header and the columns separately. -->
@@ -165,6 +208,16 @@
     <h1>{colony.view.board.name}</h1>
     {#if colony.live !== 'off'}
       <span class={['live', colony.live]} title="Changes by others show up here as they happen">{LIVE[colony.live]}</span>
+    {/if}
+    {#if colony.settings?.linked}
+      <div class="speed" role="group" aria-label="Time controls">
+        {#each SPEEDS as s (s.id)}
+          <button class={{ on: speed === s.id }} title={s.title} aria-pressed={speed === s.id} onclick={() => colony.setSpeed(s.id)}
+            >{s.label}</button
+          >
+        {/each}
+      </div>
+      {#if speed === 'paused'}<span class="paused">Paused</span>{/if}
     {/if}
     <span class="spacer"></span>
     {#if colony.settings && !colony.settings.linked}
@@ -232,6 +285,9 @@
               selected={colony.openTaskId === task.id}
               workTypeName={colony.workTypeName(task.work_type)}
               working={colony.workshop.isRunning(task.id)}
+              claimant={claimantOf(task)}
+              prioritizedFor={task.prioritized_agent_id ? (colony.agentById(task.prioritized_agent_id)?.name ?? 'another agent') : ''}
+              onmenu={(e) => (menu = { taskId: task.id, x: e.clientX, y: e.clientY })}
               onopen={() => colony.openTask(task.id)}
               ondelete={() => colony.deleteTask(task.id)}
             />
@@ -263,7 +319,26 @@
       {/if}
     </div>
   </div>
-  </section>
+    {#if menu && menuTask}
+    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+    <div class="menu-veil" onclick={() => (menu = null)} oncontextmenu={(e) => { e.preventDefault(); menu = null }}></div>
+    <div class="card-menu" role="menu" style:left="{menu.x}px" style:top="{menu.y}px">
+      <span class="menu-head">Prioritize for</span>
+      {#each enabledAgents as a (a.slug)}
+        <button role="menuitem" class={{ on: menuTask.prioritized_agent_id === a.agent_id }} onclick={() => { colony.draft(menuTask.id, a.agent_id, null); menu = null }}>{a.name}</button>
+      {:else}
+        <span class="dim">No agents enabled on this board here.</span>
+      {/each}
+      {#if menuTask.prioritized_agent_id}
+        <button role="menuitem" onclick={() => { colony.draft(menuTask.id, 0, null); menu = null }}>Clear priority</button>
+      {/if}
+      <hr />
+      <button role="menuitem" onclick={() => { colony.draft(menuTask.id, null, !menuTask.forbidden); menu = null }}>
+        {menuTask.forbidden ? 'Allow for agents' : 'Forbid for agents'}
+      </button>
+    </div>
+  {/if}
+</section>
 {/if}
 
 <style>
@@ -286,6 +361,101 @@
     font-family: var(--font-display);
     font-size: 16px;
     font-weight: 600;
+  }
+
+  .speed {
+    display: flex;
+    border: 1px solid var(--frame-dim);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .speed button {
+    font: inherit;
+    font-size: 11px;
+    min-width: 26px;
+    padding: 1px 6px;
+    color: var(--text-dim);
+    background: var(--panel-inset);
+    border: none;
+    border-right: 1px solid var(--frame-dim);
+    cursor: pointer;
+  }
+
+  .speed button:last-child {
+    border-right: none;
+  }
+
+  .speed button.on {
+    color: var(--bg-deep);
+    background: var(--olive);
+  }
+
+  .paused {
+    font-family: var(--font-display);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--rust-bright);
+  }
+
+  .menu-veil {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+  }
+
+  .card-menu {
+    position: fixed;
+    z-index: 21;
+    display: flex;
+    flex-direction: column;
+    min-width: 170px;
+    padding: 4px;
+    background: var(--panel-raised);
+    border: 1px solid var(--frame);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.4);
+  }
+
+  .card-menu button {
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    padding: 4px 8px;
+    color: var(--text);
+    background: none;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+
+  .card-menu button:hover {
+    background: var(--panel-inset);
+  }
+
+  .card-menu button.on::before {
+    content: '⚑ ';
+    color: var(--steel-bright);
+  }
+
+  .menu-head {
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+
+  .card-menu hr {
+    width: 100%;
+    border: none;
+    border-top: 1px solid var(--frame-dim);
+  }
+
+  .card-menu .dim {
+    padding: 2px 8px;
+    font-size: 12px;
+    color: var(--text-dim);
   }
 
   .spacer {

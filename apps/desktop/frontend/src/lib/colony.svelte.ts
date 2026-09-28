@@ -3,7 +3,7 @@
 // Talks to the API only through BoardsService and LiveService.
 
 import { Events } from '@wailsio/runtime'
-import { BoardsService, LiveService, WorkshopService, isSignedOut, messageOf, type Board, type BoardSettings, type BoardView, type Guild, type Task, type WorkType } from './bindings'
+import { AgentsService, BoardsService, LiveService, WorkshopService, isSignedOut, messageOf, type AgentSummary, type Board, type BoardSettings, type BoardView, type Guild, type Task, type WorkType } from './bindings'
 import { OpenTask } from './task.svelte'
 import { Workshop } from './workshop.svelte'
 
@@ -76,6 +76,8 @@ export class Colony {
   settingsOpen = $state(false)
   // This machine's runs, and which tasks have one going anywhere.
   workshop = new Workshop()
+  // The member's own agents, to name and draw them on cards and menus.
+  agents = $state.raw<AgentSummary[]>([])
   // The run shown in the side panel in place of the task, by its id here.
   openRunId = $state<string | null>(null)
   // Open streams on the board, by stream id: who has it open right now.
@@ -195,6 +197,22 @@ export class Colony {
         else if (i >= 0) this.#reloadSoon()
         return
       }
+      case 'task.claimed':
+      case 'task.released': {
+        const task = view.columns.flatMap((c) => c.tasks).find((t) => t.id === taskId)
+        if (!task) return this.#reloadSoon()
+        task.claim =
+          ev.type === 'task.claimed'
+            ? {
+                id: Number(ev.data.claim_id),
+                agent_id: Number(ev.data.agent_id),
+                member_id: Number(ev.data.member_id),
+                machine_id: '',
+                expires_at: String(ev.data.expires_at),
+              }
+            : null
+        return
+      }
       case 'run.started':
       case 'run.finished':
         // The card's working mark follows; an open task panel reloaded above.
@@ -279,11 +297,44 @@ export class Colony {
     }
     this.boardId = id
     this.reloadSettings()
+    this.reloadAgents()
     remember(LAST_BOARD, id)
     this.live = 'connecting'
     this.#streams = {}
     LiveService.Watch(id)
     await this.reloadBoard()
+  }
+
+  async reloadAgents() {
+    const list = await this.#run(() => AgentsService.List())
+    if (list) this.agents = list
+  }
+
+  // An agent by its API id: one of the member's, or undefined for someone
+  // else's.
+  agentById(id: number | null | undefined): AgentSummary | undefined {
+    return id ? this.agents.find((a) => a.agent_id === id) : undefined
+  }
+
+  async setSpeed(speed: 'paused' | 'normal' | 'fast') {
+    if (this.boardId === null) return
+    const id = this.boardId
+    const s = await this.#run(() => WorkshopService.SetSpeed(id, speed))
+    if (s && this.boardId === id) this.settings = s
+  }
+
+  // Prioritize a task for an agent (0 clears it) and/or forbid it for
+  // agents; the board follows through its task.updated event.
+  async draft(taskId: number, prioritizedAgentId: number | null, forbidden: boolean | null) {
+    const t = await this.#run(() => BoardsService.DraftTask(taskId, prioritizedAgentId, forbidden))
+    if (t) this.#patchTask(t)
+  }
+
+  #patchTask(t: Task) {
+    for (const col of this.view?.columns ?? []) {
+      const i = col.tasks.findIndex((x) => x.id === t.id)
+      if (i >= 0) col.tasks[i] = { ...col.tasks[i], prioritized_agent_id: t.prioritized_agent_id, forbidden: t.forbidden }
+    }
   }
 
   async reloadSettings() {

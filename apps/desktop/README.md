@@ -87,6 +87,14 @@ directory and logs a warning.
   first claims its task (`POST /api/tasks/{task}/claim`, with this machine's
   id from `~/.config/the-bakery/machine`), heartbeats it every 30 seconds and
   releases it when the run ends, so two machines never work the same task.
+- Time controls and drafting: the board header's ⏸ ▶ ▶▶ (keys Space, 1, 2
+  while not typing) set the board's `speed` on this machine
+  (`WorkshopService.SetSpeed`). Right-click a card to prioritize it for one
+  of the agents enabled on the board, clear that, or forbid it for agents
+  (`BoardsService.DraftTask`, `PATCH /api/tasks/{task}`). A card shows the
+  agent holding it (portrait and a moving stripe), a flag when prioritized
+  and ⊘ when forbidden. Board settings pick the ready column, the agents
+  enabled here and the run limit at fast speed.
 - `internal/session/runner.go` — the runner token: a personal token the app
   makes for itself (`desktop runner (<host>)`) so Claude can use the Bakery
   MCP server as the member during a run. Kept in its own keyring entry,

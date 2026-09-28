@@ -16,7 +16,7 @@
 
   // A fresh draft whenever the board (or its saved config) changes.
   $effect(() => {
-    draft = settings ? { ...settings.config } : null
+    draft = settings ? { ...settings.config, agents: [...(settings.config.agents ?? [])] } : null
     problem = null
   })
 
@@ -42,7 +42,9 @@
         base_branch: draft.base_branch.trim(),
         worktree_root: draft.worktree_root.trim(),
         max_concurrent_runs: Number(draft.max_concurrent_runs),
+        max_concurrent_runs_fast: Number(draft.max_concurrent_runs_fast),
         max_budget_usd: Number(draft.max_budget_usd),
+        agents: draft.agents ?? [],
       })
       problem = refused ?? null
       if (!refused) {
@@ -93,6 +95,12 @@
             <input type="number" min="1" max="8" bind:value={draft.max_concurrent_runs} aria-invalid={problem?.field === 'max_concurrent_runs'} />
           </label>
           <label class="field">
+            <span>Runs at once, fast</span>
+            <input type="number" min="1" max="8" bind:value={draft.max_concurrent_runs_fast} aria-invalid={problem?.field === 'max_concurrent_runs_fast'} />
+          </label>
+        </div>
+        <div class="row2">
+          <label class="field">
             <span>Budget per run ($)</span>
             <input type="number" min="0.01" step="0.01" bind:value={draft.max_budget_usd} aria-invalid={problem?.field === 'max_budget_usd'} />
           </label>
@@ -107,6 +115,28 @@
             {/if}
           </select>
         </label>
+        <fieldset class="colony">
+          <legend>The colony</legend>
+          <label class="field">
+            <span>Agents take work from</span>
+            <select bind:value={draft.ready_column}>
+              {#each colony.view?.columns ?? [] as c (c.id)}<option value={c.name}>{c.name}</option>{/each}
+              {#if draft.ready_column && !colony.view?.columns.some((c) => c.name === draft?.ready_column)}
+                <option value={draft.ready_column}>{draft.ready_column} (not on this board)</option>
+              {/if}
+            </select>
+          </label>
+          <span class="label">Agents who pick up work here on their own</span>
+          {#each colony.agents as a (a.slug)}
+            <label class="check">
+              <input type="checkbox" value={a.slug} bind:group={draft.agents} />
+              <span>{a.name}{a.title ? ` · ${a.title}` : ''}</span>
+            </label>
+          {:else}
+            <span class="dim small">No agents yet; make them on the Agents screen.</span>
+          {/each}
+          <span class="dim small">They start when the board is not paused (⏸ ▶ ▶▶ in the header).</span>
+        </fieldset>
         <label class="check">
           <input type="checkbox" bind:checked={draft.isolate_user_settings} />
           <span>Leave out my own Claude settings (<code>~/.claude</code> skills, hooks and plugins)</span>
@@ -178,6 +208,27 @@
 
   :global([aria-invalid='true']) {
     border-color: var(--rust) !important;
+  }
+
+  .colony {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 8px;
+    border: 1px solid var(--frame-dim);
+    border-radius: var(--radius);
+  }
+
+  legend {
+    padding: 0 4px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .label {
+    font-size: 12px;
+    color: var(--text-dim);
   }
 
   .check {

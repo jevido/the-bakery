@@ -223,6 +223,8 @@ type AgentSummary struct {
 	Title string `json:"title"`
 	Seed  string `json:"portrait_seed"`
 	Model string `json:"model"`
+	// AgentID is the API's id once the agent has synced, 0 before.
+	AgentID uint64 `json:"agent_id"`
 	// WorkPriorities maps a work type key to 1 (first) … 4 (last).
 	WorkPriorities map[string]int   `json:"work_priorities"`
 	Skills         []api.AgentSkill `json:"skills"`
@@ -260,6 +262,9 @@ func (s *AgentsService) List() ([]AgentSummary, error) {
 		sum := AgentSummary{Slug: f.Slug, Name: f.Manifest.Name, Title: f.Manifest.Title, Seed: f.Manifest.PortraitSeed, Model: f.Manifest.Model,
 			WorkPriorities: priorities, Skills: []api.AgentSkill{},
 			Conflict: inConflict[f.Slug], Synced: f.Sync != nil && !f.Changed()}
+		if f.Sync != nil {
+			sum.AgentID = f.Sync.AgentID
+		}
 		for path, content := range f.Files {
 			if filepath.Base(path) == "SKILL.md" && filepath.Dir(path) != "." && filepath.Dir(filepath.Dir(path)) == "." {
 				if name, desc, ok := agents.SkillOf(content); ok {
