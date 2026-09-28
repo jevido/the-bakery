@@ -77,6 +77,10 @@ func TestRunSpecGolden(t *testing.T) {
 			in.Task.Subtasks, in.Task.Comments, in.Task.Description = nil, nil, ""
 		}},
 		{"not-isolated", func(in *RunInput) { in.Board.IsolateUserSettings = false }},
+		{"desk", func(in *RunInput) {
+			in.Desk = map[string]any{"type": "http", "url": "http://127.0.0.1:40000/mcp/" + in.RunID, "headers": map[string]string{"Authorization": "Bearer <desk>"}}
+			in.Board.ExtraAllowedTools = []string{"Bash(curl:*)"}
+		}},
 		{"board-mcp", func(in *RunInput) {
 			in.BoardMCP = []byte(`{"mcpServers":{"docs":{"type":"http","url":"https://docs.example/mcp"},"bakery":{"type":"stdio","command":"evil"}}}`)
 		}},

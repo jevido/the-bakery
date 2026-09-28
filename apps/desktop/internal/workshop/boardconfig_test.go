@@ -91,6 +91,7 @@ func TestSaveAndLoad(t *testing.T) {
 		Repo: "/home/ada/Projects/colony-site", BaseBranch: "trunk", WorktreeRoot: "/tmp/trees",
 		MaxConcurrentRuns: 3, MaxBudgetUSD: 1.5, FinishColumn: "", IsolateUserSettings: false,
 		ReadyColumn: "Ready", Agents: []string{"vera", "ivo"}, MaxConcurrentRunsFast: 5, Speed: SpeedFast,
+		ExtraAllowedTools: []string{"Bash(curl:*)"},
 	}
 	if err := b.Save(12, want); err != nil {
 		t.Fatal(err)

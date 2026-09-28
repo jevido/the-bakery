@@ -42,6 +42,8 @@ type WorkshopService struct {
 	machineID string
 	// wake nudges the scheduler: a run ended, a board changed.
 	wake chan struct{}
+	// desk turns runs' permission prompts and questions into letters.
+	desk *workshop.Desk
 }
 
 func NewWorkshopService(client *api.Client, s *session.Session, agentFolders *agents.Engine, logger *slog.Logger) *WorkshopService {
@@ -51,6 +53,7 @@ func NewWorkshopService(client *api.Client, s *session.Session, agentFolders *ag
 		runs:      map[string]*localRun{},
 		machineID: machineID(),
 		wake:      make(chan struct{}, 1),
+		desk:      workshop.NewDesk(),
 	}
 }
 
@@ -228,6 +231,7 @@ func (s *WorkshopService) prepareRun(ctx context.Context, boardID, taskID uint64
 		RunID: id, Task: task, Agent: agent, Board: cfg, Worktree: wt, RunDir: runDir,
 		BoardInstructions: string(instructions), BoardMCP: boardMCP,
 		MCPURL: strings.TrimRight(s.client.BaseURL(), "/") + "/mcp", Token: runnerToken,
+		Desk: s.deskFor(id),
 	})
 	if err != nil {
 		return preparedRun{}, err
@@ -306,7 +310,9 @@ type RunInfo struct {
 	PermissionMode string    `json:"permission_mode"`
 	StartedAt      time.Time `json:"started_at"`
 	// Status is "running", "succeeded", "failed" or "stopped".
-	Status     string  `json:"status"`
+	Status string `json:"status"`
+	// Waiting counts the run's letters waiting for an answer.
+	Waiting    int     `json:"waiting"`
 	CostUSD    float64 `json:"cost_usd"`
 	Turns      int     `json:"turns"`
 	DurationMS int64   `json:"duration_ms"`
@@ -524,6 +530,7 @@ func (s *WorkshopService) end(run *localRun, out workshop.Outcome) {
 	if status == "succeeded" && finishColumn != "" {
 		moved = s.moveToFinish(ctx, run, token, info, finishColumn)
 	}
+	s.desk.CancelRun(info.ID)
 	// Let the task go, now that the run is over and the task has moved on.
 	run.mu.Lock()
 	claimID := run.claimID
@@ -711,6 +718,12 @@ func (s *WorkshopService) logger() *slog.Logger {
 // ServiceStartup starts the colony's scheduler and finishes, once the
 // member is signed in, the runs the app left running when it last went away.
 func (s *WorkshopService) ServiceStartup(ctx context.Context, _ application.ServiceOptions) error {
+	s.desk.OnOpen = func(l workshop.Letter) { s.letterChanged(l, +1, eventLetterNew) }
+	s.desk.OnClose = func(l workshop.Letter) { s.letterChanged(l, -1, eventLetterClosed) }
+	if err := s.desk.Start(); err != nil {
+		// Runs still work; they cannot ask, so what needs asking is denied.
+		s.logger().Warn("the desk did not start; runs cannot ask for permission", "err", err)
+	}
 	go s.schedule(ctx)
 	go func() {
 		tick := time.NewTicker(2 * time.Second)
@@ -782,6 +795,7 @@ func (s *WorkshopService) StopRun(id string) error {
 	run.mu.Lock()
 	proc := run.proc
 	run.mu.Unlock()
+	s.desk.CancelRun(id)
 	if proc != nil {
 		proc.Stop()
 	}
@@ -846,6 +860,7 @@ func (s *WorkshopService) ServiceShutdown() error {
 	case <-done:
 	case <-time.After(20 * time.Second):
 	}
+	s.desk.Stop()
 	return nil
 }
 
@@ -875,4 +890,99 @@ func (s *WorkshopService) SetSpeed(boardID uint64, speed string) (BoardSettings,
 	}
 	s.Wake()
 	return s.GetBoardConfig(context.Background(), boardID)
+}
+
+// Wails events for letters.
+const (
+	eventLetterNew    = "letter:new"
+	eventLetterClosed = "letter:closed"
+)
+
+// deskFor is the desk's MCP entry for a run, or nil when the desk is not
+// running.
+func (s *WorkshopService) deskFor(runID string) map[string]any {
+	cfg := s.desk.ServerConfig(runID)
+	if u, _ := cfg["url"].(string); strings.HasPrefix(u, "http://127.0.0.1:") {
+		return cfg
+	}
+	return nil
+}
+
+// letterChanged keeps a run's count of open letters and tells the frontend.
+func (s *WorkshopService) letterChanged(l workshop.Letter, delta int, event string) {
+	s.runsMu.Lock()
+	run := s.runs[l.RunID]
+	s.runsMu.Unlock()
+	if run != nil {
+		run.mu.Lock()
+		run.info.Waiting = max(0, run.info.Waiting+delta)
+		run.mu.Unlock()
+		note := "Waiting for an answer: " + l.ToolName + "."
+		if delta < 0 {
+			note = "Answered."
+		}
+		s.record(run, workshop.RunEvent{Kind: "note", Text: note})
+	}
+	if s.app != nil {
+		s.app.Event.Emit(event, l)
+	}
+	s.emitRuns()
+}
+
+// LetterAnswer is a person's answer to a letter: "allow", "allow_always"
+// (allow, and allow the same kind of call on this board from now on),
+// "deny" with an optional message, or answers to a question.
+type LetterAnswer struct {
+	Choice  string            `json:"choice"`
+	Message string            `json:"message"`
+	Answers map[string]string `json:"answers"`
+}
+
+// OpenLetters lists the letters waiting for an answer, oldest first.
+func (s *WorkshopService) OpenLetters() []workshop.Letter {
+	return s.desk.Open()
+}
+
+// AnswerLetter answers a letter; the run carries on with the answer.
+func (s *WorkshopService) AnswerLetter(letterID string, a LetterAnswer) error {
+	l, ok := s.desk.Get(letterID)
+	if !ok {
+		return errors.New("this letter was already answered or has expired")
+	}
+	switch a.Choice {
+	case "allow", "deny":
+	case "allow_always":
+		if err := s.allowAlways(l); err != nil {
+			return err
+		}
+		a.Choice = "allow"
+	default:
+		return fmt.Errorf("an answer is allow, allow_always or deny, not %q", a.Choice)
+	}
+	return s.desk.Answer(letterID, workshop.Answer{Behavior: a.Choice, Message: a.Message, Answers: a.Answers})
+}
+
+// allowAlways adds the letter's rule to its board's extra allowed tools, so
+// later runs there do not ask.
+func (s *WorkshopService) allowAlways(l workshop.Letter) error {
+	s.runsMu.Lock()
+	run := s.runs[l.RunID]
+	s.runsMu.Unlock()
+	if run == nil {
+		return errors.New("the run of this letter is gone")
+	}
+	boardID := run.snapshot().BoardID
+	cfg, err := s.boards.Load(boardID)
+	if err != nil {
+		return err
+	}
+	rule := workshop.RuleFor(l)
+	if !slices.Contains(cfg.ExtraAllowedTools, rule) {
+		cfg.ExtraAllowedTools = append(cfg.ExtraAllowedTools, rule)
+		if err := s.boards.Save(boardID, cfg); err != nil {
+			return err
+		}
+	}
+	s.record(run, workshop.RunEvent{Kind: "note", Text: "Always allowed on this board: " + rule + "."})
+	return nil
 }

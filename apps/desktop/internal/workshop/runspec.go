@@ -72,6 +72,9 @@ type RunInput struct {
 	// MCPURL is the Bakery MCP server; Token the runner token for it.
 	MCPURL string
 	Token  string
+	// Desk is the desk's --mcp-config entry for this run, nil for none;
+	// with it, permission prompts and questions become letters.
+	Desk map[string]any
 }
 
 // bakeryTools are the Bakery MCP tools a run may use without asking: read
@@ -102,7 +105,7 @@ func BuildRunSpec(in RunInput) (RunSpec, error) {
 		return RunSpec{}, errors.New("the agent needs a model and a permission mode")
 	}
 	mcpPath := filepath.Join(in.RunDir, "mcp.json")
-	mcp, err := mcpConfig(in.MCPURL, in.Token, in.BoardMCP)
+	mcp, err := mcpConfig(in.MCPURL, in.Token, in.BoardMCP, in.Desk)
 	if err != nil {
 		return RunSpec{}, err
 	}
@@ -122,9 +125,13 @@ func BuildRunSpec(in RunInput) (RunSpec, error) {
 		// (where the run's skills are) still load.
 		args = append(args, "--setting-sources", "project,local", "--strict-mcp-config")
 	}
+	if in.Desk != nil {
+		args = append(args, "--permission-prompt-tool", DeskTool)
+	}
 	// Last, because the flag takes every argument up to the next flag.
 	args = append(args, "--allowedTools")
 	args = append(args, in.Agent.AllowedTools...)
+	args = append(args, in.Board.ExtraAllowedTools...)
 	args = append(args, bakeryTools...)
 
 	return RunSpec{
@@ -206,7 +213,7 @@ func prompt(t RunTask, wt Worktree) string {
 
 // mcpConfig is the run's --mcp-config file: the board's servers plus the
 // Bakery server as the member. The Bakery entry always wins its name.
-func mcpConfig(url, token string, board []byte) ([]byte, error) {
+func mcpConfig(url, token string, board []byte, desk map[string]any) ([]byte, error) {
 	servers := map[string]any{}
 	if len(board) > 0 {
 		var cfg struct {
@@ -218,6 +225,9 @@ func mcpConfig(url, token string, board []byte) ([]byte, error) {
 		for k, v := range cfg.MCPServers {
 			servers[k] = v
 		}
+	}
+	if desk != nil {
+		servers[DeskServer] = desk
 	}
 	servers["bakery"] = map[string]any{
 		"type":    "http",

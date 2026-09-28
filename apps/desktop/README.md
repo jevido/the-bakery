@@ -95,6 +95,16 @@ directory and logs a warning.
   agent holding it (portrait and a moving stripe), a flag when prioritized
   and ⊘ when forbidden. Board settings pick the ready column, the agents
   enabled here and the run limit at fast speed.
+- `internal/workshop/desk.go` — the desk: an MCP server inside the app on a
+  random loopback port, behind a secret made at launch. Every run gets it in
+  its MCP config as `bakery_desk` (at `/mcp/<run id>`) and as Claude's
+  `--permission-prompt-tool`, so a tool call the agent may not make on its
+  own, or a question it asks, becomes a **letter** (Wails events
+  `letter:new`, `letter:closed`) and waits up to 30 minutes for
+  `WorkshopService.AnswerLetter`: allow, allow always (adds the rule, such as
+  `Bash(curl:*)`, to `extra_allowed_tools` in the board's `board.toml`),
+  deny with a reason, or the answers to a question. Stopping a run denies
+  its open letters.
 - `internal/session/runner.go` — the runner token: a personal token the app
   makes for itself (`desktop runner (<host>)`) so Claude can use the Bakery
   MCP server as the member during a run. Kept in its own keyring entry,

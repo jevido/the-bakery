@@ -48,6 +48,9 @@ type BoardConfig struct {
 	Agents                []string `toml:"agents" json:"agents"`
 	MaxConcurrentRunsFast int      `toml:"max_concurrent_runs_fast" json:"max_concurrent_runs_fast"`
 	Speed                 string   `toml:"speed" json:"speed"`
+	// ExtraAllowedTools are tool rules a person allowed for good from a
+	// letter ("Always allow on this board"), for every agent here.
+	ExtraAllowedTools []string `toml:"extra_allowed_tools" json:"extra_allowed_tools"`
 }
 
 // The time controls.
@@ -79,6 +82,7 @@ func DefaultBoardConfig() BoardConfig {
 
 		ReadyColumn:           "To do",
 		Agents:                []string{},
+		ExtraAllowedTools:     []string{},
 		MaxConcurrentRunsFast: 4,
 		Speed:                 SpeedPaused,
 	}
