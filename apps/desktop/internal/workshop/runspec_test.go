@@ -53,6 +53,9 @@ func render(t *testing.T, s RunSpec, token string) string {
 	for _, p := range paths {
 		b.WriteString("\n## file " + p + "\n" + string(s.Files[p]) + "\n")
 	}
+	if len(s.Env) > 0 {
+		b.WriteString("\n## env\n" + strings.Join(s.Env, "\n") + "\n")
+	}
 	b.WriteString("\n## stdin\n" + s.Stdin)
 	out := b.String()
 	if strings.Contains(out, token) {

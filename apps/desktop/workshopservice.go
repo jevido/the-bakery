@@ -44,6 +44,9 @@ type WorkshopService struct {
 	wake chan struct{}
 	// desk turns runs' permission prompts and questions into letters.
 	desk *workshop.Desk
+	// notify, when set, tells the desktop about a new letter (main sends it
+	// as a notification while the window is not focused).
+	notify func(title, body string)
 }
 
 func NewWorkshopService(client *api.Client, s *session.Session, agentFolders *agents.Engine, logger *slog.Logger) *WorkshopService {
@@ -922,6 +925,14 @@ func (s *WorkshopService) letterChanged(l workshop.Letter, delta int, event stri
 			note = "Answered."
 		}
 		s.record(run, workshop.RunEvent{Kind: "note", Text: note})
+		if delta > 0 && s.notify != nil {
+			info := run.snapshot()
+			title := info.AgentName + " wants to use " + l.ToolName
+			if l.Kind == "question" {
+				title = info.AgentName + " has a question"
+			}
+			s.notify(title, info.TaskTitle)
+		}
 	}
 	if s.app != nil {
 		s.app.Event.Emit(event, l)

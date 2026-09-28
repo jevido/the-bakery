@@ -9,6 +9,7 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
+	"github.com/wailsapp/wails/v3/pkg/services/notifications"
 
 	"github.com/jevido/the-bakery/apps/desktop/internal/api"
 	"github.com/jevido/the-bakery/apps/desktop/internal/session"
@@ -41,6 +42,7 @@ func main() {
 	live := NewLiveService(client, sess, logger)
 	agentsSvc := NewAgentsService(client, sess, logger)
 	workshopSvc := NewWorkshopService(client, sess, agentsSvc.engine, logger)
+	notifier := notifications.New()
 	website := &WebsiteService{client: client, session: sess, logger: logger, baseURL: cmp.Or(os.Getenv("BAKERY_WEB_URL"), defaultWebURL)}
 
 	app := application.New(application.Options{
@@ -54,6 +56,7 @@ func main() {
 			application.NewService(live),
 			application.NewService(agentsSvc),
 			application.NewService(workshopSvc),
+			application.NewService(notifier),
 			application.NewService(updates),
 			application.NewService(website),
 		},
@@ -84,6 +87,15 @@ func main() {
 	})
 	// Coming back to the app is a good moment to pick up agent edits made
 	// on another device.
+	// A letter while the window is in the background: a desktop notification.
+	workshopSvc.notify = func(title, body string) {
+		if window.IsFocused() {
+			return
+		}
+		if err := notifier.SendNotification(notifications.NotificationOptions{ID: "letter-" + newUUID(), Title: title, Body: body}); err != nil {
+			logger.Warn("could not send a notification", "err", err)
+		}
+	}
 	window.OnWindowEvent(events.Common.WindowFocus, func(*application.WindowEvent) { agentsSvc.Trigger() })
 
 	if err := app.Run(); err != nil {

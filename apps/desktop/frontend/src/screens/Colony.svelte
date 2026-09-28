@@ -7,6 +7,8 @@
   import WorkTab from '../components/WorkTab.svelte'
   import BoardSettings from '../components/BoardSettings.svelte'
   import RunPanel from '../components/RunPanel.svelte'
+  import Letters from '../components/Letters.svelte'
+  import { Letters as LetterBox } from '../lib/letters.svelte'
   import { AgentSync } from '../lib/agentsync.svelte'
   import { Colony } from '../lib/colony.svelte'
   import { WebsiteService, messageOf, type Member } from '../lib/bindings'
@@ -21,6 +23,9 @@
   colony.load()
   // Follow the open board's live events while this screen is up.
   $effect(() => colony.listen())
+  // Runs asking for permission or with a question.
+  const letters = new LetterBox()
+  $effect(() => letters.listen())
 
   // Agent folders sync in the background; the sidebar shows how it goes.
   const agentSync = new AgentSync()
@@ -189,6 +194,8 @@
 {#if showConflicts}
   <ConflictDialog sync={agentSync} onclose={() => (showConflicts = false)} />
 {/if}
+
+<Letters {letters} {colony} />
 
 <style>
   .colony {

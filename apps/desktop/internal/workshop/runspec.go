@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // RunSpec is everything one run needs: the claude arguments, where it runs,
@@ -17,6 +18,8 @@ type RunSpec struct {
 	Dir   string            `json:"dir"`
 	Stdin string            `json:"stdin"`
 	Files map[string][]byte `json:"-"`
+	// Env is added to the app's own environment for the run.
+	Env []string `json:"env"`
 }
 
 // RunTask is the task a run works, in the workshop's own words.
@@ -125,8 +128,12 @@ func BuildRunSpec(in RunInput) (RunSpec, error) {
 		// (where the run's skills are) still load.
 		args = append(args, "--setting-sources", "project,local", "--strict-mcp-config")
 	}
+	var env []string
 	if in.Desk != nil {
 		args = append(args, "--permission-prompt-tool", DeskTool)
+		// Claude gives up on an MCP tool call after a minute unless told
+		// otherwise; a letter may wait for its answer up to LetterTimeout.
+		env = append(env, "MCP_TOOL_TIMEOUT="+strconv.FormatInt((LetterTimeout+time.Minute).Milliseconds(), 10))
 	}
 	// Last, because the flag takes every argument up to the next flag.
 	args = append(args, "--allowedTools")
@@ -139,6 +146,7 @@ func BuildRunSpec(in RunInput) (RunSpec, error) {
 		Dir:   in.Worktree.Path,
 		Stdin: prompt(in.Task, in.Worktree),
 		Files: map[string][]byte{mcpPath: mcp},
+		Env:   env,
 	}, nil
 }
 
@@ -206,6 +214,8 @@ func prompt(t RunTask, wt Worktree) string {
 - Keep the task up to date with the bakery MCP tools: tick off subtasks as
   you finish them (task %d's subtasks, from get_task), and add a comment when
   you are blocked or need a decision.
+- If a tool is refused, say so and go on without it; never guess what it
+  would have returned.
 - End with a short summary of what you did and what is left.
 `, wt.Branch, wt.Base, t.ID)
 	return b.String()

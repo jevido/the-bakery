@@ -82,4 +82,6 @@ Steel is in the stockpile.
 - Keep the task up to date with the bakery MCP tools: tick off subtasks as
   you finish them (task 12's subtasks, from get_task), and add a comment when
   you are blocked or need a decision.
+- If a tool is refused, say so and go on without it; never guess what it
+  would have returned.
 - End with a short summary of what you did and what is left.

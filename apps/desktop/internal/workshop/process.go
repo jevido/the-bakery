@@ -67,6 +67,9 @@ func StartProcess(ctx context.Context, claude string, spec RunSpec, runDir strin
 	}
 	cmd := exec.Command(claude, spec.Args...)
 	cmd.Dir = spec.Dir
+	if len(spec.Env) > 0 {
+		cmd.Env = append(os.Environ(), spec.Env...)
+	}
 	cmd.Stdin = strings.NewReader(spec.Stdin)
 	ownProcessGroup(cmd)
 	var stderrTail tailBuffer

@@ -104,7 +104,13 @@ directory and logs a warning.
   `WorkshopService.AnswerLetter`: allow, allow always (adds the rule, such as
   `Bash(curl:*)`, to `extra_allowed_tools` in the board's `board.toml`),
   deny with a reason, or the answers to a question. Stopping a run denies
-  its open letters.
+  its open letters. Runs get `MCP_TOOL_TIMEOUT` a little over those 30
+  minutes; Claude otherwise gives up on the desk after one.
+  `components/Letters.svelte` stacks the open letters as envelopes on the
+  right edge (yellow for a permission, blue for a question) and
+  `LetterDialog.svelte` answers one. A letter that arrives while the window
+  is not focused also comes as a desktop notification (Wails' notifications
+  service).
 - `internal/session/runner.go` — the runner token: a personal token the app
   makes for itself (`desktop runner (<host>)`) so Claude can use the Bakery
   MCP server as the member during a run. Kept in its own keyring entry,
