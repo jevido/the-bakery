@@ -18,6 +18,8 @@ type Reports interface {
 	FiledSince(ctx context.Context, memberID uint64, since time.Time) (int, error)
 	// WithStatus lists reports, oldest first ("" for all).
 	WithStatus(ctx context.Context, status string) ([]domain.Report, error)
+	// About lists the reports about one target, newest first.
+	About(ctx context.Context, targetKind string, targetID uint64) ([]domain.Report, error)
 }
 
 // FileReport lets a member tell the operators about a member or a guild.

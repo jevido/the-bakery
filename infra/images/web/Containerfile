@@ -10,6 +10,7 @@ COPY package.json bun.lock ./
 COPY packages/ui/package.json packages/ui/
 COPY apps/web/package.json apps/web/
 COPY apps/desktop/frontend/package.json apps/desktop/frontend/
+COPY apps/console/package.json apps/console/
 RUN bun install --frozen-lockfile --filter web
 COPY packages/ui/ packages/ui/
 COPY apps/web/ apps/web/

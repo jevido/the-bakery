@@ -1,0 +1,64 @@
+/* The console reads as a page: text is selectable (ids, emails, reasons
+   get copied) and the page scrolls. */
+html,
+body {
+  height: auto;
+  min-height: 100%;
+  user-select: text;
+}
+
+a {
+  color: var(--steel-bright);
+}
+
+a:hover {
+  color: var(--text);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--frame-dim);
+  vertical-align: top;
+}
+
+th {
+  color: var(--text-dim);
+  font-weight: normal;
+}
+
+.dim {
+  color: var(--text-dim);
+}
+
+.error {
+  margin: 0;
+  padding: 6px 10px;
+  background: color-mix(in srgb, var(--rust) 35%, transparent);
+  border: 1px solid var(--rust);
+  border-radius: var(--radius);
+}
+
+.tag {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  border: 1px solid var(--frame);
+}
+
+.tag.ban {
+  background: color-mix(in srgb, var(--rust) 45%, transparent);
+  border-color: var(--rust);
+}
+
+.tag.suspension {
+  background: color-mix(in srgb, var(--olive) 45%, transparent);
+}

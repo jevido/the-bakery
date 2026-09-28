@@ -435,3 +435,9 @@ func CloseStreamsOf(ctx context.Context, memberID, guildID uint64) error {
 	}
 	return infra.CloseStreamsOf(ctx, memberID, boardIDs)
 }
+
+// BoardCount is how many boards a guild has, for the operator console.
+func BoardCount(ctx context.Context, guildID uint64) (int, error) {
+	bs, err := infra.Boards{}.OfGuild(ctx, guildID)
+	return len(bs), err
+}

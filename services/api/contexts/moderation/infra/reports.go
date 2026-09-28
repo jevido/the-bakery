@@ -90,3 +90,16 @@ func (Reports) WithStatus(ctx context.Context, status string) ([]domain.Report, 
 	}
 	return out, nil
 }
+
+// About lists the reports about one target, newest first.
+func (Reports) About(ctx context.Context, targetKind string, targetID uint64) ([]domain.Report, error) {
+	var recs []reportRecord
+	if err := query(ctx).Where("target_kind", targetKind).Where("target_id", targetID).OrderByDesc("id").Limit(200).Find(&recs); err != nil {
+		return nil, err
+	}
+	out := make([]domain.Report, len(recs))
+	for i, r := range recs {
+		out[i] = r.toDomain()
+	}
+	return out, nil
+}

@@ -49,7 +49,7 @@ adapt to.
 | identity | moderation | customer/supplier | Member lookups by id and email, and a member search, for the console |
 | guilds | moderation | customer/supplier | Guild lookups by id and a guild search with member counts, for the console |
 | moderation | identity, guilds | open host service | `ActiveFor`, a sanction check moderation's wiring sets into identity (members) and guilds (guilds); an `Audit` recorder behind a one-method port in each context that records |
-| boards | moderation | customer/supplier | `CloseStreamsOf(member or guild)` to end a sanctioned target's live board streams |
+| boards | moderation | customer/supplier | `CloseStreamsOf(member or guild)` to end a sanctioned target's live board streams, and `BoardCount` for the console's guild record |
 | guilds, boards, agents | MCP server (`mcp/`) | open host service | The contexts' published Go functions (the same use cases REST calls); identity's `VerifyPersonalToken` for sign-in |
 
 Patterns: *customer/supplier*, *conformist*, *anticorruption layer*,

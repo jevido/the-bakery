@@ -53,6 +53,7 @@ type Service struct {
 	reports   Reports
 	targets   Targets
 	effects   Effects
+	directory Directory
 	cache     activeCache
 	now       func() time.Time
 }
@@ -68,12 +69,13 @@ type Deps struct {
 	Reports   Reports
 	Targets   Targets
 	Effects   Effects
+	Directory Directory
 }
 
 func NewService(d Deps) *Service {
 	return &Service{
 		operators: d.Operators, hasher: d.Hasher, secrets: d.Secrets, totp: d.TOTP, audit: d.Audit,
-		sanctions: d.Sanctions, reports: d.Reports, targets: d.Targets, effects: d.Effects,
+		sanctions: d.Sanctions, reports: d.Reports, targets: d.Targets, effects: d.Effects, directory: d.Directory,
 		cache: activeCache{m: map[string]cached{}}, now: time.Now,
 	}
 }

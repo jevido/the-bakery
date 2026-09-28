@@ -28,6 +28,14 @@ func reportToJSON(r domain.Report) reportJSON {
 		Status: r.Status, HandledBy: r.HandledBy, HandledAt: r.HandledAt, SanctionID: r.SanctionID, CreatedAt: r.CreatedAt}
 }
 
+func reportsToJSON(rs []domain.Report) []reportJSON {
+	out := make([]reportJSON, len(rs))
+	for i, r := range rs {
+		out[i] = reportToJSON(r)
+	}
+	return out
+}
+
 // Members controller: filing a report, with a member's sign-in.
 type MemberController struct {
 	service  *app.Service
@@ -67,11 +75,11 @@ func (c *Controller) ListReports(ctx contractshttp.Context) contractshttp.Respon
 	if err != nil {
 		return serverError(ctx, err)
 	}
-	out := make([]reportJSON, len(rs))
-	for i, r := range rs {
-		out[i] = reportToJSON(r)
+	names, err := c.namesOf(ctx, nil, rs)
+	if err != nil {
+		return serverError(ctx, err)
 	}
-	return ctx.Response().Success().Json(contractshttp.Json{"reports": out})
+	return ctx.Response().Success().Json(contractshttp.Json{"reports": reportsToJSON(rs), "names": names})
 }
 
 // DismissReport closes a report without action.

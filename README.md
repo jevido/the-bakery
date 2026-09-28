@@ -2,8 +2,8 @@
 
 The Bakery is a desktop workbench for the Claude CLI where guilds plan and run
 their work. The Goravel API (`services/api`) is the source of truth; the
-website (later) is the admin; a separate owner console (later) handles
-moderation.
+website (`apps/web`) is the admin; a separate operator console
+(`apps/console`) handles moderation.
 
 ## Layout
 
@@ -35,7 +35,7 @@ Requirements:
 Then:
 
 ```sh
-task dev    # Postgres, migrations, the API on :4810, the desktop app and the website on :4840
+task dev    # Postgres, migrations, the API on :4810, the desktop app, the website on :4840 and the console on :4850
 task seed   # in a second terminal: the "First Colony" guild and its board
 ```
 
@@ -47,7 +47,7 @@ the first time. Sign in to the desktop app as `ada@bakery.test` with password
 ```sh
 task            # list tasks
 task check      # format, lint, test and type-check every unit
-task down       # stop the API and the desktop app (Postgres keeps running)
+task down       # stop every dev server (Postgres keeps running)
 task db:down    # stop Postgres
 ```
 

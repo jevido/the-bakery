@@ -15,6 +15,9 @@ includes:
   web:
     taskfile: apps/web/Taskfile.yml
     dir: apps/web
+  console:
+    taskfile: apps/console/Taskfile.yml
+    dir: apps/console
   ui:
     taskfile: packages/ui/Taskfile.yml
     dir: packages/ui
@@ -23,7 +26,7 @@ vars:
   # Every port a dev server listens on, for `task down`. Keep in sync with the
   # table in CLAUDE.md. Postgres (4820) is left out on purpose: it is a
   # container, stopped with `task db:down`.
-  DEV_PORTS: "4810 4830 4840"
+  DEV_PORTS: "4810 4830 4840 4850"
 
 tasks:
   default:
@@ -39,7 +42,7 @@ tasks:
       - ./infra/dev/down.sh {{.DEV_PORTS}}
 
   dev:
-    desc: Start Postgres, migrate, then run the API, the desktop app and the website (Ctrl+C stops all)
+    desc: Start Postgres, migrate, then run the API, the desktop app, the website and the console (Ctrl+C stops all)
     cmds:
       - task: db:up
       - task: db:wait
@@ -49,7 +52,7 @@ tasks:
   dev:servers:
     internal: true
     # Add each unit's dev task here; they run in parallel.
-    deps: [api:dev, desktop:dev, web:dev]
+    deps: [api:dev, desktop:dev, web:dev, console:dev]
 
   seed:
     desc: Seed the dev database (First Colony with ada, bram and cas @bakery.test, password "password")
@@ -93,6 +96,11 @@ tasks:
     cmds:
       - podman build -f infra/images/web/Containerfile --build-arg VITE_API_URL={{.VITE_API_URL}} -t bakery-web .
 
+  image:console:
+    desc: Build the operator console image (bakery-console); VITE_API_URL=... to set the API
+    cmds:
+      - podman build -f infra/images/console/Containerfile --build-arg VITE_API_URL={{.VITE_API_URL}} -t bakery-console .
+
   check:
     desc: Format check, lint, test and type-check every unit
     # Add each unit's checks here as units appear.
@@ -101,3 +109,4 @@ tasks:
       - task: ui:check
       - task: desktop:check
       - task: web:check
+      - task: console:check

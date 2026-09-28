@@ -5,6 +5,7 @@
 !packages/ui/
 !apps/web/
 !apps/desktop/frontend/package.json
+!apps/console/package.json
 !infra/images/web/Caddyfile
 !infra/images/web/entrypoint.sh
 **/node_modules/

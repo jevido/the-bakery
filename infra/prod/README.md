@@ -7,6 +7,7 @@ Production.
 | Coolify | https://coolify.jevido.app, project "the bakery", environment `production` |
 | Deploys from | branch `main` |
 | Web | https://bakery.jevido.app |
+| Console | https://console.bakery.jevido.app (operators only, not indexed) |
 | API | https://api.bakery.jevido.app, health check `/api/health` |
 | Database | Postgres 18, its own Coolify resource, daily backups |
 | Desktop releases | GitHub releases tagged `desktop-vX.Y.Z`; release builds default to the prod API |
@@ -17,12 +18,15 @@ Production.
 | -------- | ------------ | ----- | ---- | ------------ |
 | API | `bakery-api-prod` | `infra/images/api/Containerfile` | 4810 | `/api/health` |
 | Website | `bakery-web-prod` | `infra/images/web/Containerfile`, build arg `VITE_API_URL` | 8080 | `/healthz` |
+| Console | `bakery-console-prod` | `infra/images/console/Containerfile`, build arg `VITE_API_URL` | 8080 | `/healthz` |
 | Database | `bakery-db-prod` | `postgres:18-alpine`, internal only | 5432 | Coolify's own |
 
-Both apps build from the GitHub repo through the GitHub App, base directory
+The apps build from the GitHub repo through the GitHub App, base directory
 `/`, and deploy automatically on a push to `main` when a file under their
 watch paths changes (API: `services/api/**`, `infra/images/api/**`; website:
 `apps/web/**`, `packages/ui/**`, `infra/images/web/**`, `package.json`,
+`bun.lock`; console: `apps/console/**`, `packages/ui/**`,
+`infra/images/console/**`, `infra/images/web/entrypoint.sh`, `package.json`,
 `bun.lock`). Environment variable names are in [`env.example`](env.example).
 
 ## Deploying
@@ -36,7 +40,7 @@ watch paths changes (API: `services/api/**`, `infra/images/api/**`; website:
    keeps serving.
 4. The old container drains before it stops: its health check turns 503 so
    Traefik takes it out of rotation, requests that still reach it are served,
-   and it exits about 8 s later (`entrypoint.sh` in each image). Both HTTPS
+   and it exits about 8 s later (`entrypoint.sh` in each image). The HTTPS
    routers also carry a Traefik retry middleware (`bakery-retry`, 3 attempts)
    in the app's custom labels.
 

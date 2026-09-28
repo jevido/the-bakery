@@ -5,6 +5,7 @@ package guilds
 
 import (
 	"context"
+	"time"
 
 	contractshttp "github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/contracts/route"
@@ -157,4 +158,46 @@ type auditRecorder func(ctx context.Context, actorMemberID uint64, action, targe
 
 func (f auditRecorder) Record(ctx context.Context, e app.AuditRecord) {
 	f(ctx, e.ActorID, e.Action, e.TargetKind, e.TargetID, e.Meta)
+}
+
+// GuildCard is a guild as the operator console sees it.
+type GuildCard struct {
+	ID        uint64
+	Name      string
+	Archived  bool
+	FoundedAt time.Time
+	MemberIDs []uint64
+}
+
+func cardsOf(ls []infra.Listed) []GuildCard {
+	out := make([]GuildCard, len(ls))
+	for i, l := range ls {
+		out[i] = GuildCard(l)
+	}
+	return out
+}
+
+// FindGuilds lists guilds whose name contains q, newest first, at most
+// limit, sanctioned ones too. For the operator console.
+func FindGuilds(ctx context.Context, q string, limit int) ([]GuildCard, error) {
+	ls, err := infra.Directory{}.Find(ctx, q, limit)
+	return cardsOf(ls), err
+}
+
+// GuildCardOf is one guild, sanctioned or not.
+func GuildCardOf(ctx context.Context, id uint64) (GuildCard, bool, error) {
+	l, found, err := infra.Directory{}.ByID(ctx, id)
+	return GuildCard(l), found, err
+}
+
+// GuildCardsOfMember lists every guild the member is in, archived and
+// sanctioned ones too.
+func GuildCardsOfMember(ctx context.Context, memberID uint64) ([]GuildCard, error) {
+	ls, err := infra.Directory{}.OfMember(ctx, memberID)
+	return cardsOf(ls), err
+}
+
+// GuildCounts maps each member to the number of guilds they are in.
+func GuildCounts(ctx context.Context, memberIDs []uint64) (map[uint64]int, error) {
+	return infra.Directory{}.GuildCounts(ctx, memberIDs)
 }

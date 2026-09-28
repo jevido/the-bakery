@@ -1,0 +1,47 @@
+# Serves the built operator console. TLS is Coolify's proxy's job; this
+# listens on plain HTTP.
+{
+	admin off
+	auto_https off
+}
+
+:8080 {
+	# Health for the container: 503 while draining (see entrypoint.sh).
+	handle /healthz {
+		@draining file {
+			root /
+			try_files /tmp/draining
+		}
+		respond @draining "draining" 503
+		respond "ok" 200
+	}
+
+	# Search engines stay out, and no page may frame the console.
+	header {
+		X-Robots-Tag "noindex, nofollow"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+	}
+
+	handle /robots.txt {
+		respond "User-agent: *
+Disallow: /
+" 200
+	}
+
+	handle {
+		root * /srv
+		encode zstd gzip
+
+		# Hashed build output never changes under the same name.
+		@hashed path /assets/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+
+		# Every other path is the single-page app; always revalidate index.html.
+		@html not path /assets/*
+		header @html Cache-Control "no-cache"
+
+		try_files {path} /index.html
+		file_server
+	}
+}

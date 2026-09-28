@@ -1,0 +1,12 @@
+# Only what the console build needs.
+*
+!package.json
+!bun.lock
+!packages/ui/
+!apps/web/package.json
+!apps/console/
+!apps/desktop/frontend/package.json
+!infra/images/console/Caddyfile
+!infra/images/web/entrypoint.sh
+**/node_modules/
+**/dist/

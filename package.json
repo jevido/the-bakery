@@ -4,6 +4,7 @@
   "workspaces": [
     "packages/*",
     "apps/desktop/frontend",
-    "apps/web"
+    "apps/web",
+    "apps/console"
   ]
 }

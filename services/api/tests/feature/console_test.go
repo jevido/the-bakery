@@ -183,3 +183,39 @@ func (s *ConsoleTestSuite) TestAuditLog() {
 	s.get(ada, "/api/console/audit").AssertUnauthorized()
 	s.get(op, "/api/console/audit?from=yesterday").AssertUnprocessableEntity()
 }
+
+func (s *ConsoleTestSuite) TestMembersAndGuilds() {
+	email, secret := s.operator("a long enough secret")
+	op := s.signIn(email, "a long enough secret", secret)
+	adaEmail, ada := s.register()
+	adaID := uint64(s.jsonOf(s.get(ada, "/api/me"))["member"].(map[string]any)["id"].(float64))
+	guildID := s.foundGuild(ada, "Directory Colony")
+	s.post(ada, fmt.Sprintf("/api/guilds/%d/boards", guildID), `{"name":"One"}`).AssertCreated()
+
+	// Search by email, with the guild count.
+	res := s.get(op, "/api/console/members?q="+adaEmail)
+	res.AssertOk()
+	members := s.jsonOf(res)["members"].([]any)
+	s.Require().Len(members, 1)
+	s.Equal(float64(1), members[0].(map[string]any)["guild_count"])
+	s.Nil(members[0].(map[string]any)["sanction"])
+
+	// A suspension shows on the member's row and record.
+	until := time.Now().Add(24 * time.Hour).UTC().Format(time.RFC3339)
+	s.post(op, "/api/console/sanctions", fmt.Sprintf(`{"target":"member:%d","kind":"suspension","reason":"Cooling off.","until":%q}`, adaID, until)).AssertCreated()
+	members = s.jsonOf(s.get(op, "/api/console/members?q="+adaEmail))["members"].([]any)
+	s.Equal("suspension", members[0].(map[string]any)["sanction"].(map[string]any)["kind"])
+	record := s.jsonOf(s.get(op, fmt.Sprintf("/api/console/members/%d", adaID)))
+	s.Len(record["guilds"].([]any), 1)
+	s.Len(record["sanctions"].([]any), 1)
+	s.NotEmpty(record["audit"])
+
+	// Guilds: search by name, and the record counts boards and members.
+	gs := s.jsonOf(s.get(op, "/api/console/guilds?q=directory%20colony"))["guilds"].([]any)
+	s.Require().NotEmpty(gs)
+	g := s.jsonOf(s.get(op, fmt.Sprintf("/api/console/guilds/%d", guildID)))
+	s.Equal(float64(1), g["board_count"])
+	s.Len(g["members"].([]any), 1)
+	s.get(op, "/api/console/guilds/999999999").AssertNotFound()
+	s.get(ada, "/api/console/members").AssertUnauthorized()
+}

@@ -6,6 +6,7 @@ package identity
 
 import (
 	"context"
+	"time"
 
 	contractshttp "github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/contracts/route"
@@ -115,4 +116,33 @@ type auditRecorder func(ctx context.Context, actorMemberID uint64, action, targe
 
 func (f auditRecorder) Record(ctx context.Context, e app.AuditRecord) {
 	f(ctx, e.ActorID, e.Action, e.TargetKind, e.TargetID, e.Meta)
+}
+
+// MemberCard is a member as the operator console sees them.
+type MemberCard struct {
+	ID          uint64
+	Email       string
+	DisplayName string
+	JoinedAt    time.Time
+}
+
+func cardsOf(ls []infra.Listed) []MemberCard {
+	out := make([]MemberCard, len(ls))
+	for i, l := range ls {
+		out[i] = MemberCard(l)
+	}
+	return out
+}
+
+// FindMembers lists members whose email or display name contains q,
+// newest first, at most limit. For the operator console.
+func FindMembers(ctx context.Context, q string, limit int) ([]MemberCard, error) {
+	ls, err := infra.Directory{}.Find(ctx, q, limit)
+	return cardsOf(ls), err
+}
+
+// MemberCards lists the given members by display name.
+func MemberCards(ctx context.Context, ids []uint64) ([]MemberCard, error) {
+	ls, err := infra.Directory{}.ByIDs(ctx, ids)
+	return cardsOf(ls), err
 }

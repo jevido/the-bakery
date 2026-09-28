@@ -7,6 +7,7 @@ import (
 	contractshttp "github.com/goravel/framework/contracts/http"
 
 	"github.com/jevido/the-bakery/services/api/contexts/moderation/app"
+	"github.com/jevido/the-bakery/services/api/contexts/moderation/domain"
 )
 
 // RememberIP keeps the client's IP in the request's context, where the
@@ -56,12 +57,20 @@ func (c *Controller) Audit(ctx contractshttp.Context) contractshttp.Response {
 	if err != nil {
 		return serverError(ctx, err)
 	}
+	names, err := c.namesOf(ctx, entries, nil)
+	if err != nil {
+		return serverError(ctx, err)
+	}
+	return ctx.Response().Success().Json(contractshttp.Json{"entries": auditToJSON(entries), "names": names})
+}
+
+func auditToJSON(entries []domain.AuditEntry) []auditJSON {
 	out := make([]auditJSON, len(entries))
 	for i, e := range entries {
 		out[i] = auditJSON{ID: e.ID, ActorKind: e.ActorKind, ActorID: e.ActorID, Action: e.Action, TargetKind: e.TargetKind,
 			TargetID: e.TargetID, Reason: e.Reason, Meta: e.Meta, IP: e.IP, At: e.At}
 	}
-	return ctx.Response().Success().Json(contractshttp.Json{"entries": out})
+	return out
 }
 
 func uintQuery(ctx contractshttp.Context, key string) uint64 {

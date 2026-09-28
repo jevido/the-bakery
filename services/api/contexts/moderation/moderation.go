@@ -24,7 +24,7 @@ import (
 
 var service = app.NewService(app.Deps{
 	Operators: infra.Operators{}, Hasher: infra.Hasher{}, Secrets: infra.Secrets{}, TOTP: infra.TOTP{},
-	Audit: infra.AuditEntries{}, Sanctions: infra.Sanctions{}, Reports: infra.Reports{}, Targets: targets{}, Effects: effects{},
+	Audit: infra.AuditEntries{}, Sanctions: infra.Sanctions{}, Reports: infra.Reports{}, Targets: targets{}, Effects: effects{}, Directory: directory{},
 })
 
 // targets asks identity and guilds whether a target exists.
@@ -35,6 +35,53 @@ func (targets) MemberExists(ctx context.Context, id uint64) (bool, error) {
 }
 func (targets) GuildExists(ctx context.Context, id uint64) (bool, error) {
 	return guilds.GuildExists(ctx, id)
+}
+
+// directory reads members, guilds and boards through the contracts the
+// identity, guilds and boards contexts publish, and translates them.
+type directory struct{}
+
+func memberCards(cs []identity.MemberCard) []app.MemberCard {
+	out := make([]app.MemberCard, len(cs))
+	for i, c := range cs {
+		out[i] = app.MemberCard(c)
+	}
+	return out
+}
+
+func guildCards(cs []guilds.GuildCard) []app.GuildCard {
+	out := make([]app.GuildCard, len(cs))
+	for i, c := range cs {
+		out[i] = app.GuildCard(c)
+	}
+	return out
+}
+
+func (directory) FindMembers(ctx context.Context, q string, limit int) ([]app.MemberCard, error) {
+	cs, err := identity.FindMembers(ctx, q, limit)
+	return memberCards(cs), err
+}
+func (directory) Members(ctx context.Context, ids []uint64) ([]app.MemberCard, error) {
+	cs, err := identity.MemberCards(ctx, ids)
+	return memberCards(cs), err
+}
+func (directory) GuildCounts(ctx context.Context, memberIDs []uint64) (map[uint64]int, error) {
+	return guilds.GuildCounts(ctx, memberIDs)
+}
+func (directory) FindGuilds(ctx context.Context, q string, limit int) ([]app.GuildCard, error) {
+	cs, err := guilds.FindGuilds(ctx, q, limit)
+	return guildCards(cs), err
+}
+func (directory) Guild(ctx context.Context, id uint64) (app.GuildCard, bool, error) {
+	c, found, err := guilds.GuildCardOf(ctx, id)
+	return app.GuildCard(c), found, err
+}
+func (directory) GuildsOfMember(ctx context.Context, memberID uint64) ([]app.GuildCard, error) {
+	cs, err := guilds.GuildCardsOfMember(ctx, memberID)
+	return guildCards(cs), err
+}
+func (directory) BoardCount(ctx context.Context, guildID uint64) (int, error) {
+	return boards.BoardCount(ctx, guildID)
 }
 
 // effects ends a sanctioned target's live board streams.
@@ -120,6 +167,10 @@ func Routes(r route.Router) {
 	r.Middleware(RequireOperator).Group(func(r route.Router) {
 		r.Get("/api/console/me", c.Me)
 		r.Get("/api/console/audit", c.Audit)
+		r.Get("/api/console/members", c.ListMembers)
+		r.Get("/api/console/members/{member}", c.ShowMember)
+		r.Get("/api/console/guilds", c.ListGuilds)
+		r.Get("/api/console/guilds/{guild}", c.ShowGuild)
 		r.Get("/api/console/sanctions", c.ListSanctions)
 		r.Post("/api/console/sanctions", c.Sanction)
 		r.Post("/api/console/sanctions/{sanction}/lift", c.LiftSanction)

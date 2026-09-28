@@ -68,8 +68,9 @@ each use case: identity and guilds ask moderation and refuse themselves.
   through a one-method port of their own.
 - **Consumes:** identity's member lookups (by id, by email, a search for the
   console) and guilds' guild lookups (by id, a search with member counts),
-  through interfaces those contexts publish; boards' `CloseStreamsOf` to end
-  the live board streams of a sanctioned member or guild. Moderation never
+  through interfaces those contexts publish; boards' `BoardCount` for a
+  guild's record, and `CloseStreamsOf` to end the live board streams of a
+  sanctioned member or guild. Moderation never
   reads another context's tables.
 
 ## Why it's shaped this way
