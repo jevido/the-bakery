@@ -11,6 +11,7 @@ depend on each other.
 | [agents](contexts/agents/README.md) | supporting | `services/api` (`contexts/agents`); mirrored as folders by `apps/desktop` | agents, their skillsets and work priorities, shares |
 | [guilds](contexts/guilds/README.md) | supporting | `services/api` (`contexts/guilds`) | guilds, memberships, invites |
 | [workshop](contexts/workshop/README.md) | supporting | `apps/desktop` (`internal/workshop`), per machine | board configs, worktrees, running Claude CLI for a run |
+| [moderation](contexts/moderation/README.md) | supporting | `services/api` (`contexts/moderation`); used by `apps/console` | operators, sanctions, reports, the audit log |
 | [identity](contexts/identity/README.md) | generic | `services/api` (`contexts/identity`) | members, credentials, tokens, personal tokens, web sessions, handoff codes |
 
 `services/api` also hosts the **MCP server** (module `mcp/`): an *open host
@@ -45,6 +46,10 @@ adapt to.
 | boards | workshop | customer/supplier | The REST API: tasks with subtasks and comments, columns, runs (start, finish), comments and moves. Translated into the workshop's `RunSpec`. |
 | agents | workshop | customer/supplier | The member's synced agent folders (`agent.toml`, `skills/`) and `GET /api/agent-traits` for the trait instructions |
 | identity | workshop | customer/supplier | A personal token the desktop makes for the runner (`POST /api/tokens`) |
+| identity | moderation | customer/supplier | Member lookups by id and email, and a member search, for the console |
+| guilds | moderation | customer/supplier | Guild lookups by id and a guild search with member counts, for the console |
+| moderation | identity, guilds | open host service | `ActiveFor`, a sanction check moderation's wiring sets into identity (members) and guilds (guilds); an `Audit` recorder behind a one-method port in each context that records |
+| boards | moderation | customer/supplier | `CloseStreamsOf(member or guild)` to end a sanctioned target's live board streams |
 | guilds, boards, agents | MCP server (`mcp/`) | open host service | The contexts' published Go functions (the same use cases REST calls); identity's `VerifyPersonalToken` for sign-in |
 
 Patterns: *customer/supplier*, *conformist*, *anticorruption layer*,

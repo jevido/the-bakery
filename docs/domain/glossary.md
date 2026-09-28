@@ -14,7 +14,12 @@ document; list them here when people outside the context use them too.
 | Member | identity | A person with an account: email, display name and password. Stored in `members`; domain code never says "user". | "User" (not used in domain code); Operator |
 | Member | guilds | A member of a particular guild, i.e. a Member (identity) who holds a Membership in it. | |
 | Token | identity | The JWT (valid 30 days) a Member receives on register or login and sends as `Authorization: Bearer ...` to prove who they are. | API key |
-| Operator | identity | The platform owner, and anyone they appoint, who uses the moderation console. Not a guild role and not a Member account. | Guild member, admin |
+| Operator | moderation | The platform owner, and anyone they appoint, who uses the console: an account of its own with email, password and TOTP. Not a guild role and not a Member account; member credentials never work in the console. | Guild member, admin, owner |
+| Sanction | moderation | A suspension or a ban on one member or one guild, with a reason, by an operator. One active per target. | Punishment, block |
+| Suspension | moderation | A sanction until a date; it ends by itself. The member (or the guild's members) can use nothing it covers until then. | Ban |
+| Ban | moderation | A sanction without an end; an operator lifts it. | Suspension, deletion |
+| Report | moderation | A member telling the operators about a member or a guild, with a reason; open until an operator dismisses it or acts on it. | Flag, complaint |
+| Audit log | moderation | Every sensitive action on the platform, append-only: who, what, to whom, why, when, from where. | Activity (a task's history) |
 | Web session | identity | A sign-in from the website, carried in an httpOnly cookie that page scripts cannot read. The desktop app keeps its bearer token instead. | Token (the desktop's) |
 | Personal token | identity | A long-lived secret a member creates for a tool (Claude, a script): named, shown once, stored only as a hash, revocable one at a time. Looks like `bky_…`. | Token (the desktop's session JWT), API key |
 | Handoff code | identity | A one-time code the desktop app gets for its signed-in member and opens the website with, so the website signs them in too. Valid for 60 seconds, usable once; the website trades it for a web session. | Token (never put in a URL) |

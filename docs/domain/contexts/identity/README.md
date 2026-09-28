@@ -19,7 +19,7 @@ which guilds a Member belongs to or what they may do there; that is guilds.
 | Web session | A sign-in from the website: the same JWT, carried in an httpOnly cookie instead of a bearer header. |
 | Personal token | A long-lived secret for a tool, `bky_…`; named, shown once, stored as SHA-256, revocable. Not the desktop's session JWT. |
 | Handoff code | A one-time code (60 s, single use, stored only as a hash) that turns the desktop's sign-in into a web session. |
-| Operator | The platform owner (and appointees) using the moderation console. Not a Member account; not modelled yet. |
+| Operator | The platform owner (and appointees) using the console. Not a Member account: operators are the moderation context's own accounts. |
 
 ## Model
 
