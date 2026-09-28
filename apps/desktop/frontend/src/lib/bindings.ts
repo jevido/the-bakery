@@ -14,6 +14,7 @@ export type {
   WorkType,
   Run,
 } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/internal/api/models'
+export type { Alert } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/internal/workshop/models'
 
 // Go errors reach the frontend as rejected promises; this pulls out the
 // message to show, as a sentence.

@@ -42,6 +42,8 @@ type WorkshopService struct {
 	machineID string
 	// wake nudges the scheduler: a run ended, a board changed.
 	wake chan struct{}
+	// alerts is what the alerts column remembers between rounds.
+	alerts *alertBook
 	// needsNudge asks for the agents' needs to be worked out again.
 	needsNudge chan struct{}
 	// desk turns runs' permission prompts and questions into letters.
@@ -59,6 +61,7 @@ func NewWorkshopService(client *api.Client, s *session.Session, agentFolders *ag
 		machineID:  machineID(),
 		wake:       make(chan struct{}, 1),
 		needsNudge: make(chan struct{}, 1),
+		alerts:     newAlertBook(),
 		desk:       workshop.NewDesk(),
 	}
 }
@@ -775,6 +778,7 @@ func (s *WorkshopService) ServiceStartup(ctx context.Context, _ application.Serv
 	}
 	go s.schedule(ctx)
 	go s.watchNeeds(ctx)
+	go s.watchAlerts(ctx)
 	go func() {
 		tick := time.NewTicker(2 * time.Second)
 		defer tick.Stop()
@@ -886,6 +890,7 @@ func (s *WorkshopService) emitRuns() {
 		s.app.Event.Emit(eventRuns, s.Runs())
 	}
 	s.nudgeNeeds()
+	s.nudgeAlerts()
 }
 
 // ServiceShutdown stops the runs still going, and waits a little for them

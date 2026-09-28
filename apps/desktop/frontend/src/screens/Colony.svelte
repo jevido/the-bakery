@@ -9,11 +9,13 @@
   import RunPanel from '../components/RunPanel.svelte'
   import Letters from '../components/Letters.svelte'
   import ReportGuild from '../components/ReportGuild.svelte'
+  import AlertsColumn from '../components/AlertsColumn.svelte'
+  import { Alerts } from '../lib/alerts.svelte'
   import { Letters as LetterBox } from '../lib/letters.svelte'
   import { AgentSync } from '../lib/agentsync.svelte'
   import { Colony } from '../lib/colony.svelte'
   import { needs } from '../lib/needs.svelte'
-  import { SessionService, WebsiteService, WorkshopService, messageOf, type Member } from '../lib/bindings'
+  import { SessionService, WebsiteService, WorkshopService, messageOf, type Alert, type Member } from '../lib/bindings'
 
   let {
     member,
@@ -41,6 +43,24 @@
   $effect(() => colony.listen())
   // Every agent's needs and mood, for the agent card and the colony view.
   $effect(() => needs.listen())
+  // What needs attention, at the right edge.
+  const alerts = new Alerts()
+  $effect(() => alerts.listen())
+
+  // goToAlert opens what an alert is about.
+  async function goToAlert(a: Alert) {
+    if (a.guild_id && a.guild_id !== colony.guildId) await colony.openGuild(a.guild_id)
+    if (a.kind === 'uncovered_work') {
+      if (a.board_id !== colony.boardId) await colony.openBoard(a.board_id)
+      view = 'work'
+      return
+    }
+    view = 'board'
+    if (a.board_id && a.board_id !== colony.boardId) await colony.openBoard(a.board_id)
+    if (a.kind === 'question_waiting' && a.letter) letters.openId = a.letter
+    else if (a.kind === 'run_failed' && a.run_id) colony.openRun(a.run_id)
+    else if (a.task_id) colony.openTask(a.task_id)
+  }
   // The guild list's right-click menu, and the guild being reported.
   let guildMenu = $state<{ guild: { id: number; name: string }; x: number; y: number } | null>(null)
   let reporting = $state<{ id: number; name: string } | null>(null)
@@ -234,6 +254,8 @@
       </Panel>
     {/if}
   </main>
+
+  <AlertsColumn {alerts} ongo={goToAlert} />
 </div>
 
 {#if showConflicts}
@@ -262,7 +284,7 @@
 <style>
   .colony {
     display: grid;
-    grid-template-columns: 200px 1fr;
+    grid-template-columns: 200px 1fr auto;
     gap: var(--gap);
     height: 100%;
     padding: var(--gap);

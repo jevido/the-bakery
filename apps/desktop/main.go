@@ -72,7 +72,10 @@ func main() {
 	live.app = app
 	agentsSvc.app = app
 	workshopSvc.app = app
-	live.onBoardEvent = func(api.BoardEvent) { workshopSvc.Wake() }
+	live.onBoardEvent = func(api.BoardEvent) {
+		workshopSvc.Wake()
+		workshopSvc.nudgeAlerts()
+	}
 	website.app = app
 
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{

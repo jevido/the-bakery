@@ -348,9 +348,11 @@ export class Colony {
     if (s && this.boardId === id) this.settings = s
   }
 
+  // openRun shows a run; once seen, a failed run is no longer an alert.
   openRun(id: string) {
     this.settingsOpen = false
     this.openRunId = id
+    WorkshopService.SeenRun(id).catch(() => {})
   }
 
   closeRun() {
