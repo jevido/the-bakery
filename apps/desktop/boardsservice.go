@@ -136,3 +136,11 @@ func (s *BoardsService) DraftTask(ctx context.Context, taskID uint64, prioritize
 		return s.client.DraftTask(ctx, t, taskID, prioritizedAgentID, forbidden)
 	})
 }
+
+// ReportGuild tells the operators about a guild, with a reason.
+func (s *BoardsService) ReportGuild(ctx context.Context, guildID uint64, reason string) error {
+	_, err := call(s.session, func(t string) (struct{}, error) {
+		return struct{}{}, s.client.Report(ctx, t, "guild", guildID, reason)
+	})
+	return err
+}

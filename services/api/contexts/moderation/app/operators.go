@@ -50,6 +50,7 @@ type Service struct {
 	totp      TOTP
 	audit     AuditEntries
 	sanctions Sanctions
+	reports   Reports
 	targets   Targets
 	effects   Effects
 	cache     activeCache
@@ -64,6 +65,7 @@ type Deps struct {
 	TOTP      TOTP
 	Audit     AuditEntries
 	Sanctions Sanctions
+	Reports   Reports
 	Targets   Targets
 	Effects   Effects
 }
@@ -71,7 +73,7 @@ type Deps struct {
 func NewService(d Deps) *Service {
 	return &Service{
 		operators: d.Operators, hasher: d.Hasher, secrets: d.Secrets, totp: d.TOTP, audit: d.Audit,
-		sanctions: d.Sanctions, targets: d.Targets, effects: d.Effects,
+		sanctions: d.Sanctions, reports: d.Reports, targets: d.Targets, effects: d.Effects,
 		cache: activeCache{m: map[string]cached{}}, now: time.Now,
 	}
 }

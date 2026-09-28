@@ -45,7 +45,9 @@ func (s *operatorSuite) TearDownTest() {
 		var ids []uint64
 		s.NoError(facades.Orm().Query().Table("operators").Where("email", e).Pluck("id", &ids))
 		for _, id := range ids {
-			_, err := facades.DB().Table("sanctions").Where("by_operator_id", id).Delete()
+			_, err := facades.DB().Table("reports").Where("handled_by", id).Delete()
+			s.NoError(err)
+			_, err = facades.DB().Table("sanctions").Where("by_operator_id", id).Delete()
 			s.NoError(err)
 		}
 		_, err := facades.DB().Table("operators").Where("email", e).Delete()

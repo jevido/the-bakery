@@ -196,3 +196,10 @@ func (c *Client) CreatePersonalToken(ctx context.Context, token, name string) (P
 func (c *Client) RevokePersonalToken(ctx context.Context, token string, id uint64) error {
 	return c.do(ctx, http.MethodDelete, fmt.Sprintf("/api/tokens/%d", id), token, nil, nil)
 }
+
+// Report tells the operators about a member or a guild ("member" or
+// "guild").
+func (c *Client) Report(ctx context.Context, token, targetKind string, targetID uint64, reason string) error {
+	in := map[string]any{"target_kind": targetKind, "target_id": targetID, "reason": reason}
+	return c.do(ctx, http.MethodPost, "/api/reports", token, in, nil)
+}

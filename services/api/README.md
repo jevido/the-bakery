@@ -68,6 +68,11 @@ Answers are cached for five seconds. A sanction also ends the target's open
 board event streams in every process (a `streams.close` message on the
 `board_events` channel).
 
+Members **report** a member or a guild at `POST /api/reports` (10 a day
+each); operators work the queue at `GET /api/console/reports?status=open`
+and close a report with `…/dismiss` or `…/action` (with the sanction it led
+to).
+
 ## MCP server
 
 `/mcp` serves MCP over streamable HTTP (stateless, JSON replies) with the

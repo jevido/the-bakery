@@ -24,7 +24,7 @@ import (
 
 var service = app.NewService(app.Deps{
 	Operators: infra.Operators{}, Hasher: infra.Hasher{}, Secrets: infra.Secrets{}, TOTP: infra.TOTP{},
-	Audit: infra.AuditEntries{}, Sanctions: infra.Sanctions{}, Targets: targets{}, Effects: effects{},
+	Audit: infra.AuditEntries{}, Sanctions: infra.Sanctions{}, Reports: infra.Reports{}, Targets: targets{}, Effects: effects{},
 })
 
 // targets asks identity and guilds whether a target exists.
@@ -123,5 +123,13 @@ func Routes(r route.Router) {
 		r.Get("/api/console/sanctions", c.ListSanctions)
 		r.Post("/api/console/sanctions", c.Sanction)
 		r.Post("/api/console/sanctions/{sanction}/lift", c.LiftSanction)
+		r.Get("/api/console/reports", c.ListReports)
+		r.Post("/api/console/reports/{report}/dismiss", c.DismissReport)
+		r.Post("/api/console/reports/{report}/action", c.ActionReport)
+	})
+	// Members report members and guilds.
+	mc := moderationhttp.NewMemberController(service, identity.MemberID)
+	r.Middleware(identity.RequireMember).Group(func(r route.Router) {
+		r.Post("/api/reports", mc.FileReport)
 	})
 }

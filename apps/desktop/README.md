@@ -118,6 +118,9 @@ directory and logs a warning.
   limit and is recorded as a `plan` run with its cost. `PlanReview.svelte`
   lets the member edit, drop and reorder the rows; only **Accept** saves
   them (`POST /api/tasks/{task}/expand` with `subtasks`).
+- Reporting: right-click a guild in the sidebar for **Report this guild…**
+  (`components/ReportGuild.svelte`, `BoardsService.ReportGuild`,
+  `POST /api/reports`).
 - `internal/session/runner.go` — the runner token: a personal token the app
   makes for itself (`desktop runner (<host>)`) so Claude can use the Bakery
   MCP server as the member during a run. Kept in its own keyring entry,

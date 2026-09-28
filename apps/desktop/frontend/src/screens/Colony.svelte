@@ -8,6 +8,7 @@
   import BoardSettings from '../components/BoardSettings.svelte'
   import RunPanel from '../components/RunPanel.svelte'
   import Letters from '../components/Letters.svelte'
+  import ReportGuild from '../components/ReportGuild.svelte'
   import { Letters as LetterBox } from '../lib/letters.svelte'
   import { AgentSync } from '../lib/agentsync.svelte'
   import { Colony } from '../lib/colony.svelte'
@@ -23,6 +24,10 @@
   colony.load()
   // Follow the open board's live events while this screen is up.
   $effect(() => colony.listen())
+  // The guild list's right-click menu, and the guild being reported.
+  let guildMenu = $state<{ guild: { id: number; name: string }; x: number; y: number } | null>(null)
+  let reporting = $state<{ id: number; name: string } | null>(null)
+
   // Runs asking for permission or with a question.
   const letters = new LetterBox()
   $effect(() => letters.listen())
@@ -99,7 +104,15 @@
       <ul class="list">
         {#each colony.guilds as g (g.id)}
           <li>
-            <button class={['item', { active: g.id === colony.guildId }]} onclick={() => colony.openGuild(g.id)}>
+            <button
+              class={['item', { active: g.id === colony.guildId }]}
+              title="Right-click to report this guild"
+              onclick={() => colony.openGuild(g.id)}
+              oncontextmenu={(e) => {
+                e.preventDefault()
+                guildMenu = { guild: g, x: e.clientX, y: e.clientY }
+              }}
+            >
               {g.name}
             </button>
           </li>
@@ -208,6 +221,23 @@
 {/if}
 
 <Letters {letters} {colony} />
+
+{#if guildMenu}
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+  <div class="menu-veil" onclick={() => (guildMenu = null)}></div>
+  <div class="guild-menu" role="menu" style:left="{guildMenu.x}px" style:top="{guildMenu.y}px">
+    <button
+      role="menuitem"
+      onclick={() => {
+        reporting = guildMenu!.guild
+        guildMenu = null
+      }}>Report this guild…</button
+    >
+  </div>
+{/if}
+{#if reporting}
+  <ReportGuild guild={reporting} onclose={() => (reporting = null)} />
+{/if}
 
 <style>
   .colony {
@@ -375,5 +405,39 @@
     background: color-mix(in srgb, var(--rust) 35%, transparent);
     border: 1px solid var(--rust);
     border-radius: var(--radius);
+  }
+
+  .menu-veil {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+  }
+
+  .guild-menu {
+    position: fixed;
+    z-index: 21;
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
+    background: var(--panel-raised);
+    border: 1px solid var(--frame);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.4);
+  }
+
+  .guild-menu button {
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    padding: 4px 10px;
+    color: var(--text);
+    background: none;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+
+  .guild-menu button:hover {
+    background: var(--panel-inset);
   }
 </style>

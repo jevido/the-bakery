@@ -2,6 +2,7 @@
   import { Panel, Button, TextField } from '@bakery/ui'
   import Confirm from '../components/Confirm.svelte'
   import InvitesTab from '../components/InvitesTab.svelte'
+  import ReportForm from '../components/ReportForm.svelte'
   import { guilds, joinedOn, type Guild, type GuildMember } from '../lib/guilds'
   import { session } from '../lib/session.svelte'
   import { router } from '../lib/router.svelte'
@@ -21,6 +22,8 @@
   let confirmRemove = $state<number | null>(null)
   let confirmLeave = $state(false)
   let confirmArchive = $state(false)
+  // The member being reported (or 0 for the guild itself), or null.
+  let reporting = $state<number | null>(null)
 
   function show(err: unknown) {
     error = err instanceof ApiError ? err.message : String(err)
@@ -136,12 +139,20 @@
                     <button class="link danger" onclick={() => (confirmRemove = m.id)}>Remove</button>
                   {/if}
                 {/if}
+                {#if m.id !== session.member?.id}
+                  <button class="link" onclick={() => (reporting = m.id)}>Report</button>
+                {/if}
               </td>
             </tr>
             {#if confirmRemove === m.id}
               <tr><td colspan="3">
                 <Confirm question={`Remove ${m.display_name} from ${guild.name}?`} action="Remove" {busy}
                   onconfirm={() => run(() => guilds.remove(id, m.id))} oncancel={() => (confirmRemove = null)} />
+              </td></tr>
+            {/if}
+            {#if reporting === m.id}
+              <tr><td colspan="3">
+                <ReportForm targetKind="member" targetId={m.id} name={m.display_name} onclose={() => (reporting = null)} />
               </td></tr>
             {/if}
             {#if confirmLeave && m.id === session.member?.id}
@@ -167,6 +178,14 @@
       {:else}
         <p>Archive a guild nobody works in any more. Nothing is deleted, and any member can restore it.</p>
         <Button variant="danger" onclick={() => (confirmArchive = true)}>Archive guild</Button>
+      {/if}
+    </Panel>
+    <Panel title="Report this guild">
+      {#if reporting === 0}
+        <ReportForm targetKind="guild" targetId={id} name={guild.name} onclose={() => (reporting = null)} />
+      {:else}
+        <p>If this guild breaks the rules (spam, scams, abuse), tell the operators.</p>
+        <Button onclick={() => (reporting = 0)}>Report {guild.name}</Button>
       {/if}
     </Panel>
   {/if}
@@ -245,6 +264,10 @@
   .actions {
     text-align: right;
     white-space: nowrap;
+  }
+
+  .actions .link + .link {
+    margin-left: 12px;
   }
 
   .link {
