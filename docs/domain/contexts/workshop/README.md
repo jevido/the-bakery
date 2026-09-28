@@ -27,6 +27,11 @@ an agent works on next (the scheduler, later).
 | Time controls | Per board: `paused`, `normal`, `fast` (a higher run limit). |
 | Letter | A notice from a run that needs a person: a permission prompt or a question. The run waits for the answer. |
 | Runner token | A personal token the desktop app makes for itself (`desktop runner (<host>)`), so Claude can use the Bakery MCP server as the member during a run. |
+| Needs | An agent's four bars (Budget, Focus, Morale, Rest), 0–100, computed from this machine's run data. |
+| Mood | One word from the needs: `content`, `okay`, `stressed`, `breaking`. |
+| Alert | A standing condition needing attention, shown at the right edge until it clears. |
+| Event letter | A one-off storyteller notice about a moment on a board; never blocks anything. |
+| Quiet colony | The setting that turns all flavor off; portraits, alerts and letters stay. |
 
 ## Model
 
@@ -97,3 +102,21 @@ and its result (status, cost, turns, duration).
 - **The run spec is a pure function.** Building the command line from its
   inputs without I/O keeps it testable with golden files; only the runner
   executes it.
+
+## Presentation
+
+Needs, mood, alerts, event letters, flavor lines and sounds live in the
+desktop only. They are computed on this machine from what the workshop
+already knows (runs, the board open, the scheduler's state) and are never
+sent to the API; the server knows nothing of them except each member's and
+agent's portrait seed.
+
+- **Flavor never changes behaviour.** The scheduler, claims, runs and the
+  API do exactly the same with quiet colony on or off, and whatever an
+  agent's mood. Mood changes an animation and a sentence, nothing else.
+- **Flavor never waits in front of an action.** Lines, the storyteller and
+  sounds run after an action has rendered, never before it.
+- **Why:** these are a view of the work, not part of it. If flavor could
+  steer the work, two machines of one guild with different settings would
+  behave differently, and the sense a need makes would depend on a game
+  rule instead of on the data it shows.
