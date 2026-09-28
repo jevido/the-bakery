@@ -44,7 +44,7 @@
   <div class="split">
     <div class="canvas">
       {#if colony.view}
-        {#key colony.boardId}<WorkCanvas {colony} {letters} {onopenrun} />{/key}
+        {#key colony.boardId}<WorkCanvas {colony} {letters} thinking={chat.thinking} {onopenrun} />{/key}
       {:else}
         <p class="dim">Pick a board.</p>
       {/if}

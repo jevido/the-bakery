@@ -11,6 +11,7 @@
   import { BENCH, COLONIST, FLOOR, HAMMER, MARKS, MOODS, NOTE, SUPERVISOR, TABLE, colonistColours, draw, size } from '../lib/sprites'
   import { moving, newWorld, step, type Room, type RunIn, type World } from '../lib/choreography'
   import { needs } from '../lib/needs.svelte'
+  import { notesLine } from '../lib/flavor/lines'
   import { settings } from '../lib/settings.svelte'
   import type { Colony } from '../lib/colony.svelte'
   import type { Letters } from '../lib/letters.svelte'
@@ -21,7 +22,13 @@
   // (lib/choreography.ts) and reads nothing else; drawing it costs no
   // tokens. Hover a figure for who it is and what it does; click one at work
   // to open its run, or its letter while it waits for you.
-  let { colony, letters, onopenrun }: { colony: Colony; letters: Letters; onopenrun: (id: string) => void } = $props()
+  // thinking: the supervisor chat is waiting for an answer.
+  let {
+    colony,
+    letters,
+    thinking = false,
+    onopenrun,
+  }: { colony: Colony; letters: Letters; thinking?: boolean; onopenrun: (id: string) => void } = $props()
 
   const S = 3 // one sprite pixel is 3×3 screen pixels
   const FRAME = 1000 / 30
@@ -64,11 +71,7 @@
   const boardRuns = $derived(colony.workshop.runs.filter((r) => r.board_id === colony.boardId && r.kind !== 'plan'))
 
   function notesOf(r: RunInfo): string {
-    const cost = r.cost_usd ? ` · $${r.cost_usd.toFixed(2)}` : ''
-    if (r.status === 'succeeded') return (r.moved_to ? `Done, moved to ${r.moved_to}` : 'Done') + cost
-    if (r.status === 'failed') return 'Could not finish it' + cost
-    if (r.status === 'stopped') return 'Was called off' + cost
-    return ''
+    return notesLine(r.id, r.status, r.moved_to, r.cost_usd)
   }
 
   const input = $derived.by(() => {
@@ -81,7 +84,7 @@
       workType: tasks.get(r.task_id)?.work_type ?? '',
       notes: notesOf(r),
     }))
-    return { agents: colony.settings?.config.agents ?? [], runs, room, quiet: settings.quiet || reduced }
+    return { agents: colony.settings?.config.agents ?? [], runs, room, quiet: settings.quiet || reduced, thinking }
   })
 
   // The world is redrawn every frame, not reactive state: the template
@@ -173,6 +176,10 @@
     const sy = Math.round(sup.pos.y - person.h)
     draw(ctx, SUPERVISOR, sx, sy, S)
     if (sup.state === 'handing') draw(ctx, NOTE, sx + person.w, sy + 6 * S, S)
+    if (sup.thinking) {
+      ctx.fillStyle = '#b3ad9c'
+      for (let i = 0; i < Math.floor(phase * 2) % 4; i++) ctx.fillRect(sx + person.w / 2 - 2.5 * S + i * 2 * S, sy - 4 * S, S, S)
+    }
   }
 
   function bubble(ctx: CanvasRenderingContext2D, text: string, cx: number, bottom: number) {

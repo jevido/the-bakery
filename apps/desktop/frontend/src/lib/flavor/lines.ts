@@ -105,3 +105,33 @@ export const EMPTY = {
 export function empty(place: keyof typeof EMPTY, key: string | number = place): string {
   return pick(key, EMPTY[place].plain, EMPTY[place].flavored)
 }
+
+// NOTES is what an agent tells the supervisor when it hands in its notes.
+const NOTES: Record<string, { plain: (w: { to: string }) => string; flavored: ((w: { to: string }) => string)[] }> = {
+  succeeded: {
+    plain: (w) => (w.to ? `Done, moved to ${w.to}` : 'Done'),
+    flavored: [
+      (w) => (w.to ? `All done. It's in ${w.to} now.` : 'All done.'),
+      (w) => (w.to ? `Finished. Left it in ${w.to}.` : 'Finished.'),
+      () => 'Job done, boss.',
+    ],
+  },
+  failed: {
+    plain: () => 'Could not finish it',
+    flavored: [() => 'It beat me, this time.', () => "Couldn't crack it.", () => 'No luck. Notes are on the task.'],
+  },
+  stopped: {
+    plain: () => 'Was called off',
+    flavored: [() => 'Called off. Back to the yard.', () => 'Stopped halfway.'],
+  },
+}
+
+// notesLine is an agent's notes on a finished run, keyed by the run so it
+// stays the same; cost is added as it is.
+export function notesLine(runId: string, status: string, movedTo: string, cost: number): string {
+  const entry = NOTES[status]
+  if (!entry) return ''
+  const w = { to: movedTo }
+  const line = pick(runId, entry.plain(w), entry.flavored.map((f) => f(w)))
+  return cost ? `${line} · $${cost.toFixed(2)}` : line
+}

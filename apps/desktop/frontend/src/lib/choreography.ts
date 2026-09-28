@@ -31,6 +31,7 @@ export type Input = {
   runs: RunIn[] // this board's runs on this machine
   room: Room
   quiet: boolean // quiet colony or reduced motion: everyone stands still in place
+  thinking?: boolean // the supervisor is writing an answer in the chat
 }
 
 export type AgentState = 'wander' | 'waiting' | 'to_bench' | 'working' | 'to_supervisor' | 'handing_in'
@@ -58,6 +59,8 @@ export type Supervisor = {
   queue: string[] // agents waiting for their task, in order
   current: string | null // the agent being handed a task
   until: number // handing ends
+  // thinking: standing at the desk over the chat's answer
+  thinking: boolean
 }
 
 export type World = {
@@ -77,7 +80,7 @@ export function newWorld(room: Room): World {
   return {
     started: false,
     figures: {},
-    supervisor: { pos: { ...room.desk }, target: null, state: 'desk', queue: [], current: null, until: 0 },
+    supervisor: { pos: { ...room.desk }, target: null, state: 'desk', queue: [], current: null, until: 0, thinking: false },
     runs: {},
   }
 }
@@ -302,6 +305,9 @@ export function step(world: World, input: Input, dt: number): World {
     }
   })
 
+  // Handing out tasks comes first; the supervisor thinks at the desk when
+  // nobody is waiting.
+  sup.thinking = !quiet && !!input.thinking && sup.state === 'desk' && sup.queue.length === 0
   return { started: true, figures, supervisor: sup, runs }
 }
 
@@ -309,7 +315,7 @@ export function step(world: World, input: Input, dt: number): World {
 // so the drawing loop can sleep when it does not.
 export function moving(world: World, now: number): boolean {
   const s = world.supervisor
-  if (s.state !== 'desk' || s.queue.length) return true
+  if (s.state !== 'desk' || s.queue.length || s.thinking) return true
   return Object.values(world.figures).some(
     (f) => f.state === 'wander' || f.state === 'to_bench' || f.state === 'to_supervisor' || (f.state === 'handing_in' && now < f.bubbleUntil + 100),
   )

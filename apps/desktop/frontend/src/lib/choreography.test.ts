@@ -86,3 +86,26 @@ describe('choreography', () => {
     expect(a).toEqual(b)
   })
 })
+
+describe('the supervisor and the chat', () => {
+  test('it thinks at the desk while the chat waits for an answer', () => {
+    let w = newWorld(room)
+    for (let t = 0; t < 2000; t += 50) w = step(w, { now: t, agents: ['moss'], runs: [], room, quiet: false, thinking: true }, 50)
+    expect(w.supervisor.thinking).toBe(true)
+    expect(w.supervisor.pos).toEqual(room.desk)
+    w = step(w, { now: 2050, agents: ['moss'], runs: [], room, quiet: false, thinking: false }, 50)
+    expect(w.supervisor.thinking).toBe(false)
+  })
+
+  test('a task to hand out comes before thinking', () => {
+    let w = run(newWorld(room), [], 0, 1000)
+    for (let t = 1000; t < 1500; t += 50) w = step(w, { now: t, agents: ['moss', 'pip'], runs: [moss('running')], room, quiet: false, thinking: true }, 50)
+    expect(w.supervisor.state).not.toBe('desk')
+    expect(w.supervisor.thinking).toBe(false)
+  })
+
+  test('quiet colony: no thinking either', () => {
+    const w = step(newWorld(room), { now: 0, agents: [], runs: [], room, quiet: true, thinking: true }, 50)
+    expect(w.supervisor.thinking).toBe(false)
+  })
+})
