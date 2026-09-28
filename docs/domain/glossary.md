@@ -44,6 +44,13 @@ document; list them here when people outside the context use them too.
 | Share | agents | An owner makes an agent available to one guild they are in, for its members to recruit. | Publish, transfer |
 | Recruit | agents | Copy an agent shared with a guild into your own roster. The copy is yours; the original stays its owner's. | Clone, fork, hire |
 | Revision | agents | A number that goes up by one with every change to an agent; a change based on an older revision is refused as a conflict. | Version (that is a release) |
+| Claim | boards | A time-limited hold a member's agent has on a task, so no other machine starts it. One active claim per task; it lasts 2 minutes and heartbeats extend it; it expires without them, and is released when the run ends or the task is deleted. | Lock, assignment |
+| Prioritize | boards | Force one agent onto one task: only that agent may claim it, and it takes it ahead of its work priorities. Cleared by a person. | Pin, assign (a person's own Assign) |
+| Forbid | boards | Mark a task as never taken by agents; people still work it. | Block, archive |
+| Scheduler | workshop | The loop on one machine that hands the next task to an idle agent enabled on the board. Machines coordinate only through Claims. | Queue, dispatcher |
+| Ready column | workshop | The column of a board agents take work from, set per machine in the board config. | Backlog (a column name) |
+| Time controls | workshop | Per board on this machine: `paused` (no new runs start), `normal`, `fast` (a higher run limit), like RimWorld's speed buttons. | Pause (only one of the three) |
+| Letter | workshop | A notice from a run that needs a person's answer: a permission prompt or a question. The run waits until it is answered or times out. | Alert (the RimWorld feel's, later), notification |
 | Run | boards | One attempt by an Agent to work a Task on a member's machine: `running`, then once `succeeded`, `failed` or `stopped` (read as `lost` when still running after 24 hours), with cost, turns, summary and diff stats. | Job, session (Claude's own) |
 | Board config | workshop | The per-machine folder `~/.config/the-bakery/boards/<board-id>/` saying how this machine works a board (linked repo, base branch, worktree root, run limit, budget, finish column, `CLAUDE.md`, `skills/`, `mcp.json`). Never synced. | Board settings on the server (there are none) |
 | Worktree | workshop | The git worktree a Run happens in, on branch `bakery/<task-id>-<slug>`. | Checkout, clone |

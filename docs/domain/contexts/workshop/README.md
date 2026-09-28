@@ -22,6 +22,10 @@ an agent works on next (the scheduler, later).
 | Linked | A board whose board config names a valid git repository on this machine. Only a linked board can run agents here. |
 | Worktree | The git worktree a run happens in, on branch `bakery/<task-id>-<slug>`, under the board config's worktree root. |
 | Run spec | Everything one run needs: the `claude` arguments, the working directory, the prompt, and the files to write (the run's MCP config). Built by a pure function. |
+| Scheduler | The loop that hands the next task in the ready column to an idle agent enabled on the board, by work priority, then position, within the run limit. |
+| Ready column | The column agents take work from, per board in the board config. |
+| Time controls | Per board: `paused`, `normal`, `fast` (a higher run limit). |
+| Letter | A notice from a run that needs a person: a permission prompt or a question. The run waits for the answer. |
 | Runner token | A personal token the desktop app makes for itself (`desktop runner (<host>)`), so Claude can use the Bakery MCP server as the member during a run. |
 
 ## Model
@@ -41,6 +45,11 @@ The workshop keeps no aggregate of its own on the server. On the machine:
 - **Start a run**: prepare the worktree and branch, place the agent's and the
   board's skills in it, build the run spec, register the run with the API,
   start Claude CLI.
+- **Set the speed** of a board (time controls); the scheduler **picks** the
+  next assignments and claims each task before it starts the run, heartbeats
+  the claim while the run goes, and releases it when the run ends.
+- **Answer a letter** (allow, always allow on this board, deny, or answers to
+  a question).
 - **Stop a run**; **list** a run's events; **finish** a run (diff stats,
   summary comment, move to the finish column); **remove** a run's worktree,
   keeping its branch.
@@ -76,6 +85,15 @@ and its result (status, cost, turns, duration).
   must see that a task is being worked and what came of it; boards keeps that
   record. Everything bulky or private (the stream log, the worktree, the MCP
   config holding the runner token) stays on the machine.
+- **The scheduler is local; coordination is only through claims.** Each
+  machine decides what its own agents do next from its own board config;
+  the only thing machines share is the claim on the server. Picking is a
+  pure function (agents, tasks, running, limit → assignments), tested on its
+  own.
+- **Letters go through a loopback MCP server.** A run in `-p` mode has no one
+  to ask, so the desktop passes its own MCP tool as Claude's permission
+  prompt tool; a request becomes a letter and the tool call waits for the
+  answer.
 - **The run spec is a pure function.** Building the command line from its
   inputs without I/O keeps it testable with golden files; only the runner
   executes it.

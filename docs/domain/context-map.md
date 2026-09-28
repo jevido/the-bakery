@@ -40,6 +40,7 @@ adapt to.
 | identity | agents | customer/supplier | The authenticated member id and display names by id, as for boards |
 | guilds | boards | customer/supplier | The `guilds.Memberships` Go interface: `IsMember(ctx, guildID, memberID)` and `IsArchived(ctx, guildID)`. Boards never read the guild tables. |
 | guilds | agents | customer/supplier | `guilds.Memberships.IsMember`, to check sharing, listing a guild's agents and recruiting. Agents never read the guild tables. |
+| agents | boards | customer/supplier | `agents.Owns(ctx, memberID, agentID)`, behind a boards port, so a claim is only ever for an agent of the claiming member. Boards never read agents' tables. |
 | boards | agents | published language | Work type keys (`coding`, `research`, …) as plain strings in an agent's work priorities. Agents never read boards' tables, and a key a guild lacks just counts as off. |
 | boards | workshop | customer/supplier | The REST API: tasks with subtasks and comments, columns, runs (start, finish), comments and moves. Translated into the workshop's `RunSpec`. |
 | agents | workshop | customer/supplier | The member's synced agent folders (`agent.toml`, `skills/`) and `GET /api/agent-traits` for the trait instructions |
@@ -65,6 +66,7 @@ flowchart LR
   guilds -->|Memberships| boards
   guilds -->|Memberships.IsMember| agents
   boards -->|work type keys| agents
+  agents -->|Owns| boards
   boards -->|REST: tasks, runs| workshop
   agents -->|agent folders, traits| workshop
   identity -->|runner token| workshop

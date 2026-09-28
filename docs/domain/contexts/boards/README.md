@@ -24,6 +24,8 @@ responsible for who is in a guild (guilds) or who a person is (identity).
 | Board event | A change on a board, announced on the board's event stream (published language, below). |
 | Presence | Which members have a board open right now; short-lived, never history. |
 | Run | One attempt by an agent to work a task on a member's machine, with its status, cost, summary and diff stats. |
+| Claim | A time-limited hold a member's agent has on a task, so no other machine starts it. |
+| Prioritize / Forbid | Force one agent onto a task / keep all agents off it. |
 
 ## Model
 
@@ -32,7 +34,7 @@ responsible for who is in a guild (guilds) or who a person is (identity).
 | Aggregate | Invariants |
 | --------- | ---------- |
 | Board (root) | Belongs to exactly one guild (by id). Name is 1–60 characters. Owns its columns: at least one, names 1–40 characters and unique on the board (ignoring case), ordered by position. A new board starts with Backlog, To do, Doing, Done. A column is removed only when it holds no tasks. |
-| Task (root) | Belongs to one board (by id). Title is 1–200 characters. A task on the board refers to one of that board's columns by id. Position is unique per column among top-level tasks. |
+| Task (root) | Belongs to one board (by id). Title is 1–200 characters. A task on the board refers to one of that board's columns by id. Position is unique per column among top-level tasks. Holds at most one active **claim**: by an agent of the claiming member (by id), from one machine, until it expires (2 minutes after the last heartbeat) or is released. A forbidden task cannot be claimed; a task prioritized for an agent can be claimed only for that agent. Subtasks are never claimed. |
 | Task as subtask | Its parent is on the same board and has no parent itself. A task with subtasks cannot become a subtask. Position is unique per parent. Expanding adds 1–50 subtasks in one transaction. |
 | Work type (root) | Belongs to one guild (by id). Key matches `^[a-z][a-z0-9-]{0,31}$` and is unique in the guild; name 1–40 characters; ordered by position. Can be deleted only while no task has it. A task's work type, when set, is one of its guild's keys. |
 | Run (root) | Belongs to one task (by id), started by one member (by id) for one agent (by id, with its name as it was then) on one machine, on one branch. Starts `running`; ends exactly once, as `succeeded`, `failed` or `stopped`, and only by the member who started it. Cost is ≥ 0; turns and diff stats are ≥ 0. A run still `running` after 24 hours reads as `lost` (computed, never stored). |
@@ -54,6 +56,9 @@ responsible for who is in a guild (guilds) or who a person is (identity).
   Testing, Design, Review, Ops the first time); **add**, **rename**, **move**
   and **delete** one; give a task a work type or clear it.
 - **List a task's activity**, newest first.
+- **Claim** a task for one of my agents from one machine; **heartbeat** the
+  claim; **release** it. **Prioritize** a task for an agent or clear it;
+  **forbid** a task for agents or allow it again.
 - **Start a run** on a task; **finish** it (status, cost, turns, summary, diff
   stats); **list a task's runs**, newest first.
 
@@ -69,6 +74,9 @@ that does not exist is reported as not found.
 - `TaskCommented` — task id, board id, comment id.
 - `SubtaskAdded` — subtask id, parent task id, board id.
 - `SubtaskCompleted` — subtask id, parent task id, board id.
+- `TaskClaimed` — task id, board id, claim id, agent id, member id.
+- `TaskReleased` — task id, board id, claim id (released, or expired and
+  replaced).
 - `RunStarted` — run id, task id, board id, agent id and name.
 - `RunFinished` — run id, task id, board id, status, cost.
 
@@ -90,6 +98,7 @@ only; a client that is unsure refetches the board.
 | `task.moved` | a task changed column or position |
 | `task.deleted` | a task was deleted |
 | `column.created` · `column.updated` · `column.moved` · `column.deleted` | a column was added, renamed, reordered or removed |
+| `task.claimed` · `task.released` | an agent took a task, or let it go: `task_id`, `claim_id`, and on claim `agent_id`, `member_id`, `expires_at` |
 | `run.started` · `run.finished` | a run on one of the board's tasks started or ended: `run_id`, `task_id`, `agent_name`, and on finish `status` and `cost_usd` |
 | `presence` | someone opened or left the board, or the current list (`snapshot`) on connect: `state` (`snapshot`, `joined`, `left`), `conn_id` (one open stream), `member_id`, `display_name`; a snapshot lists `present` streams. A member with two windows open has two streams and counts once. |
 
@@ -103,13 +112,21 @@ Changing a type or removing a field is a breaking change for the desktop app.
   `ListRuns`)
   with their own types, for the MCP server. Work type **keys** are published
   language: the agents context keys work priorities by them.
-- **Consumes:** identity's authenticated member id and display names by id
+- **Consumes:** agents' `Owns` (does this member own this agent?, for
+  claims); identity's authenticated member id and display names by id
   (`identity.DisplayNames`, behind boards' `MemberNames` port); guilds'
   `Memberships.IsMember` and `Memberships.IsArchived`. A guild and a member
   are only ids here; boards never read the guild or member tables.
 
 ## Why it's shaped this way
 
+- **Claims live on the server, the scheduler on the desktop.** Two desktops
+  (one member's two machines, or two members) can watch the same board, and
+  only the server sees both, so the one-agent-per-task rule is a claim on
+  the Task aggregate there. Choosing what to work on stays on the desktop,
+  because runs use that machine's repositories and its Claude. A claim that
+  is not heartbeated expires, so a crashed app never holds a task for long;
+  the cost is that a claim may outlive its run by up to two minutes.
 - **Runs are stored here, not only on the machine that ran them.** A run
   happens on one member's machine (see the workshop context), but everyone in
   the guild needs to see that a task is being worked and what came of it. So
