@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/pelletier/go-toml/v2"
@@ -23,10 +24,12 @@ type AppSettings struct {
 	Sound bool `toml:"sound" json:"sound"`
 	// Volume is 0 to 1.
 	Volume float64 `toml:"volume" json:"volume"`
+	// SupervisorModel is the model the supervisor chat answers with.
+	SupervisorModel string `toml:"supervisor_model" json:"supervisor_model"`
 }
 
 // DefaultAppSettings: flavor on, sound off.
-func DefaultAppSettings() AppSettings { return AppSettings{Volume: 0.6} }
+func DefaultAppSettings() AppSettings { return AppSettings{Volume: 0.6, SupervisorModel: "sonnet"} }
 
 // SettingsService reads and writes the desktop's settings.
 type SettingsService struct {
@@ -53,6 +56,9 @@ func (s *SettingsService) Get() (AppSettings, error) {
 	if err := toml.Unmarshal(raw, &st); err != nil {
 		return DefaultAppSettings(), fmt.Errorf("%s: %w", s.path, err)
 	}
+	if st.SupervisorModel == "" {
+		st.SupervisorModel = DefaultAppSettings().SupervisorModel
+	}
 	return st, nil
 }
 
@@ -60,6 +66,10 @@ func (s *SettingsService) Get() (AppSettings, error) {
 func (s *SettingsService) Save(st AppSettings) error {
 	if st.Volume < 0 || st.Volume > 1 {
 		return errors.New("volume is between 0 and 1")
+	}
+	st.SupervisorModel = strings.TrimSpace(st.SupervisorModel)
+	if st.SupervisorModel == "" {
+		st.SupervisorModel = DefaultAppSettings().SupervisorModel
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

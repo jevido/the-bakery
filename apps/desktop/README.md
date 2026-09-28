@@ -195,6 +195,14 @@ directory and logs a warning.
   every member's runs of the task; a card shows **Working** while a run is
   going (`lib/workshop.svelte.ts`, from `workshop:runs` and the board's
   `run.started` / `run.finished` events).
+- `supervisor.go` and `internal/workshop/supervisor.go` — the supervisor:
+  `SupervisorService.Send` asks Claude (`claude -p --output-format json
+  --json-schema … --tools "" --system-prompt …`, `--session-id` then
+  `--resume`, in the board config folder, never a repository) with a fresh
+  snapshot of the board and the agents enabled on it, and keeps the chat in
+  `supervisor.jsonl` beside `board.toml`. `ParseSupervisorOutput` keeps only
+  proposals that fit the snapshot. The model is a desktop setting
+  (`supervisor_model`, default `sonnet`).
 - `frontend/src/components/WorkCanvas.svelte` and `lib/choreography.ts` —
   Work mode's canvas: a bench per work type, the supervisor at a desk, and
   the board's enabled agents dilly-dallying until the supervisor walks up

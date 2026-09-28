@@ -5,7 +5,7 @@
 
 import { SettingsService } from './bindings'
 
-export const settings = $state({ quiet: false, sound: false, volume: 0.6, loaded: false })
+export const settings = $state({ quiet: false, sound: false, volume: 0.6, supervisorModel: 'sonnet', loaded: false })
 
 export async function loadSettings() {
   try {
@@ -13,6 +13,7 @@ export async function loadSettings() {
     settings.quiet = s.quiet_colony
     settings.sound = s.sound
     settings.volume = s.volume
+    settings.supervisorModel = s.supervisor_model
   } catch {
     // Unreadable settings: the defaults stand.
   }
@@ -20,5 +21,10 @@ export async function loadSettings() {
 }
 
 export async function saveSettings() {
-  await SettingsService.Save({ quiet_colony: settings.quiet, sound: settings.sound, volume: settings.volume })
+  await SettingsService.Save({
+    quiet_colony: settings.quiet,
+    sound: settings.sound,
+    volume: settings.volume,
+    supervisor_model: settings.supervisorModel,
+  })
 }

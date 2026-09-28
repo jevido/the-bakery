@@ -72,6 +72,21 @@
     </label>
     <Button disabled={!settings.sound || settings.quiet} onclick={() => play('run-finished')}>Play a cue</Button>
   </section>
+  <section>
+    <label class="volume">
+      <strong>Supervisor model</strong>
+      <select bind:value={settings.supervisorModel} onchange={save} aria-label="Supervisor model">
+        <option value="sonnet">sonnet</option>
+        <option value="opus">opus</option>
+        <option value="haiku">haiku</option>
+        {#if !['sonnet', 'opus', 'haiku'].includes(settings.supervisorModel)}<option value={settings.supervisorModel}>{settings.supervisorModel}</option>{/if}
+      </select>
+    </label>
+    <p class="help">
+      The model the supervisor in Work mode answers with. Every message to the supervisor is one short Claude call on
+      a snapshot of the board, and costs what that model costs; the canvas costs nothing.
+    </p>
+  </section>
   {#if saved}<p class="dim" role="status">Saved on this machine.</p>{/if}
 </Panel>
 
@@ -102,6 +117,16 @@
     gap: 8px;
     align-items: center;
     font-size: 12px;
+  }
+
+  select {
+    font: inherit;
+    font-size: 12px;
+    color: var(--text);
+    padding: 2px 6px;
+    background: var(--panel-raised);
+    border: 1px solid var(--frame-dim);
+    border-radius: var(--radius);
   }
 
   .dim {

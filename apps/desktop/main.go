@@ -42,6 +42,7 @@ func main() {
 	live := NewLiveService(client, sess, logger)
 	agentsSvc := NewAgentsService(client, sess, logger)
 	workshopSvc := NewWorkshopService(client, sess, agentsSvc.engine, logger)
+	settingsSvc := NewSettingsService()
 	notifier := notifications.New()
 	website := &WebsiteService{client: client, session: sess, logger: logger, baseURL: cmp.Or(os.Getenv("BAKERY_WEB_URL"), defaultWebURL)}
 
@@ -59,7 +60,8 @@ func main() {
 			application.NewService(notifier),
 			application.NewService(updates),
 			application.NewService(website),
-			application.NewService(NewSettingsService()),
+			application.NewService(settingsSvc),
+			application.NewService(NewSupervisorService(workshopSvc, settingsSvc)),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),

@@ -1,0 +1,110 @@
+-p
+--output-format
+json
+--json-schema
+{"type":"object","properties":{"reply":{"type":"string"},"proposals":{"type":"array","maxItems":10,"items":{"type":"object","properties":{"kind":{"type":"string","enum":["assign","split","reorder"]},"task_id":{"type":"integer"},"agent":{"type":"string"},"subtasks":{"type":"array","maxItems":12,"items":{"type":"object","properties":{"title":{"type":"string","maxLength":200},"description":{"type":"string"},"work_type":{"type":"string"}},"required":["title"]}},"task_ids":{"type":"array","items":{"type":"integer"}},"why":{"type":"string"}},"required":["kind"]}}},"required":["reply","proposals"]}
+--model
+sonnet
+--tools
+
+--system-prompt
+You are the supervisor of one board in The Bakery, a workbench where a
+guild plans work as tasks on boards and Claude agents work those tasks. You
+talk with the member in charge of this board.
+
+You never work a task yourself and you have no tools. You coordinate: you
+suggest which agent takes which task, which tasks are too big and should be
+split into subtasks, and in what order the ready column should be worked.
+Nothing you suggest happens until the member approves it.
+
+Each message comes with a snapshot of the board: its columns and tasks, and
+the agents enabled on it with their work priorities (1 = wants that kind of
+work first, 4 = last; a work type that is missing is off for that agent).
+
+Rules for proposals:
+- assign: a task in the ready column to one agent. Never a forbidden task,
+  never a task claimed by someone, never an agent that is busy, and never an
+  agent that has the task's work type off. Prefer the agent with the lowest
+  number for the task's work type.
+- split: a task (not a subtask) into 2 to 12 subtasks in the order to do
+  them, each with a title, what done means, and a work type key from the
+  snapshot. Only when the task is clearly bigger than one agent can finish in
+  one go.
+- reorder: the ids of every task in the ready column, in the order they
+  should be worked (what others depend on first).
+Only name task ids and agents from the snapshot. Propose nothing when nothing
+is needed. Keep the reply short and plain; say why for each proposal in its
+"why".
+--setting-sources
+
+--strict-mcp-config
+--resume
+0f6c1a2e-6d3b-4c8a-9a51-1f0d2b3c4e5f
+--- dir: /boards/1
+--- stdin:
+The board right now:
+
+```json
+{
+  "board": "Getting settled",
+  "ready_column": "To do",
+  "work_types": [
+    "coding",
+    "research"
+  ],
+  "columns": [
+    {
+      "name": "Backlog",
+      "tasks": [
+        {
+          "id": 1,
+          "title": "Build the landing page",
+          "work_type": "coding"
+        }
+      ]
+    },
+    {
+      "name": "To do",
+      "tasks": [
+        {
+          "id": 2,
+          "title": "Chart the river",
+          "work_type": "coding"
+        },
+        {
+          "id": 3,
+          "title": "Count the moons",
+          "work_type": "research"
+        },
+        {
+          "id": 4,
+          "title": "Hold the gate",
+          "work_type": "coding",
+          "forbidden": true
+        }
+      ]
+    }
+  ],
+  "agents": [
+    {
+      "slug": "moss",
+      "name": "Moss",
+      "work_priorities": {
+        "coding": 1
+      },
+      "busy": false
+    },
+    {
+      "slug": "pip",
+      "name": "Pip",
+      "work_priorities": {
+        "coding": 2,
+        "research": 1
+      },
+      "busy": true
+    }
+  ]
+}
+```
+
+What's next?

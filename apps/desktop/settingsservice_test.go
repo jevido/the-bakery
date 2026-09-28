@@ -11,7 +11,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 	if err != nil || got != DefaultAppSettings() || got.Sound || got.QuietColony {
 		t.Fatalf("fresh settings = %+v, %v; want sound off and flavor on", got, err)
 	}
-	want := AppSettings{QuietColony: true, Sound: true, Volume: 0.3}
+	want := AppSettings{QuietColony: true, Sound: true, Volume: 0.3, SupervisorModel: "haiku"}
 	if err := s.Save(want); err != nil {
 		t.Fatal(err)
 	}
