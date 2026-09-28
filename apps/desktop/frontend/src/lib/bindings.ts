@@ -31,6 +31,6 @@ export function isSignedOut(err: unknown): boolean {
 }
 
 export type { AgentDetail, AgentSummary, SkillEntry, TraitList, BoardSettings, ConfigProblem, RunInfo } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/models'
-export type { BoardConfig, RunEvent, Letter, Question } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/internal/workshop/models'
+export type { BoardConfig, RunEvent, Letter, Question, Proposal } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/internal/workshop/models'
 export type { Manifest } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/internal/agents/models'
 export type { Agent, Trait } from '../../bindings/github.com/jevido/the-bakery/apps/desktop/internal/api/models'

@@ -159,3 +159,23 @@ func (s *RunsTestSuite) TestRunEventsOnTheStream() {
 		}
 	}
 }
+
+func (s *RunsTestSuite) TestPlanRunsAndDetailedExpand() {
+	ada, _, _, _, taskID := s.boardWithTask()
+	res := s.post(ada, fmt.Sprintf("/api/tasks/%d/runs", taskID), `{"agent_id":9,"agent_name":"Vera","kind":"plan"}`)
+	res.AssertCreated()
+	s.Equal("plan", runOf(s.jsonOf(res))["kind"])
+	s.post(ada, fmt.Sprintf("/api/tasks/%d/runs", taskID), `{"agent_id":9,"agent_name":"Vera","kind":"dream"}`).AssertUnprocessableEntity()
+
+	s.post(ada, fmt.Sprintf("/api/tasks/%d/expand", taskID), `{"subtasks":[{"title":"Haul steel","work_type":"nonsense"}]}`).AssertUnprocessableEntity()
+	res = s.post(ada, fmt.Sprintf("/api/tasks/%d/expand", taskID),
+		`{"subtasks":[{"title":"Haul steel","description":"From the stockpile.","work_type":"ops"},{"title":"Place the bench","work_type":"coding"}]}`)
+	res.AssertCreated()
+	subs := s.jsonOf(res)["subtasks"].([]any)
+	s.Len(subs, 2)
+	first := subs[0].(map[string]any)
+	s.Equal("Haul steel", first["title"])
+	s.Equal("From the stockpile.", first["description"])
+	s.Equal("ops", first["work_type"])
+	s.Equal("coding", subs[1].(map[string]any)["work_type"])
+}

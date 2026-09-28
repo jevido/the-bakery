@@ -13,6 +13,7 @@ type runRecord struct {
 	MemberID     uint64
 	AgentID      uint64
 	AgentName    string
+	Kind         string
 	Machine      string
 	Branch       string
 	Status       string
@@ -30,7 +31,7 @@ func (runRecord) TableName() string { return "task_runs" }
 
 func runRecordOf(r domain.Run) runRecord {
 	return runRecord{
-		ID: r.ID, TaskID: r.TaskID, MemberID: r.MemberID, AgentID: r.AgentID, AgentName: r.AgentName,
+		ID: r.ID, TaskID: r.TaskID, MemberID: r.MemberID, AgentID: r.AgentID, AgentName: r.AgentName, Kind: r.Kind,
 		Machine: r.Machine, Branch: r.Branch, Status: string(r.Status), StartedAt: r.StartedAt, EndedAt: r.EndedAt,
 		CostUSD: r.CostUSD, Turns: r.Turns, Summary: r.Summary,
 		FilesChanged: r.FilesChanged, Additions: r.Additions, Deletions: r.Deletions,
@@ -39,7 +40,7 @@ func runRecordOf(r domain.Run) runRecord {
 
 func (r runRecord) toDomain() domain.Run {
 	return domain.Run{
-		ID: r.ID, TaskID: r.TaskID, MemberID: r.MemberID, AgentID: r.AgentID, AgentName: r.AgentName,
+		ID: r.ID, TaskID: r.TaskID, MemberID: r.MemberID, AgentID: r.AgentID, AgentName: r.AgentName, Kind: r.Kind,
 		Machine: r.Machine, Branch: r.Branch, Status: domain.RunStatus(r.Status), StartedAt: r.StartedAt, EndedAt: r.EndedAt,
 		RunStats: domain.RunStats{
 			CostUSD: r.CostUSD, Turns: r.Turns, Summary: r.Summary,

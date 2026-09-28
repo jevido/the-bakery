@@ -302,7 +302,7 @@ func GetTask(ctx context.Context, taskID, memberID uint64) (Task, []Task, error)
 
 // ExpandTask adds 1 to 50 subtasks at the end of a task's subtasks.
 func ExpandTask(ctx context.Context, taskID, memberID uint64, titles []string) ([]Task, error) {
-	added, err := service.ExpandTask(ctx, taskID, memberID, titles)
+	added, err := service.ExpandTask(ctx, taskID, memberID, domain.Drafts(titles))
 	return tasksOf(added), err
 }
 

@@ -31,7 +31,7 @@ func TestExpand(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Expand(tt.parent, tt.titles, "")
+			got, err := Expand(tt.parent, Drafts(tt.titles), "")
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("Expand() error = %v, want %v", err, tt.wantErr)
 			}
@@ -54,7 +54,7 @@ func TestExpand(t *testing.T) {
 }
 
 func TestExpandGoesBelowExistingSubtasks(t *testing.T) {
-	got, err := Expand(Task{ID: 1, BoardID: 1}, []string{"Dig"}, "a5")
+	got, err := Expand(Task{ID: 1, BoardID: 1}, Drafts([]string{"Dig"}), "a5")
 	if err != nil {
 		t.Fatal(err)
 	}

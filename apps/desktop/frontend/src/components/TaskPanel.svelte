@@ -6,6 +6,8 @@
   import type { RunInfo, WorkType } from '../lib/bindings'
   import type { Workshop } from '../lib/workshop.svelte'
   import AgentPicker from './AgentPicker.svelte'
+  import PlanReview from './PlanReview.svelte'
+  import type { Proposal } from '../lib/bindings'
 
   // me is the signed-in member's id: only their own comments can be changed.
   // column is the name of the task's column, for the title bar.
@@ -17,6 +19,7 @@
     workshop,
     linked,
     onassign,
+    onplan,
     onopenrun,
     onclose,
   }: {
@@ -28,6 +31,8 @@
     // linked says whether this machine can run agents on the board.
     linked: boolean
     onassign: (agentSlug: string) => Promise<string>
+    // onplan has an agent propose subtasks; nothing is saved until accepted.
+    onplan: (agentSlug: string) => Promise<{ proposal?: Proposal; agentName?: string; error?: string }>
     onopenrun: (run: RunInfo) => void
     onclose: () => void
   } = $props()
@@ -38,15 +43,28 @@
     { id: 'runs', label: 'Runs' },
   ]
 
-  let picking = $state(false)
+  // The agent picker, for Assign or for Plan it.
+  let picking = $state<'assign' | 'plan' | null>(null)
   let assigning = $state(false)
   let assignError = $state('')
+  let planning = $state('')
+  let proposal = $state<{ plan: Proposal; agentName: string } | null>(null)
 
-  async function assign(slug: string) {
+  async function pick(slug: string) {
+    if (picking === 'plan') {
+      const name = slug
+      picking = null
+      planning = name
+      const res = await onplan(slug)
+      planning = ''
+      if (res.error || !res.proposal) assignError = res.error ?? 'No plan came back.'
+      else proposal = { plan: res.proposal, agentName: res.agentName ?? name }
+      return
+    }
     assigning = true
     assignError = await onassign(slug)
     assigning = false
-    if (!assignError) picking = false
+    if (!assignError) picking = null
   }
 
   const RUN_STATUS: Record<string, string> = {
@@ -270,10 +288,19 @@
               title={linked ? 'Put one of your agents to work on this task' : 'Link this board to a repository in Board settings first'}
               onclick={() => {
                 assignError = ''
-                picking = !picking
+                picking = picking === 'assign' ? null : 'assign'
               }}>Assign</Button
             >
           {/if}
+          <Button
+            disabled={!linked || !!planning}
+            title={linked ? 'Have an agent read the repository and propose subtasks; nothing is saved until you accept' : 'Link this board to a repository in Board settings first'}
+            onclick={() => {
+              assignError = ''
+              proposal = null
+              picking = picking === 'plan' ? null : 'plan'
+            }}>{planning ? 'Planning…' : 'Plan it'}</Button
+          >
         </div>
         {#if picking}
           <AgentPicker
@@ -281,8 +308,26 @@
             workTypeName={workTypes.find((w) => w.key === task.work_type)?.name ?? ''}
             busy={assigning}
             error={assignError}
-            onpick={assign}
-            oncancel={() => (picking = false)}
+            onpick={pick}
+            oncancel={() => (picking = null)}
+          />
+        {:else if assignError}
+          <p class="error" role="alert">{assignError}</p>
+        {/if}
+        {#if planning}<p class="dim">An agent is reading the repository to plan this…</p>{/if}
+        {#if proposal}
+          <PlanReview
+            taskId={task.id}
+            agentName={proposal.agentName}
+            plan={proposal.plan.plan}
+            proposed={proposal.plan.subtasks ?? []}
+            cost={proposal.plan.cost_usd}
+            {workTypes}
+            onaccepted={() => {
+              proposal = null
+              open.reload()
+            }}
+            ondiscard={() => (proposal = null)}
           />
         {/if}
         <label class="work-type">

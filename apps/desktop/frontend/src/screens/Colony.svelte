@@ -11,7 +11,7 @@
   import { Letters as LetterBox } from '../lib/letters.svelte'
   import { AgentSync } from '../lib/agentsync.svelte'
   import { Colony } from '../lib/colony.svelte'
-  import { WebsiteService, messageOf, type Member } from '../lib/bindings'
+  import { WebsiteService, WorkshopService, messageOf, type Member } from '../lib/bindings'
 
   let {
     member,
@@ -64,6 +64,17 @@
     if (error || !run) return error ?? 'The run did not start.'
     colony.openRun(run.id)
     return ''
+  }
+
+  // Has an agent propose subtasks for the open task.
+  async function plan(agentSlug: string) {
+    if (colony.boardId === null || colony.openTaskId === null) return { error: 'Open a task first.' }
+    try {
+      const proposal = await WorkshopService.PlanTask(colony.boardId, colony.openTaskId, agentSlug)
+      return { proposal, agentName: colony.agents.find((a) => a.slug === agentSlug)?.name }
+    } catch (err) {
+      return { error: messageOf(err) }
+    }
   }
 
   async function addBoard(event: SubmitEvent) {
@@ -178,6 +189,7 @@
             workshop={colony.workshop}
             linked={!!colony.settings?.linked}
             onassign={assign}
+            onplan={plan}
             onopenrun={(r) => colony.openRun(r.id)}
             onclose={() => colony.closeTask()}
           />

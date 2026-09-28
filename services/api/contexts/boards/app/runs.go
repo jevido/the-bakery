@@ -30,7 +30,7 @@ type RunView struct {
 
 // StartRun records that the member put an agent on a task. The agent is
 // the agents context's; boards keeps its id and its name as it is now.
-func (s *Service) StartRun(ctx context.Context, taskID, memberID, agentID uint64, agentName, machine, branch string) (RunView, error) {
+func (s *Service) StartRun(ctx context.Context, taskID, memberID, agentID uint64, agentName, kind, machine, branch string) (RunView, error) {
 	t, err := s.task(ctx, taskID, memberID)
 	if err != nil {
 		return RunView{}, err
@@ -38,7 +38,7 @@ func (s *Service) StartRun(ctx context.Context, taskID, memberID, agentID uint64
 	if t.ParentID != nil {
 		return RunView{}, ErrRunOnSubtask
 	}
-	r, err := domain.StartRun(t.ID, memberID, agentID, agentName, machine, branch, s.now())
+	r, err := domain.StartRun(t.ID, memberID, agentID, agentName, kind, machine, branch, s.now())
 	if err != nil {
 		return RunView{}, err
 	}

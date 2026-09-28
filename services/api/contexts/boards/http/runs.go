@@ -16,6 +16,7 @@ type runJSON struct {
 	MemberName   string     `json:"member_name"`
 	AgentID      uint64     `json:"agent_id"`
 	AgentName    string     `json:"agent_name"`
+	Kind         string     `json:"kind"`
 	Machine      string     `json:"machine"`
 	Branch       string     `json:"branch"`
 	Status       string     `json:"status"`
@@ -32,7 +33,7 @@ type runJSON struct {
 func runToJSON(r app.RunView) runJSON {
 	return runJSON{
 		ID: r.ID, TaskID: r.TaskID, MemberID: r.MemberID, MemberName: r.MemberName,
-		AgentID: r.AgentID, AgentName: r.AgentName, Machine: r.Machine, Branch: r.Branch,
+		AgentID: r.AgentID, AgentName: r.AgentName, Kind: r.Kind, Machine: r.Machine, Branch: r.Branch,
 		Status: string(r.Status), StartedAt: r.StartedAt, EndedAt: r.EndedAt,
 		CostUSD: r.CostUSD, Turns: r.Turns, Summary: r.Summary,
 		FilesChanged: r.FilesChanged, Additions: r.Additions, Deletions: r.Deletions,
@@ -59,6 +60,7 @@ func (c *Controller) ListRuns(ctx contractshttp.Context) contractshttp.Response 
 type startRunRequest struct {
 	AgentID   uint64 `json:"agent_id"`
 	AgentName string `json:"agent_name"`
+	Kind      string `json:"kind"`
 	Machine   string `json:"machine"`
 	Branch    string `json:"branch"`
 }
@@ -72,7 +74,7 @@ func (c *Controller) StartRun(ctx contractshttp.Context) contractshttp.Response 
 	if err := ctx.Request().Bind(&req); err != nil {
 		return badRequest(ctx)
 	}
-	r, err := c.service.StartRun(ctx.Context(), taskID, c.me(ctx), req.AgentID, req.AgentName, req.Machine, req.Branch)
+	r, err := c.service.StartRun(ctx.Context(), taskID, c.me(ctx), req.AgentID, req.AgentName, req.Kind, req.Machine, req.Branch)
 	if err != nil {
 		return failure(ctx, err)
 	}

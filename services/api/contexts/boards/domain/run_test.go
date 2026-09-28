@@ -11,7 +11,7 @@ var t0 = time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
 
 func startedRun(t *testing.T) Run {
 	t.Helper()
-	r, err := StartRun(1, 7, 3, "Vera", "ada-laptop", "bakery/1-bench", t0)
+	r, err := StartRun(1, 7, 3, "Vera", "", "ada-laptop", "bakery/1-bench", t0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -20,7 +20,7 @@ func startedRun(t *testing.T) Run {
 
 func TestStartRun(t *testing.T) {
 	r := startedRun(t)
-	if r.Status != RunRunning || r.EndedAt != nil || r.AgentName != "Vera" {
+	if r.Status != RunRunning || r.EndedAt != nil || r.AgentName != "Vera" || r.Kind != RunWork {
 		t.Fatalf("run = %+v", r)
 	}
 	tests := []struct {
@@ -33,9 +33,12 @@ func TestStartRun(t *testing.T) {
 		{"no agent name", 3, "  ", "", ErrInvalidRunAgent},
 		{"long machine", 3, "Vera", strings.Repeat("x", 201), ErrInvalidRunDetails},
 	}
+	if _, err := StartRun(1, 7, 3, "Vera", "dream", "", "", t0); !errors.Is(err, ErrInvalidRunKind) {
+		t.Errorf("made-up kind: %v", err)
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, err := StartRun(1, 7, tt.agentID, tt.agentName, tt.host, "", t0); !errors.Is(err, tt.want) {
+			if _, err := StartRun(1, 7, tt.agentID, tt.agentName, "", tt.host, "", t0); !errors.Is(err, tt.want) {
 				t.Fatalf("err = %v, want %v", err, tt.want)
 			}
 		})

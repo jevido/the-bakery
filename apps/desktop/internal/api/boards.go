@@ -332,6 +332,7 @@ type Run struct {
 	MemberName   string     `json:"member_name"`
 	AgentID      uint64     `json:"agent_id"`
 	AgentName    string     `json:"agent_name"`
+	Kind         string     `json:"kind"`
 	Machine      string     `json:"machine"`
 	Branch       string     `json:"branch"`
 	Status       string     `json:"status"`
@@ -366,11 +367,11 @@ func (c *Client) ListRuns(ctx context.Context, token string, taskID uint64) ([]R
 }
 
 // StartRun records that an agent started on a task.
-func (c *Client) StartRun(ctx context.Context, token string, taskID, agentID uint64, agentName, machine, branch string) (Run, error) {
+func (c *Client) StartRun(ctx context.Context, token string, taskID, agentID uint64, agentName, kind, machine, branch string) (Run, error) {
 	var res struct {
 		Run Run `json:"run"`
 	}
-	in := map[string]any{"agent_id": agentID, "agent_name": agentName, "machine": machine, "branch": branch}
+	in := map[string]any{"agent_id": agentID, "agent_name": agentName, "kind": kind, "machine": machine, "branch": branch}
 	err := c.do(ctx, http.MethodPost, fmt.Sprintf("/api/tasks/%d/runs", taskID), token, in, &res)
 	return res.Run, err
 }
@@ -423,4 +424,20 @@ func (c *Client) DraftTask(ctx context.Context, token string, taskID uint64, pri
 	}
 	err := c.do(ctx, http.MethodPatch, fmt.Sprintf("/api/tasks/%d", taskID), token, in, &res)
 	return res.Task, err
+}
+
+// SubtaskDraft is one subtask to add with ExpandTask.
+type SubtaskDraft struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	WorkType    string `json:"work_type"`
+}
+
+// ExpandTask adds subtasks at the end of a task's subtasks, all or none.
+func (c *Client) ExpandTask(ctx context.Context, token string, taskID uint64, subtasks []SubtaskDraft) ([]Task, error) {
+	var res struct {
+		Subtasks []Task `json:"subtasks"`
+	}
+	err := c.do(ctx, http.MethodPost, fmt.Sprintf("/api/tasks/%d/expand", taskID), token, map[string]any{"subtasks": subtasks}, &res)
+	return res.Subtasks, err
 }

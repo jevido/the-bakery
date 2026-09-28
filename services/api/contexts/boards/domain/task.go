@@ -139,19 +139,36 @@ func NewTask(boardID, columnID uint64, title, description, last string) (Task, T
 	return t, TaskCreated{BoardID: boardID, ColumnID: columnID, Position: pos}, nil
 }
 
-// Expand makes subtasks of parent from titles, in order, below the parent's
+// SubtaskDraft is one subtask to add: a title, and optionally a
+// description and a work type (a key of the guild's; the use case checks).
+type SubtaskDraft struct {
+	Title       string
+	Description string
+	WorkType    string
+}
+
+// Drafts makes plain drafts from titles.
+func Drafts(titles []string) []SubtaskDraft {
+	out := make([]SubtaskDraft, len(titles))
+	for i, t := range titles {
+		out[i] = SubtaskDraft{Title: t}
+	}
+	return out
+}
+
+// Expand makes subtasks of parent from drafts, in order, below the parent's
 // current last subtask (at position last, "" when it has none). Subtasks
 // are one level deep, so a subtask cannot be expanded.
-func Expand(parent Task, titles []string, last string) ([]Task, error) {
+func Expand(parent Task, drafts []SubtaskDraft, last string) ([]Task, error) {
 	if parent.IsSubtask() {
 		return nil, ErrNestedSubtask
 	}
-	if len(titles) < 1 || len(titles) > expandMax {
+	if len(drafts) < 1 || len(drafts) > expandMax {
 		return nil, ErrTooManySubtasks
 	}
-	subtasks := make([]Task, len(titles))
-	for i, title := range titles {
-		title, err := cleanTitle(title)
+	subtasks := make([]Task, len(drafts))
+	for i, d := range drafts {
+		title, err := cleanTitle(d.Title)
 		if err != nil {
 			return nil, err
 		}
@@ -160,7 +177,8 @@ func Expand(parent Task, titles []string, last string) ([]Task, error) {
 			return nil, err
 		}
 		parentID := parent.ID
-		subtasks[i] = Task{BoardID: parent.BoardID, ParentID: &parentID, Title: title, Position: pos}
+		subtasks[i] = Task{BoardID: parent.BoardID, ParentID: &parentID, Title: title, Position: pos,
+			Description: strings.TrimSpace(d.Description), WorkType: d.WorkType}
 		last = pos
 	}
 	return subtasks, nil

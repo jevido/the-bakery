@@ -251,7 +251,7 @@ func (s *Service) GetTask(ctx context.Context, taskID, memberID uint64) (domain.
 
 // AddSubtask adds one subtask at the end of the task's subtasks.
 func (s *Service) AddSubtask(ctx context.Context, taskID, memberID uint64, title string) (domain.Task, error) {
-	added, err := s.ExpandTask(ctx, taskID, memberID, []string{title})
+	added, err := s.ExpandTask(ctx, taskID, memberID, domain.Drafts([]string{title}))
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -260,10 +260,22 @@ func (s *Service) AddSubtask(ctx context.Context, taskID, memberID uint64, title
 
 // ExpandTask adds 1 to 50 subtasks at the end of the task's subtasks, in one
 // transaction.
-func (s *Service) ExpandTask(ctx context.Context, taskID, memberID uint64, titles []string) ([]domain.Task, error) {
+func (s *Service) ExpandTask(ctx context.Context, taskID, memberID uint64, drafts []domain.SubtaskDraft) ([]domain.Task, error) {
 	parent, err := s.task(ctx, taskID, memberID)
 	if err != nil {
 		return nil, err
+	}
+	for _, d := range drafts {
+		if d.WorkType == "" {
+			continue
+		}
+		b, _, err := s.boards.ByID(ctx, parent.BoardID)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.checkWorkType(ctx, b.GuildID, d.WorkType); err != nil {
+			return nil, err
+		}
 	}
 	for range positionAttempts {
 		siblings, err := s.tasks.SubtasksOf(ctx, parent.ID)
@@ -274,7 +286,7 @@ func (s *Service) ExpandTask(ctx context.Context, taskID, memberID uint64, title
 		if len(siblings) > 0 {
 			last = siblings[len(siblings)-1].Position
 		}
-		subtasks, err := domain.Expand(parent, titles, last)
+		subtasks, err := domain.Expand(parent, drafts, last)
 		if err != nil {
 			return nil, err
 		}

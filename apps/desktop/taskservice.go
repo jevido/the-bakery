@@ -87,3 +87,10 @@ func (s *TaskService) ListRuns(ctx context.Context, taskID uint64) ([]api.Run, e
 		return s.client.ListRuns(ctx, t, taskID)
 	})
 }
+
+// ExpandTask adds the subtasks of an accepted plan, in order, all or none.
+func (s *TaskService) ExpandTask(ctx context.Context, taskID uint64, subtasks []api.SubtaskDraft) ([]api.Task, error) {
+	return call(s.session, func(t string) ([]api.Task, error) {
+		return s.client.ExpandTask(ctx, t, taskID, subtasks)
+	})
+}

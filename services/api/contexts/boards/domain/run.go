@@ -35,6 +35,14 @@ var (
 	ErrInvalidRunStats   = errors.New("cost, turns and diff stats cannot be negative")
 	ErrInvalidRunAgent   = errors.New("a run needs its agent's id and a name of 1 to 200 characters")
 	ErrInvalidRunDetails = errors.New("machine and branch must be at most 200 characters")
+	ErrInvalidRunKind    = errors.New("a run is work or plan")
+)
+
+// Run kinds: work on the task, or plan it (propose subtasks, change
+// nothing).
+const (
+	RunWork = "work"
+	RunPlan = "plan"
 )
 
 // Run is one attempt by an agent to work a task on a member's machine. It
@@ -46,6 +54,8 @@ type Run struct {
 	MemberID  uint64
 	AgentID   uint64
 	AgentName string
+	// Kind is RunWork or RunPlan.
+	Kind      string
 	Machine   string
 	Branch    string
 	Status    RunStatus
@@ -86,7 +96,13 @@ type RunFinished struct {
 }
 
 // StartRun makes a running run of the agent on the task by memberID.
-func StartRun(taskID, memberID, agentID uint64, agentName, machine, branch string, now time.Time) (Run, error) {
+func StartRun(taskID, memberID, agentID uint64, agentName, kind, machine, branch string, now time.Time) (Run, error) {
+	if kind == "" {
+		kind = RunWork
+	}
+	if kind != RunWork && kind != RunPlan {
+		return Run{}, ErrInvalidRunKind
+	}
 	agentName = strings.TrimSpace(agentName)
 	if agentID == 0 || agentName == "" || utf8.RuneCountInString(agentName) > runTextMax {
 		return Run{}, ErrInvalidRunAgent
@@ -96,7 +112,7 @@ func StartRun(taskID, memberID, agentID uint64, agentName, machine, branch strin
 		return Run{}, ErrInvalidRunDetails
 	}
 	return Run{
-		TaskID: taskID, MemberID: memberID, AgentID: agentID, AgentName: agentName,
+		TaskID: taskID, MemberID: memberID, AgentID: agentID, AgentName: agentName, Kind: kind,
 		Machine: machine, Branch: branch, Status: RunRunning, StartedAt: now,
 	}, nil
 }

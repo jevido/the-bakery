@@ -316,6 +316,8 @@ type RunInfo struct {
 	Status string `json:"status"`
 	// Waiting counts the run's letters waiting for an answer.
 	Waiting int `json:"waiting"`
+	// Kind is "work", or "plan" for Plan it.
+	Kind string `json:"kind"`
 	// State is what the agent is doing, for the colony view: thinking,
 	// editing, running (a command), waiting (for an answer), done, failed.
 	State      string  `json:"state"`
@@ -419,7 +421,7 @@ func (s *WorkshopService) StartRun(ctx context.Context, boardID, taskID uint64, 
 		return RunInfo{}, err
 	}
 	host, _ := os.Hostname()
-	apiRun, err := s.client.StartRun(ctx, s.session.Token(), taskID, folder.Sync.AgentID, prep.Agent.Name, host, prep.Worktree.Branch)
+	apiRun, err := s.client.StartRun(ctx, s.session.Token(), taskID, folder.Sync.AgentID, prep.Agent.Name, "work", host, prep.Worktree.Branch)
 	if err != nil {
 		release()
 		return RunInfo{}, fmt.Errorf("recording the run: %w", err)
@@ -428,7 +430,7 @@ func (s *WorkshopService) StartRun(ctx context.Context, boardID, taskID uint64, 
 		info: RunInfo{
 			ID: prep.ID, APIRunID: apiRun.ID, BoardID: boardID, TaskID: taskID, TaskTitle: prep.Task.Title,
 			AgentSlug: agentSlug, AgentName: prep.Agent.Name, Branch: prep.Worktree.Branch, Worktree: prep.Worktree.Path,
-			Model: prep.Agent.Model, PermissionMode: prep.Agent.PermissionMode, StartedAt: time.Now(), Status: "running", State: "thinking",
+			Model: prep.Agent.Model, PermissionMode: prep.Agent.PermissionMode, StartedAt: time.Now(), Status: "running", State: "thinking", Kind: "work",
 		},
 		skills: prep.Skills,
 		repo:   prep.Config.Repo, base: prep.Worktree.Base, finishColumn: prep.Config.FinishColumn, dir: prep.Dir,
@@ -774,6 +776,10 @@ func (s *WorkshopService) RemoveWorktree(ctx context.Context, id string) error {
 		return errors.New("no such run on this machine")
 	}
 	info := run.snapshot()
+	if info.Kind == "plan" {
+		// A plan works in the repository itself, not a worktree of its own.
+		return errors.New("a plan has no worktree to remove")
+	}
 	s.runsMu.Lock()
 	for _, r := range s.runs {
 		if o := r.snapshot(); o.Status == "running" && o.Worktree == info.Worktree {

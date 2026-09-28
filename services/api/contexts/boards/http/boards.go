@@ -289,8 +289,15 @@ func (c *Controller) AddSubtask(ctx contractshttp.Context) contractshttp.Respons
 	return ctx.Response().Json(contractshttp.StatusCreated, contractshttp.Json{"subtask": taskToJSON(t)})
 }
 
+// expandTaskRequest takes either titles, or subtasks with a description and
+// a work type each.
 type expandTaskRequest struct {
-	Titles []string `json:"titles"`
+	Titles   []string `json:"titles"`
+	Subtasks []struct {
+		Title       string `json:"title"`
+		Description string `json:"description"`
+		WorkType    string `json:"work_type"`
+	} `json:"subtasks"`
 }
 
 // ExpandTask adds several subtasks at once, all or none.
@@ -303,7 +310,14 @@ func (c *Controller) ExpandTask(ctx contractshttp.Context) contractshttp.Respons
 	if err := ctx.Request().Bind(&req); err != nil {
 		return badRequest(ctx)
 	}
-	added, err := c.service.ExpandTask(ctx.Context(), taskID, c.me(ctx), req.Titles)
+	drafts := domain.Drafts(req.Titles)
+	if len(req.Subtasks) > 0 {
+		drafts = make([]domain.SubtaskDraft, len(req.Subtasks))
+		for i, st := range req.Subtasks {
+			drafts[i] = domain.SubtaskDraft{Title: st.Title, Description: st.Description, WorkType: st.WorkType}
+		}
+	}
+	added, err := c.service.ExpandTask(ctx.Context(), taskID, c.me(ctx), drafts)
 	if err != nil {
 		return failure(ctx, err)
 	}
@@ -397,6 +411,8 @@ func failure(ctx contractshttp.Context, err error) contractshttp.Response {
 		status, field = contractshttp.StatusUnprocessableEntity, "cost_usd"
 	case errors.Is(err, domain.ErrInvalidRunAgent):
 		status, field = contractshttp.StatusUnprocessableEntity, "agent_name"
+	case errors.Is(err, domain.ErrInvalidRunKind):
+		status, field = contractshttp.StatusUnprocessableEntity, "kind"
 	case errors.Is(err, domain.ErrInvalidRunDetails):
 		status, field = contractshttp.StatusUnprocessableEntity, "machine"
 	case errors.Is(err, domain.ErrNestedSubtask):
