@@ -47,7 +47,12 @@ func (s *Service) Register(ctx context.Context, email, displayName, password str
 	} else if found {
 		return domain.Member{}, ErrEmailTaken
 	}
-	return s.members.Add(ctx, m)
+	m, err = s.members.Add(ctx, m)
+	if err != nil {
+		return domain.Member{}, err
+	}
+	s.auditLog().Record(ctx, AuditRecord{ActorID: m.ID, Action: "member.registered", TargetKind: "member", TargetID: m.ID})
+	return m, nil
 }
 
 // Login never says whether the email exists: every failure is

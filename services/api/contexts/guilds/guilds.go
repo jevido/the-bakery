@@ -5,6 +5,7 @@ package guilds
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	contractshttp "github.com/goravel/framework/contracts/http"
@@ -13,6 +14,7 @@ import (
 	"github.com/goravel/framework/http/middleware"
 
 	"github.com/jevido/the-bakery/services/api/app/facades"
+	"github.com/jevido/the-bakery/services/api/app/limits"
 
 	"github.com/jevido/the-bakery/services/api/contexts/guilds/app"
 	"github.com/jevido/the-bakery/services/api/contexts/guilds/domain"
@@ -76,8 +78,14 @@ var service = app.NewService(infra.Guilds{}, infra.Invites{}, infra.Codes{}, mem
 // Routes registers the guild routes, all behind identity.RequireMember.
 func Routes(r route.Router) {
 	c := guildshttp.NewController(service, identity.MemberID)
+	// A member founds at most five guilds a day. Runs after RequireMember,
+	// which has put the member on the request.
+	facades.RateLimiter().For(limits.GuildCreate, func(ctx contractshttp.Context) contractshttp.Limit {
+		id, _ := identity.MemberID(ctx)
+		return limits.By(limit.PerDay(5), limits.GuildCreate, strconv.FormatUint(id, 10), id)
+	})
 	r.Middleware(identity.RequireMember).Group(func(r route.Router) {
-		r.Post("/api/guilds", c.Found)
+		r.Middleware(middleware.Throttle(limits.GuildCreate)).Post("/api/guilds", c.Found)
 		r.Get("/api/guilds", c.Mine)
 		r.Get("/api/guilds/{guild}", c.Show)
 		r.Patch("/api/guilds/{guild}", c.Rename)
@@ -95,7 +103,7 @@ func Routes(r route.Router) {
 	// Invite codes can be looked up without signing in, so both code routes
 	// are rate-limited per client against guessing.
 	facades.RateLimiter().For("invite-codes", func(ctx contractshttp.Context) contractshttp.Limit {
-		return limit.PerMinute(30)
+		return limits.By(limit.PerMinute(30), "invite-codes", limits.ClientIP(ctx)+":"+ctx.Request().Path(), 0)
 	})
 	r.Middleware(middleware.Throttle("invite-codes")).Get("/api/invites/{code}", c.ShowInvite)
 	r.Middleware(middleware.Throttle("invite-codes"), identity.RequireMember).Post("/api/invites/{code}/accept", c.AcceptInvite)

@@ -6,6 +6,7 @@ import (
 
 	contractshttp "github.com/goravel/framework/contracts/http"
 
+	"github.com/jevido/the-bakery/services/api/app/limits"
 	"github.com/jevido/the-bakery/services/api/contexts/moderation/app"
 	"github.com/jevido/the-bakery/services/api/contexts/moderation/domain"
 )
@@ -17,7 +18,7 @@ type RememberIP struct{}
 func (RememberIP) Signature() string { return "moderation.remember_ip" }
 
 func (RememberIP) Handle(ctx contractshttp.Context) {
-	ctx.WithValue(app.IPKey, ctx.Request().Ip())
+	ctx.WithValue(app.IPKey, limits.ClientIP(ctx))
 	ctx.Request().Next()
 }
 

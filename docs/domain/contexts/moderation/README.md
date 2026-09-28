@@ -25,6 +25,8 @@ each use case: identity and guilds ask moderation and refuse themselves.
 | Ban | A sanction with no end; an operator lifts it. |
 | Report | A member telling the operators about a member or a guild: a reason, then open until an operator dismisses it or acts on it. |
 | Audit log | Every sensitive action on the platform, append-only: who (member or operator), what, to whom, why, when, from where. |
+| Signal | One sign-up, guild founded or rate-limit refusal, with who (when known) and the client's IP. Counted in volume to find abuse; one alone says nothing. |
+| Rate limit | How many requests a client may make in a while: registering 5 an hour and signing in 10 a minute per IP, 120 changes a minute and 5 new guilds a day per member, 300 MCP requests a minute per personal token. |
 
 ## Model
 
@@ -36,6 +38,7 @@ each use case: identity and guilds ask moderation and refuse themselves.
 | Sanction (root) | Targets one member or one guild (by id). Kind `suspension` (needs an `until` in the future) or `ban` (none). A reason of 1–1000 characters. By one operator. At most one active sanction per target; lifting ends it once. |
 | Report (root) | By one member, about one member or guild (by id), with a reason of 1–1000 characters. Open, then once `dismissed` or `actioned` (with the sanction it led to) by an operator. At most 10 per member per day. |
 | Audit entry (root) | Append-only: actor kind (`member`, `operator`) and id, action, target kind and id, reason, details, IP, time. Never changed or deleted. |
+| Signal (root) | Append-only: kind `sign_up`, `guild_founded` or `limit_hit` (with the limit's name), the member when known, the IP, the time. |
 
 ### Commands
 
@@ -49,6 +52,10 @@ each use case: identity and guilds ask moderation and refuse themselves.
   the log with filters.
 - **List** members and guilds for the console, through lookups the owning
   contexts publish.
+- **Record** a signal: a sign-up or a guild founded (when identity or guilds
+  audits `member.registered` or `guild.founded`), or a rate-limit refusal
+  (from the API's limits); **summarise** the signals of the last hours: IPs
+  by sign-ups, members and IPs by refusals, members by guilds founded.
 
 ### Domain events
 
@@ -87,3 +94,16 @@ each use case: identity and guilds ask moderation and refuse themselves.
 - **The audit log is append-only and platform-wide.** It is how anyone can
   later tell who did what to whom and why, including operators; nothing in
   the code updates or deletes an entry.
+- **Signals are their own table, not audit entries.** A rate-limit refusal
+  often has no member behind it (registering, signing in), and an audit
+  entry always has an actor; forcing a fake actor into the log would spoil
+  it. Sign-ups and guilds founded are audited as usual, and moderation
+  derives their signals from those audit records, so identity and guilds
+  report each act once. The signals table is only ever counted, never
+  shown row by row.
+- **Limits live with the routes, refusals come here.** Each context
+  declares its own limits where it registers routes; a shared technical
+  package gives them one 429 answer and a hook that moderation sets to
+  record the refusal. The client's IP is the right-most public address the
+  reverse proxy put in `X-Forwarded-For`, so a client cannot dodge a limit
+  per IP by claiming another address.

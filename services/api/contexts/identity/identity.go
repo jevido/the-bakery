@@ -10,6 +10,11 @@ import (
 
 	contractshttp "github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/contracts/route"
+	"github.com/goravel/framework/http/limit"
+	"github.com/goravel/framework/http/middleware"
+
+	"github.com/jevido/the-bakery/services/api/app/facades"
+	"github.com/jevido/the-bakery/services/api/app/limits"
 
 	"github.com/jevido/the-bakery/services/api/contexts/identity/app"
 	identityhttp "github.com/jevido/the-bakery/services/api/contexts/identity/http"
@@ -29,11 +34,20 @@ func init() {
 // Routes registers register, login and me.
 func Routes(r route.Router) {
 	c := identityhttp.NewController(service)
-	r.Post("/api/register", c.Register)
-	r.Post("/api/login", c.Login)
+	// Registering and signing in are limited per client IP, the desktop and
+	// the website sharing each limit.
+	facades.RateLimiter().For(limits.Register, func(ctx contractshttp.Context) contractshttp.Limit {
+		return limits.By(limit.PerHour(5), limits.Register, limits.ClientIP(ctx), 0)
+	})
+	facades.RateLimiter().For(limits.Login, func(ctx contractshttp.Context) contractshttp.Limit {
+		return limits.By(limit.PerMinute(10), limits.Login, limits.ClientIP(ctx), 0)
+	})
+	registering, signingIn := middleware.Throttle(limits.Register), middleware.Throttle(limits.Login)
+	r.Middleware(registering).Post("/api/register", c.Register)
+	r.Middleware(signingIn).Post("/api/login", c.Login)
 	r.Middleware(RequireMember).Get("/api/me", c.Me)
-	r.Post("/api/web/register", c.WebRegister)
-	r.Post("/api/web/login", c.WebLogin)
+	r.Middleware(registering).Post("/api/web/register", c.WebRegister)
+	r.Middleware(signingIn).Post("/api/web/login", c.WebLogin)
 	r.Post("/api/web/logout", c.WebLogout)
 	r.Middleware(RequireMember).Post("/api/web/handoff", c.CreateHandoff)
 	r.Middleware(RequireMember).Group(func(r route.Router) {

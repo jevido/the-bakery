@@ -31,5 +31,6 @@ func Migrations() []schema.Migration {
 		&migrations.M20260927000020CreateAuditEntriesTable{},
 		&migrations.M20260927000021CreateSanctionsTable{},
 		&migrations.M20260927000022CreateReportsTable{},
+		&migrations.M20260927000023CreateSignalsTable{},
 	}
 }

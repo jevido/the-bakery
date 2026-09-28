@@ -28,12 +28,6 @@ func TestConsoleTestSuite(t *testing.T) {
 	suite.Run(t, new(ConsoleTestSuite))
 }
 
-// SetupTest starts each test with fresh rate limits: they are counted per
-// client in the cache, and every test here is the same client.
-func (s *operatorSuite) SetupTest() {
-	s.Require().True(facades.Cache().Flush())
-}
-
 // tooMany reports a refusal by the rate limiter, which says when to try
 // again.
 func tooMany(res response) bool {

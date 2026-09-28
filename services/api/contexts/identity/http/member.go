@@ -10,8 +10,10 @@ import (
 	"time"
 
 	contractshttp "github.com/goravel/framework/contracts/http"
+	"github.com/goravel/framework/http/limit"
 
 	"github.com/jevido/the-bakery/services/api/app/facades"
+	"github.com/jevido/the-bakery/services/api/app/limits"
 	"github.com/jevido/the-bakery/services/api/app/refusal"
 	"github.com/jevido/the-bakery/services/api/contexts/identity/app"
 	"github.com/jevido/the-bakery/services/api/contexts/identity/domain"
@@ -370,6 +372,9 @@ func (RequireMember) Handle(ctx contractshttp.Context) {
 			_ = res.Abort()
 			return
 		}
+		if !writesAllowed(ctx, id) {
+			return
+		}
 		ctx.WithValue(memberContextKey{}, id)
 		ctx.WithValue(authKindKey{}, "token")
 		ctx.Request().Next()
@@ -400,9 +405,21 @@ func (RequireMember) Handle(ctx contractshttp.Context) {
 		_ = res.Abort()
 		return
 	}
+	if !writesAllowed(ctx, id) {
+		return
+	}
 	ctx.WithValue(memberContextKey{}, id)
 	ctx.WithValue(authKindKey{}, "session")
 	ctx.Request().Next()
+}
+
+// writesAllowed holds a member to 120 changes a minute, across every route
+// behind RequireMember; reading is not limited. A refusal has answered 429.
+func writesAllowed(ctx contractshttp.Context, memberID uint64) bool {
+	if !changesSomething(ctx.Request().Method()) {
+		return true
+	}
+	return limits.Allow(ctx, limit.PerMinute(120), limits.Writes, strconv.FormatUint(memberID, 10), memberID)
 }
 
 // verifyPersonalToken is set by the context's wiring (identity.go), since

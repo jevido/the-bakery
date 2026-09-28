@@ -7,6 +7,7 @@
   import Guild from './pages/Guild.svelte'
   import Reports from './pages/Reports.svelte'
   import Audit from './pages/Audit.svelte'
+  import Signals from './pages/Signals.svelte'
   import { router } from './lib/router.svelte'
   import { session } from './lib/session.svelte'
 
@@ -34,6 +35,8 @@
     <Reports />
   {:else if path === '/audit'}
     <Audit />
+  {:else if path === '/signals'}
+    <Signals />
   {:else}
     <Members />
   {/if}

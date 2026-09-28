@@ -20,6 +20,8 @@ document; list them here when people outside the context use them too.
 | Ban | moderation | A sanction without an end; an operator lifts it. | Suspension, deletion |
 | Report | moderation | A member telling the operators about a member or a guild, with a reason; open until an operator dismisses it or acts on it. | Flag, complaint |
 | Audit log | moderation | Every sensitive action on the platform, append-only: who, what, to whom, why, when, from where. | Activity (a task's history) |
+| Signal | moderation | One sign-up, guild founded or rate-limit refusal, with who and from which IP; counted in volume to find abuse. | Event, metric |
+| Rate limit | moderation | How many requests a client may make in a while (per IP, member or personal token); past it the API answers 429 with when to try again. | Throttle, quota |
 | Web session | identity | A sign-in from the website, carried in an httpOnly cookie that page scripts cannot read. The desktop app keeps its bearer token instead. | Token (the desktop's) |
 | Personal token | identity | A long-lived secret a member creates for a tool (Claude, a script): named, shown once, stored only as a hash, revocable one at a time. Looks like `bky_…`. | Token (the desktop's session JWT), API key |
 | Handoff code | identity | A one-time code the desktop app gets for its signed-in member and opens the website with, so the website signs them in too. Valid for 60 seconds, usable once; the website trades it for a web session. | Token (never put in a URL) |

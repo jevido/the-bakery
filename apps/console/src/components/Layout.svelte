@@ -9,6 +9,7 @@
     { href: '/members', label: 'Members' },
     { href: '/guilds', label: 'Guilds' },
     { href: '/reports', label: 'Reports' },
+    { href: '/signals', label: 'Signals' },
     { href: '/audit', label: 'Audit log' },
   ]
 </script>

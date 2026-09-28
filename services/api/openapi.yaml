@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: The Bakery API
-  version: 1.8.0
+  version: 1.9.0
   description: >-
     The JSON API behind The Bakery: members, guilds, invites, boards, tasks,
     work types and agents. The desktop app (bearer token) and the website (session cookie)
@@ -13,6 +13,17 @@ info:
     for a suspension>"}` on every endpoint, on sign-in, on the MCP server and
     on the board event stream; a suspended or banned guild is left out of
     `GET /api/guilds`.
+
+    Rate limits: registering (`/api/register`, `/api/web/register`) is
+    limited to 5 an hour and signing in (`/api/login`, `/api/web/login`) to
+    10 a minute per client IP; a member makes at most 120 changes (POST,
+    PATCH, PUT, DELETE) a minute across all endpoints and founds at most 5
+    guilds a day; the MCP server takes 300 requests a minute per personal
+    token; invite codes 30 lookups a minute per client. Past a limit the API
+    answers 429 with a `Retry-After` header (seconds) and `{"error":
+    "<sentence>", "code": "rate_limited", "limit": "register" | "login" |
+    "writes" | "guild-create" | "mcp" | "invite-codes"}`. Reading is not
+    limited per member.
 servers:
   - url: https://api.bakery.jevido.app
     description: Production
@@ -159,6 +170,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
               example: { error: an account with this email already exists, field: email }
+        "429": { $ref: "#/components/responses/TooMany" }
 
   /api/login:
     post:
@@ -190,6 +202,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
               example: { error: email or password is incorrect }
+        "429": { $ref: "#/components/responses/TooMany" }
 
   /api/me:
     get:
@@ -236,6 +249,7 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "403": { $ref: "#/components/responses/MissingWebHeader" }
         "422": { $ref: "#/components/responses/Invalid" }
+        "429": { $ref: "#/components/responses/TooMany" }
 
   /api/web/login:
     post:
@@ -270,6 +284,7 @@ paths:
               schema: { $ref: "#/components/schemas/Error" }
               example: { error: email or password is incorrect }
         "403": { $ref: "#/components/responses/MissingWebHeader" }
+        "429": { $ref: "#/components/responses/TooMany" }
 
   /api/web/logout:
     post:
@@ -460,6 +475,7 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "422": { $ref: "#/components/responses/Invalid" }
+        "429": { $ref: "#/components/responses/TooMany" }
 
   /api/guilds/{guild}:
     get:
@@ -1979,7 +1995,21 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
           example: { error: this invite link does not exist }
     TooMany:
-      description: More than 30 requests a minute from this client; wait and try again.
+      description: A rate limit was reached; wait the `Retry-After` seconds and try again.
+      headers:
+        Retry-After:
+          description: Seconds until the limit lets a request through again.
+          schema: { type: integer }
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error, code, limit]
+            properties:
+              error: { type: string }
+              code: { type: string, enum: [rate_limited] }
+              limit: { type: string, enum: [register, login, writes, guild-create, mcp, invite-codes] }
+          example: { error: Too many requests. Try again in 60 minutes., code: rate_limited, limit: register }
     MissingWebHeader:
       description: "A cookie request that changes something came without `X-Bakery-Web: 1`."
       content:

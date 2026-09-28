@@ -12,6 +12,7 @@ import (
 	"github.com/goravel/framework/http/middleware"
 
 	"github.com/jevido/the-bakery/services/api/app/facades"
+	"github.com/jevido/the-bakery/services/api/app/limits"
 	"github.com/jevido/the-bakery/services/api/app/refusal"
 	"github.com/jevido/the-bakery/services/api/contexts/boards"
 	"github.com/jevido/the-bakery/services/api/contexts/guilds"
@@ -24,7 +25,7 @@ import (
 
 var service = app.NewService(app.Deps{
 	Operators: infra.Operators{}, Hasher: infra.Hasher{}, Secrets: infra.Secrets{}, TOTP: infra.TOTP{},
-	Audit: infra.AuditEntries{}, Sanctions: infra.Sanctions{}, Reports: infra.Reports{}, Targets: targets{}, Effects: effects{}, Directory: directory{},
+	Audit: infra.AuditEntries{}, Sanctions: infra.Sanctions{}, Reports: infra.Reports{}, Targets: targets{}, Effects: effects{}, Directory: directory{}, Signals: infra.Signals{},
 })
 
 // targets asks identity and guilds whether a target exists.
@@ -130,10 +131,30 @@ func init() {
 	guilds.SetSanctionCheck(func(ctx context.Context, guildID uint64) error {
 		return refusalFor(ctx, domain.TargetGuild, guildID)
 	})
+	// Every rate-limit refusal is an abuse signal.
+	limits.OnHit(func(ctx context.Context, limit string, memberID uint64, ip string) {
+		recordSignal(ctx, domain.SignalLimitHit, limit, memberID, ip)
+	})
 }
 
-// recordMember writes a member's sensitive action to the audit log.
+// signalOf is the abuse signal an audited member action also is.
+var signalOf = map[string]string{
+	"member.registered": domain.SignalSignUp,
+	"guild.founded":     domain.SignalGuildFounded,
+}
+
+func recordSignal(ctx context.Context, kind, limit string, memberID uint64, ip string) {
+	if err := service.RecordSignal(ctx, kind, limit, memberID, ip); err != nil {
+		facades.Log().WithContext(ctx).Errorf("signal %s: %v", kind, err)
+	}
+}
+
+// recordMember writes a member's sensitive action to the audit log, and a
+// sign-up or a guild founded to the abuse signals too.
 func recordMember(ctx context.Context, actorMemberID uint64, action, targetKind string, targetID uint64, meta map[string]any) {
+	if kind, ok := signalOf[action]; ok {
+		recordSignal(ctx, kind, "", actorMemberID, "")
+	}
 	err := service.Record(ctx, domain.AuditEntry{ActorKind: domain.ActorMember, ActorID: actorMemberID, Action: action, TargetKind: targetKind, TargetID: targetID, Meta: meta})
 	if err != nil {
 		facades.Log().WithContext(ctx).Errorf("audit %s: %v", action, err)
@@ -167,6 +188,7 @@ func Routes(r route.Router) {
 	r.Middleware(RequireOperator).Group(func(r route.Router) {
 		r.Get("/api/console/me", c.Me)
 		r.Get("/api/console/audit", c.Audit)
+		r.Get("/api/console/signals", c.Signals)
 		r.Get("/api/console/members", c.ListMembers)
 		r.Get("/api/console/members/{member}", c.ShowMember)
 		r.Get("/api/console/guilds", c.ListGuilds)

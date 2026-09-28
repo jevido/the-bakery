@@ -9,9 +9,11 @@ import (
 
 	"github.com/goravel/framework/contracts/http"
 	"github.com/goravel/framework/contracts/route"
+	"github.com/goravel/framework/http/middleware"
 	goravelgin "github.com/goravel/gin"
 
 	"github.com/jevido/the-bakery/services/api/app/facades"
+	"github.com/jevido/the-bakery/services/api/app/limits"
 	"github.com/jevido/the-bakery/services/api/contexts/agents"
 	"github.com/jevido/the-bakery/services/api/contexts/boards"
 	"github.com/jevido/the-bakery/services/api/contexts/guilds"
@@ -64,7 +66,8 @@ func Api() {
 		// MCP over streamable HTTP. The SDK handler does its own auth (personal
 		// tokens) and writes the response itself.
 		mcpHandler := mcp.Handler()
-		r.Any("/mcp", func(ctx http.Context) http.Response {
+		facades.RateLimiter().For(limits.MCP, mcp.Limit)
+		r.Middleware(middleware.Throttle(limits.MCP)).Any("/mcp", func(ctx http.Context) http.Response {
 			mcpHandler.ServeHTTP(ctx.Response().Writer(), ctx.Request().Origin())
 			return nil
 		})

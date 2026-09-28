@@ -86,6 +86,7 @@ func (s *Service) FoundGuild(ctx context.Context, name string, founderID uint64)
 	}
 	ev.GuildID = g.ID
 	s.events.GuildFounded(ctx, ev)
+	s.auditLog().Record(ctx, AuditRecord{ActorID: founderID, Action: "guild.founded", TargetKind: "guild", TargetID: g.ID, Meta: map[string]any{"name": g.Name}})
 	return g, nil
 }
 

@@ -31,7 +31,17 @@ var guildCleanup []func(guildID uint64) error
 // memberCleanup does the same for rows that hang off a member.
 var memberCleanup []func(memberID uint64) error
 
+// SetupTest starts each test with fresh rate limits: they are counted per
+// client in the cache, and every test is the same client.
+func (s *featureSuite) SetupTest() {
+	s.Require().True(facades.Cache().Flush())
+}
+
 func (s *featureSuite) TearDownTest() {
+	// Abuse signals from the test client (httptest's 192.0.2.1) would crowd
+	// the dev console's Signals screen.
+	_, err := facades.DB().Table("signals").Where("ip", "192.0.2.1").Delete()
+	s.NoError(err)
 	for _, id := range s.guildIDs {
 		for _, clean := range guildCleanup {
 			s.NoError(clean(id))
