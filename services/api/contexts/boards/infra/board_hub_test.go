@@ -10,7 +10,7 @@ import (
 
 // newTestHub is a hub whose "Postgres" is the returned deliver function.
 func newTestHub() *BoardHub {
-	h := &BoardHub{subs: map[uint64]map[chan []byte]struct{}{}}
+	h := &BoardHub{subs: map[uint64]map[chan []byte]uint64{}}
 	h.listen = func(ctx context.Context, deliver func([]byte)) error {
 		select {} // never fails; tests call h.deliver directly
 	}
@@ -23,8 +23,8 @@ func event(boardID uint64, n int) []byte {
 
 func TestHubDeliversToTheBoardsSubscribers(t *testing.T) {
 	h := newTestHub()
-	one, stopOne := h.Subscribe(1)
-	other, stopOther := h.Subscribe(2)
+	one, stopOne := h.Subscribe(1, 7)
+	other, stopOther := h.Subscribe(2, 7)
 	defer stopOther()
 
 	h.deliver(event(1, 1))
@@ -52,7 +52,7 @@ func TestHubDeliversToTheBoardsSubscribers(t *testing.T) {
 
 func TestHubDropsASlowSubscriber(t *testing.T) {
 	h := newTestHub()
-	slow, stop := h.Subscribe(1)
+	slow, stop := h.Subscribe(1, 7)
 	defer stop()
 	for n := range subscriberBuffer + 1 {
 		h.deliver(event(1, n))
@@ -71,8 +71,8 @@ func TestHubDropsASlowSubscriber(t *testing.T) {
 
 func TestHubDropsEveryoneWhenListeningStops(t *testing.T) {
 	h := newTestHub()
-	a, _ := h.Subscribe(1)
-	b, _ := h.Subscribe(2)
+	a, _ := h.Subscribe(1, 7)
+	b, _ := h.Subscribe(2, 7)
 	h.dropAll()
 	if _, open := <-a; open {
 		t.Error("board 1 stream still open")
@@ -84,12 +84,12 @@ func TestHubDropsEveryoneWhenListeningStops(t *testing.T) {
 
 func TestHubCloseEndsStreamsAndRefusesNewOnes(t *testing.T) {
 	h := newTestHub()
-	open, _ := h.Subscribe(1)
+	open, _ := h.Subscribe(1, 7)
 	h.Close()
 	if _, ok := <-open; ok {
 		t.Error("stream still open after Close")
 	}
-	late, stop := h.Subscribe(1)
+	late, stop := h.Subscribe(1, 7)
 	defer stop()
 	if _, ok := <-late; ok {
 		t.Error("new stream accepted after Close")
@@ -129,5 +129,36 @@ func TestBoardEventOf(t *testing.T) {
 	}
 	if ev, ok := boardEventOf(struct{}{}); ok {
 		t.Errorf("unknown event translated: %+v", ev)
+	}
+}
+
+func TestCloseStreamsMessage(t *testing.T) {
+	h := newTestHub()
+	adas, stopA := h.Subscribe(1, 7)
+	defer stopA()
+	brams, stopB := h.Subscribe(1, 8)
+	defer stopB()
+	other, stopO := h.Subscribe(2, 8)
+	defer stopO()
+
+	// A member's streams end, everywhere; the others stay.
+	h.deliver([]byte(`{"type":"streams.close","member_id":8}`))
+	if _, open := <-brams; open {
+		t.Error("the member's stream on board 1 is still open")
+	}
+	if _, open := <-other; open {
+		t.Error("the member's stream on board 2 is still open")
+	}
+	select {
+	case _, open := <-adas:
+		if !open {
+			t.Fatal("someone else's stream was closed")
+		}
+	default:
+	}
+	// A board's streams end, all of them.
+	h.deliver([]byte(`{"type":"streams.close","board_ids":[1]}`))
+	if _, open := <-adas; open {
+		t.Error("the board's stream is still open")
 	}
 }

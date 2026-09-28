@@ -1,12 +1,18 @@
 openapi: 3.1.0
 info:
   title: The Bakery API
-  version: 1.7.0
+  version: 1.8.0
   description: >-
     The JSON API behind The Bakery: members, guilds, invites, boards, tasks,
     work types and agents. The desktop app (bearer token) and the website (session cookie)
     use the same endpoints. Refusals are
     `{"error": "<sentence>"}`, with `field` added when one field is to blame.
+    A member or a guild under a suspension or a ban is refused with 403 and
+    `{"error": "<sentence with the reason>", "code": "account_suspended" |
+    "account_banned" | "guild_suspended" | "guild_banned", "until": "<RFC 3339,
+    for a suspension>"}` on every endpoint, on sign-in, on the MCP server and
+    on the board event stream; a suspended or banned guild is left out of
+    `GET /api/guilds`.
 servers:
   - url: https://api.bakery.jevido.app
     description: Production

@@ -57,7 +57,37 @@ func MemberIDByEmail(ctx context.Context, email string) (uint64, bool, error) {
 // VerifyPersonalToken returns the member a personal token (`bky_…`) belongs
 // to; the MCP server signs its callers in with it.
 func VerifyPersonalToken(ctx context.Context, token string) (uint64, error) {
-	return service.VerifyPersonalToken(ctx, token)
+	id, err := service.VerifyPersonalToken(ctx, token)
+	if err != nil {
+		return 0, err
+	}
+	if memberCheck != nil {
+		if err := memberCheck(ctx, id); err != nil {
+			return 0, err
+		}
+	}
+	return id, nil
+}
+
+// memberCheck is the moderation context's answer to "may this member use
+// The Bakery?": nil, or a *refusal.Refusal.
+var memberCheck func(ctx context.Context, memberID uint64) error
+
+// SetSanctionCheck sets the member check that RequireMember, every sign-in
+// and VerifyPersonalToken (the MCP server's sign-in) ask.
+func SetSanctionCheck(f func(ctx context.Context, memberID uint64) error) {
+	memberCheck = f
+	identityhttp.SetSanctionCheck(f)
+}
+
+// MemberExists reports whether a member with this id exists.
+func MemberExists(ctx context.Context, id uint64) (bool, error) {
+	names, err := service.DisplayNames(ctx, []uint64{id})
+	if err != nil {
+		return false, err
+	}
+	_, ok := names[id]
+	return ok, nil
 }
 
 // DisplayNames maps member ids to display names; unknown ids are left out.

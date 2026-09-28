@@ -14,6 +14,7 @@ import (
 	contractshttp "github.com/goravel/framework/contracts/http"
 
 	"github.com/jevido/the-bakery/services/api/app/facades"
+	"github.com/jevido/the-bakery/services/api/app/refusal"
 	"github.com/jevido/the-bakery/services/api/contexts/agents/app"
 	"github.com/jevido/the-bakery/services/api/contexts/agents/domain"
 )
@@ -269,6 +270,10 @@ func (c *Controller) ListTraits(ctx contractshttp.Context) contractshttp.Respons
 // failure maps errors to answers. A stale write answers 409 with the
 // agent as it is now, so the client can show both.
 func failure(ctx contractshttp.Context, err error, current domain.Agent) contractshttp.Response {
+	// A sanction (of the member or the guild) answers for itself.
+	if r, ok := refusal.As(err); ok {
+		return refusal.Respond(ctx, r)
+	}
 	var skillset *domain.SkillsetError
 	switch {
 	case errors.Is(err, domain.ErrStale):

@@ -9,6 +9,9 @@ export class ApiError extends Error {
     readonly status: number,
     message: string,
     readonly field?: string,
+    // code is set on a refusal because of a suspension or a ban
+    // (account_suspended, account_banned, guild_suspended, guild_banned).
+    readonly code?: string,
   ) {
     super(message)
   }
@@ -36,7 +39,7 @@ export async function api<T>(method: string, path: string, body?: unknown): Prom
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     const message = typeof data.error === 'string' ? data.error : res.statusText
-    throw new ApiError(res.status, message.charAt(0).toUpperCase() + message.slice(1), data.field)
+    throw new ApiError(res.status, message.charAt(0).toUpperCase() + message.slice(1), data.field, data.code)
   }
   return data as T
 }

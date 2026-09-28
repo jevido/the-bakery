@@ -27,7 +27,37 @@ type Memberships interface {
 	IsArchived(ctx context.Context, guildID uint64) (bool, error)
 }
 
-func NewMemberships() Memberships { return infra.Memberships{} }
+// NewMemberships answers for the guilds context. A sanctioned guild is
+// refused: IsMember answers with a *refusal.Refusal.
+func NewMemberships() Memberships { return memberships{} }
+
+type memberships struct{ infra.Memberships }
+
+func (m memberships) IsMember(ctx context.Context, guildID, memberID uint64) (bool, error) {
+	if guildCheck != nil {
+		if err := guildCheck(ctx, guildID); err != nil {
+			return false, err
+		}
+	}
+	return m.Memberships.IsMember(ctx, guildID, memberID)
+}
+
+// guildCheck is the moderation context's answer to "may this guild be
+// used?": nil, or a *refusal.Refusal.
+var guildCheck func(ctx context.Context, guildID uint64) error
+
+// SetSanctionCheck sets the guild check that every guild-scoped use case
+// asks, here and (through Memberships) in boards and agents.
+func SetSanctionCheck(f func(ctx context.Context, guildID uint64) error) {
+	guildCheck = f
+	service.SetSanctionCheck(f)
+}
+
+// GuildExists reports whether a guild with this id exists.
+func GuildExists(ctx context.Context, id uint64) (bool, error) {
+	_, found, err := infra.Guilds{}.ByID(ctx, id)
+	return found, err
+}
 
 // memberLookup adapts identity's email lookup to guilds' MemberLookup.
 type memberLookup struct{}

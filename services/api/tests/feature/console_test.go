@@ -12,9 +12,15 @@ import (
 	"github.com/jevido/the-bakery/services/api/tests"
 )
 
-type ConsoleTestSuite struct {
+// operatorSuite is featureSuite with operators: made straight in the
+// database, signed in, and cleaned up after each test.
+type operatorSuite struct {
 	featureSuite
 	operatorEmails []string
+}
+
+type ConsoleTestSuite struct {
+	operatorSuite
 }
 
 func TestConsoleTestSuite(t *testing.T) {
@@ -24,7 +30,7 @@ func TestConsoleTestSuite(t *testing.T) {
 
 // SetupTest starts each test with fresh rate limits: they are counted per
 // client in the cache, and every test here is the same client.
-func (s *ConsoleTestSuite) SetupTest() {
+func (s *operatorSuite) SetupTest() {
 	s.Require().True(facades.Cache().Flush())
 }
 
@@ -34,8 +40,14 @@ func tooMany(res response) bool {
 	return !res.IsSuccessful() && res.Headers().Get("Retry-After") != ""
 }
 
-func (s *ConsoleTestSuite) TearDownTest() {
+func (s *operatorSuite) TearDownTest() {
 	for _, e := range s.operatorEmails {
+		var ids []uint64
+		s.NoError(facades.Orm().Query().Table("operators").Where("email", e).Pluck("id", &ids))
+		for _, id := range ids {
+			_, err := facades.DB().Table("sanctions").Where("by_operator_id", id).Delete()
+			s.NoError(err)
+		}
 		_, err := facades.DB().Table("operators").Where("email", e).Delete()
 		s.NoError(err)
 	}
@@ -45,7 +57,7 @@ func (s *ConsoleTestSuite) TearDownTest() {
 
 // operator makes a confirmed operator straight in the database, as
 // operator:create and operator:confirm would, and returns its TOTP secret.
-func (s *ConsoleTestSuite) operator(password string) (email, secret string) {
+func (s *operatorSuite) operator(password string) (email, secret string) {
 	email = fmt.Sprintf("op-%d@bakery.test", time.Now().UnixNano())
 	key, err := totp.Generate(totp.GenerateOpts{Issuer: "test", AccountName: email})
 	s.Require().NoError(err)
@@ -62,7 +74,7 @@ func (s *ConsoleTestSuite) operator(password string) (email, secret string) {
 }
 
 // signIn goes through both steps and returns the operator's token.
-func (s *ConsoleTestSuite) signIn(email, password, secret string) string {
+func (s *operatorSuite) signIn(email, password, secret string) string {
 	res := s.post("", "/api/console/login", fmt.Sprintf(`{"email":%q,"password":%q}`, email, password))
 	res.AssertOk()
 	challenge := s.jsonOf(res)["challenge"].(string)
@@ -120,7 +132,7 @@ func (s *ConsoleTestSuite) TestSignInIsRateLimited() {
 }
 
 // audit reads the audit log as an operator.
-func (s *ConsoleTestSuite) audit(token, query string) []map[string]any {
+func (s *operatorSuite) audit(token, query string) []map[string]any {
 	res := s.get(token, "/api/console/audit?"+query)
 	res.AssertOk()
 	var out []map[string]any

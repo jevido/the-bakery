@@ -12,6 +12,7 @@ import (
 	contractshttp "github.com/goravel/framework/contracts/http"
 
 	"github.com/jevido/the-bakery/services/api/app/facades"
+	"github.com/jevido/the-bakery/services/api/app/refusal"
 	"github.com/jevido/the-bakery/services/api/contexts/identity/app"
 	"github.com/jevido/the-bakery/services/api/contexts/identity/domain"
 )
@@ -279,7 +280,34 @@ func (c *Controller) RevokeToken(ctx contractshttp.Context) contractshttp.Respon
 	return ctx.Response().NoContent()
 }
 
+// sanctionCheck says whether a member may use The Bakery: nil, or a
+// *refusal.Refusal. The moderation context sets it when it is wired.
+var sanctionCheck func(ctx context.Context, memberID uint64) error
+
+// SetSanctionCheck sets the member check RequireMember and every sign-in
+// ask.
+func SetSanctionCheck(f func(ctx context.Context, memberID uint64) error) { sanctionCheck = f }
+
+// refused answers a sanctioned member's request, or returns nil.
+func refused(ctx contractshttp.Context, memberID uint64) contractshttp.AbortableResponse {
+	if sanctionCheck == nil {
+		return nil
+	}
+	err := sanctionCheck(ctx.Context(), memberID)
+	if err == nil {
+		return nil
+	}
+	if r, ok := refusal.As(err); ok {
+		return refusal.Respond(ctx, r)
+	}
+	facades.Log().WithContext(ctx.Context()).Error(err)
+	return ctx.Response().Json(contractshttp.StatusInternalServerError, contractshttp.Json{"error": "something went wrong"})
+}
+
 func (c *Controller) withSession(ctx contractshttp.Context, status int, m domain.Member) contractshttp.Response {
+	if res := refused(ctx, m.ID); res != nil {
+		return res
+	}
 	token, err := facades.Auth(ctx).Guard(Guard).LoginUsingID(m.ID)
 	if err != nil {
 		return serverError(ctx, err)
@@ -312,6 +340,9 @@ func missingWebHeader(ctx contractshttp.Context) contractshttp.AbortableResponse
 }
 
 func (c *Controller) withToken(ctx contractshttp.Context, status int, m domain.Member) contractshttp.Response {
+	if res := refused(ctx, m.ID); res != nil {
+		return res
+	}
 	token, err := facades.Auth(ctx).Guard(Guard).LoginUsingID(m.ID)
 	if err != nil {
 		return serverError(ctx, err)
@@ -333,6 +364,10 @@ func (RequireMember) Handle(ctx contractshttp.Context) {
 		id, err := verifyPersonalToken(ctx.Context(), secret)
 		if err != nil {
 			_ = unauthorized(ctx, "not signed in").Abort()
+			return
+		}
+		if res := refused(ctx, id); res != nil {
+			_ = res.Abort()
 			return
 		}
 		ctx.WithValue(memberContextKey{}, id)
@@ -359,6 +394,10 @@ func (RequireMember) Handle(ctx contractshttp.Context) {
 	id, err := strconv.ParseUint(payload.Key, 10, 64)
 	if err != nil {
 		_ = unauthorized(ctx, "not signed in").Abort()
+		return
+	}
+	if res := refused(ctx, id); res != nil {
+		_ = res.Abort()
 		return
 	}
 	ctx.WithValue(memberContextKey{}, id)

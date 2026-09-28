@@ -111,6 +111,9 @@ func (s *Service) Invite(ctx context.Context, code string) (InviteInfo, error) {
 	if !found {
 		return InviteInfo{}, ErrInviteNotFound
 	}
+	if err := s.checkSanction(ctx, g.ID); err != nil {
+		return InviteInfo{}, err
+	}
 	info := InviteInfo{GuildName: g.Name, MemberCount: len(g.MemberIDs()), Problem: inv.Usable(time.Now())}
 	if info.Problem == nil && g.Archived {
 		info.Problem = domain.ErrArchived
@@ -132,6 +135,9 @@ func (s *Service) AcceptInvite(ctx context.Context, code string, memberID uint64
 	}
 	if !found {
 		return domain.Guild{}, ErrInviteNotFound
+	}
+	if err := s.checkSanction(ctx, inv.GuildID); err != nil {
+		return domain.Guild{}, err
 	}
 	g, found, err := s.guilds.ByID(ctx, inv.GuildID)
 	if err != nil {

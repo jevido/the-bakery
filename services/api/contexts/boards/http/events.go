@@ -18,7 +18,7 @@ import (
 // events, and a function to stop. The channel closes when the source drops
 // the stream.
 type BoardEvents interface {
-	Subscribe(boardID uint64) (<-chan []byte, func())
+	Subscribe(boardID, memberID uint64) (<-chan []byte, func())
 }
 
 const pingEvery = 20 * time.Second
@@ -58,7 +58,7 @@ func (c *EventsController) Stream(ctx contractshttp.Context) contractshttp.Respo
 	if !ok {
 		return ctx.Response().Json(contractshttp.StatusInternalServerError, contractshttp.Json{"error": "streaming is not supported"})
 	}
-	events, stop := c.events.Subscribe(boardID)
+	events, stop := c.events.Subscribe(boardID, me)
 	defer stop()
 	// The member is present while this stream is open. The request's context
 	// is gone by the time the deferred leave runs, so it gets its own.

@@ -49,11 +49,31 @@ type Service struct {
 	secrets   Secrets
 	totp      TOTP
 	audit     AuditEntries
+	sanctions Sanctions
+	targets   Targets
+	effects   Effects
+	cache     activeCache
 	now       func() time.Time
 }
 
-func NewService(operators Operators, hasher Hasher, secrets Secrets, totp TOTP, audit AuditEntries) *Service {
-	return &Service{operators: operators, hasher: hasher, secrets: secrets, totp: totp, audit: audit, now: time.Now}
+// Deps are what the moderation use cases work with.
+type Deps struct {
+	Operators Operators
+	Hasher    Hasher
+	Secrets   Secrets
+	TOTP      TOTP
+	Audit     AuditEntries
+	Sanctions Sanctions
+	Targets   Targets
+	Effects   Effects
+}
+
+func NewService(d Deps) *Service {
+	return &Service{
+		operators: d.Operators, hasher: d.Hasher, secrets: d.Secrets, totp: d.TOTP, audit: d.Audit,
+		sanctions: d.Sanctions, targets: d.Targets, effects: d.Effects,
+		cache: activeCache{m: map[string]cached{}}, now: time.Now,
+	}
 }
 
 // CreateOperator makes an operator and returns the otpauth:// URL for

@@ -9,6 +9,7 @@ import (
 	contractshttp "github.com/goravel/framework/contracts/http"
 
 	"github.com/jevido/the-bakery/services/api/app/facades"
+	"github.com/jevido/the-bakery/services/api/app/refusal"
 	"github.com/jevido/the-bakery/services/api/contexts/boards/app"
 	"github.com/jevido/the-bakery/services/api/contexts/boards/domain"
 )
@@ -354,6 +355,10 @@ func routeID(ctx contractshttp.Context, key string) (uint64, bool) {
 }
 
 func failure(ctx contractshttp.Context, err error) contractshttp.Response {
+	// A sanction (of the member or the guild) answers for itself.
+	if r, ok := refusal.As(err); ok {
+		return refusal.Respond(ctx, r)
+	}
 	status := contractshttp.StatusInternalServerError
 	field := ""
 	switch {

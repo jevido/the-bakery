@@ -62,12 +62,13 @@ type Events interface {
 }
 
 type Service struct {
-	guilds  Guilds
-	invites Invites
-	codes   Codes
-	members MemberLookup
-	events  Events
-	audit   AuditLog
+	guilds   Guilds
+	invites  Invites
+	codes    Codes
+	members  MemberLookup
+	events   Events
+	audit    AuditLog
+	sanction func(ctx context.Context, guildID uint64) error
 }
 
 func NewService(guilds Guilds, invites Invites, codes Codes, members MemberLookup, events Events) *Service {
@@ -88,8 +89,19 @@ func (s *Service) FoundGuild(ctx context.Context, name string, founderID uint64)
 	return g, nil
 }
 
+// ListGuildsOf lists the member's guilds; a sanctioned guild is left out.
 func (s *Service) ListGuildsOf(ctx context.Context, memberID uint64, includeArchived bool) ([]domain.Guild, error) {
-	return s.guilds.OfMember(ctx, memberID, includeArchived)
+	all, err := s.guilds.OfMember(ctx, memberID, includeArchived)
+	if err != nil {
+		return nil, err
+	}
+	out := all[:0]
+	for _, g := range all {
+		if err := s.checkSanction(ctx, g.ID); err == nil {
+			out = append(out, g)
+		}
+	}
+	return out, nil
 }
 
 // Guild returns one guild the member is in, archived or not.
@@ -223,6 +235,9 @@ func (s *Service) AddMember(ctx context.Context, guildID, byMemberID uint64, ema
 }
 
 func (s *Service) guildOf(ctx context.Context, guildID, memberID uint64) (domain.Guild, error) {
+	if err := s.checkSanction(ctx, guildID); err != nil {
+		return domain.Guild{}, err
+	}
 	g, found, err := s.guilds.ByID(ctx, guildID)
 	if err != nil {
 		return domain.Guild{}, err

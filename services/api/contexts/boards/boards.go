@@ -93,7 +93,7 @@ func WatchBoard(ctx context.Context, boardID, memberID uint64) (<-chan []byte, f
 	if err := service.WatchBoard(ctx, boardID, memberID); err != nil {
 		return nil, nil, err
 	}
-	events, stop := hub.Subscribe(boardID)
+	events, stop := hub.Subscribe(boardID, memberID)
 	return events, stop, nil
 }
 
@@ -417,4 +417,21 @@ func ListRuns(ctx context.Context, taskID, memberID uint64, limit int) ([]Run, e
 		}
 	}
 	return out, nil
+}
+
+// CloseStreamsOf ends, in every API process, the open board event streams
+// of a member (memberID not 0) and of every board of a guild (guildID not
+// 0): a sanction stops them.
+func CloseStreamsOf(ctx context.Context, memberID, guildID uint64) error {
+	var boardIDs []uint64
+	if guildID != 0 {
+		bs, err := (infra.Boards{}).OfGuild(ctx, guildID)
+		if err != nil {
+			return err
+		}
+		for _, b := range bs {
+			boardIDs = append(boardIDs, b.ID)
+		}
+	}
+	return infra.CloseStreamsOf(ctx, memberID, boardIDs)
 }

@@ -58,6 +58,16 @@ the client IP in every request's context. Operators read it at
 `GET /api/console/audit` (filters `actor_kind`, `actor_id`, `action`,
 `target_kind`, `target_id`, `from`, `to`; paging with `before` and `limit`).
 
+Operators **suspend** (until a date) or **ban** a member or a guild at
+`POST /api/console/sanctions` and lift one at
+`/api/console/sanctions/{id}/lift`. Moderation sets its checks into identity
+(`RequireMember`, every sign-in, `VerifyPersonalToken` and so MCP) and guilds
+(every guild-scoped use case and `Memberships`, so boards and agents too);
+they answer with `app/refusal`: 403 with a sentence, a `code` and `until`.
+Answers are cached for five seconds. A sanction also ends the target's open
+board event streams in every process (a `streams.close` message on the
+`board_events` channel).
+
 ## MCP server
 
 `/mcp` serves MCP over streamable HTTP (stateless, JSON replies) with the

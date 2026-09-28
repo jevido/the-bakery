@@ -49,7 +49,10 @@
 <svelte:document onclick={router.onclick} />
 
 <Layout>
-  {#if needsMember && !session.member}
+  {#if session.refusal}
+    <p class="refusal" role="alert">{session.refusal} <a href="https://jevidocs.jevido.app/p/bakery/app/help">What this means</a></p>
+  {/if}
+  {#if needsMember && !session.member && !session.refusal}
     <p class="dim">Checking your papers…</p>
   {:else if joinCode}
     {#key joinCode}<Join code={joinCode} />{/key}
@@ -61,6 +64,14 @@
 </Layout>
 
 <style>
+  .refusal {
+    margin: 0 0 16px;
+    padding: 10px 12px;
+    background: color-mix(in srgb, var(--rust) 30%, transparent);
+    border: 1px solid var(--rust);
+    border-radius: var(--radius);
+  }
+
   .dim {
     color: var(--text-faint);
   }

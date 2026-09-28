@@ -23,8 +23,9 @@ const subscriberBuffer = 64
 // subscriber. If that connection drops, every stream is closed, because
 // events may have been missed; clients reconnect and refetch.
 type BoardHub struct {
-	mu     sync.Mutex
-	subs   map[uint64]map[chan []byte]struct{}
+	mu sync.Mutex
+	// subs are the open streams by board, each with the member it is for.
+	subs   map[uint64]map[chan []byte]uint64
 	closed bool
 	start  sync.Once
 	// listen is replaced in tests.
@@ -32,12 +33,12 @@ type BoardHub struct {
 }
 
 func NewBoardHub() *BoardHub {
-	return &BoardHub{subs: map[uint64]map[chan []byte]struct{}{}, listen: listenPostgres}
+	return &BoardHub{subs: map[uint64]map[chan []byte]uint64{}, listen: listenPostgres}
 }
 
 // Subscribe returns the board's events as JSON, and a function that ends the
 // subscription. The channel is closed when the hub drops the subscriber.
-func (h *BoardHub) Subscribe(boardID uint64) (<-chan []byte, func()) {
+func (h *BoardHub) Subscribe(boardID, memberID uint64) (<-chan []byte, func()) {
 	h.start.Do(func() { go h.run(context.Background()) })
 	ch := make(chan []byte, subscriberBuffer)
 	h.mu.Lock()
@@ -47,9 +48,9 @@ func (h *BoardHub) Subscribe(boardID uint64) (<-chan []byte, func()) {
 		return ch, func() {}
 	}
 	if h.subs[boardID] == nil {
-		h.subs[boardID] = map[chan []byte]struct{}{}
+		h.subs[boardID] = map[chan []byte]uint64{}
 	}
-	h.subs[boardID][ch] = struct{}{}
+	h.subs[boardID][ch] = memberID
 	h.mu.Unlock()
 	return ch, func() { h.remove(boardID, ch) }
 }
@@ -70,13 +71,20 @@ func (h *BoardHub) remove(boardID uint64, ch chan []byte) {
 // too far behind is dropped rather than slowing everyone down.
 func (h *BoardHub) deliver(payload []byte) {
 	var head struct {
-		BoardID uint64 `json:"board_id"`
+		Type     string   `json:"type"`
+		BoardID  uint64   `json:"board_id"`
+		MemberID uint64   `json:"member_id"`
+		BoardIDs []uint64 `json:"board_ids"`
 	}
 	if json.Unmarshal(payload, &head) != nil {
 		return
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if head.Type == closeStreamsType {
+		h.closeMatching(head.MemberID, head.BoardIDs)
+		return
+	}
 	for ch := range h.subs[head.BoardID] {
 		select {
 		case ch <- payload:
@@ -85,6 +93,41 @@ func (h *BoardHub) deliver(payload []byte) {
 			close(ch)
 		}
 	}
+}
+
+// closeStreamsType is not a board event: it tells every process to end the
+// streams of a member, or of some boards, when a sanction stops them.
+const closeStreamsType = "streams.close"
+
+// closeMatching ends the streams of the member (when not 0) and of the
+// boards. The caller holds h.mu.
+func (h *BoardHub) closeMatching(memberID uint64, boardIDs []uint64) {
+	for boardID, chans := range h.subs {
+		whole := false
+		for _, b := range boardIDs {
+			whole = whole || b == boardID
+		}
+		for ch, m := range chans {
+			if whole || (memberID != 0 && m == memberID) {
+				delete(chans, ch)
+				close(ch)
+			}
+		}
+		if len(chans) == 0 {
+			delete(h.subs, boardID)
+		}
+	}
+}
+
+// CloseStreamsOf asks every API process to end the open streams of a
+// member (memberID not 0) or of the given boards.
+func CloseStreamsOf(ctx context.Context, memberID uint64, boardIDs []uint64) error {
+	b, err := json.Marshal(map[string]any{"type": closeStreamsType, "member_id": memberID, "board_ids": boardIDs})
+	if err != nil {
+		return err
+	}
+	_, err = query(ctx).Exec("SELECT pg_notify(?, ?)", notifyChannel, string(b))
+	return err
 }
 
 // Close ends every stream and refuses new ones: the process is about to

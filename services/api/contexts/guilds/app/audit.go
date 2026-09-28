@@ -22,6 +22,17 @@ type noAudit struct{}
 
 func (noAudit) Record(context.Context, AuditRecord) {}
 
+// SetSanctionCheck sets the moderation context's guild check: nil, or an
+// error (a *refusal.Refusal) when the guild is sanctioned.
+func (s *Service) SetSanctionCheck(f func(ctx context.Context, guildID uint64) error) { s.sanction = f }
+
+func (s *Service) checkSanction(ctx context.Context, guildID uint64) error {
+	if s.sanction == nil {
+		return nil
+	}
+	return s.sanction(ctx, guildID)
+}
+
 // SetAuditLog sets where sensitive actions are recorded.
 func (s *Service) SetAuditLog(a AuditLog) { s.audit = a }
 
