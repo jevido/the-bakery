@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Panel, Button } from '@bakery/ui'
-  import { Events } from '@wailsio/runtime'
+  import { Clipboard, Events } from '@wailsio/runtime'
+  import Confirm from './Confirm.svelte'
   import { WorkshopService, messageOf, type RunEvent, type RunInfo } from '../lib/bindings'
   import { renderMarkdown, openLinksOutside } from '../lib/markdown'
 
@@ -75,6 +76,27 @@
     } catch {
       return ''
     }
+  }
+
+  let confirmingRemove = $state(false)
+  let removing = $state(false)
+  let copied = $state(false)
+
+  async function removeWorktree() {
+    removing = true
+    try {
+      await WorkshopService.RemoveWorktree(run.id)
+      confirmingRemove = false
+    } catch (err) {
+      error = messageOf(err)
+    }
+    removing = false
+  }
+
+  async function copyBranch() {
+    await Clipboard.SetText(run.branch)
+    copied = true
+    setTimeout(() => (copied = false), 1500)
   }
 
   async function stop() {
@@ -156,6 +178,33 @@
         {/if}
       {/each}
     </ol>
+
+    {#if run.status !== 'running'}
+      <footer class="after">
+        <p>
+          {STATUS[run.status] ?? run.status} · +{run.diff.committed.additions} −{run.diff.committed.deletions} in
+          {run.diff.committed.files} committed {run.diff.committed.files === 1 ? 'file' : 'files'}{#if run.diff.uncommitted.files}, {run.diff.uncommitted.files} left uncommitted{/if}
+          {#if run.moved_to}· moved to {run.moved_to}{/if}
+        </p>
+        {#if run.worktree_removed}
+          <p class="dim">Worktree removed; the branch <code>{run.branch}</code> is still there.</p>
+        {:else if confirmingRemove}
+          <Confirm
+            question="Remove this run's worktree? Its branch stays."
+            action="Remove worktree"
+            busy={removing}
+            onconfirm={removeWorktree}
+            oncancel={() => (confirmingRemove = false)}
+          />
+        {:else}
+          <div class="row">
+            <Button onclick={() => WorkshopService.OpenWorktree(run.id).catch((err) => (error = messageOf(err)))}>Open folder</Button>
+            <Button onclick={copyBranch}>{copied ? 'Copied' : 'Copy branch name'}</Button>
+            <Button variant="danger" onclick={() => (confirmingRemove = true)}>Remove worktree</Button>
+          </div>
+        {/if}
+      </footer>
+    {/if}
   </Panel>
 </aside>
 
@@ -308,6 +357,22 @@
 
   .result {
     color: var(--text-dim);
+  }
+
+  .after {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--frame-dim);
+    font-size: 13px;
+  }
+
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
   }
 
   .note {

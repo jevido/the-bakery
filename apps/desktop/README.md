@@ -68,6 +68,15 @@ directory and logs a warning.
   `run:<id>`, with the list of runs as `workshop:runs`. `StopRun` interrupts
   the run and kills it after 5 seconds; the run's end is recorded with
   `PATCH /api/runs/{run}`. Runs still going when the app quits are stopped.
+  When a run ends (`finish.go`), the app counts the diff it left (committed
+  on the branch since the base, and anything uncommitted), records the run's
+  outcome, comments on the task as the member (agent, branch, status, +/−,
+  cost, Claude's summary), and moves a task that succeeded to the board's
+  finish column. Each run's `run.json` lets the next launch finish a run the
+  app never saw end: it ends a leftover claude and records the run as failed
+  ("Desktop closed during the run."). The run panel's footer opens the
+  worktree, copies the branch name, and removes the worktree (the branch
+  stays).
 - `internal/session/runner.go` — the runner token: a personal token the app
   makes for itself (`desktop runner (<host>)`) so Claude can use the Bakery
   MCP server as the member during a run. Kept in its own keyring entry,

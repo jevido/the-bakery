@@ -124,6 +124,9 @@ func NewBoards(base, apiHost string) *Boards {
 	return &Boards{root: filepath.Join(base, name)}
 }
 
+// Root is the folder that holds every board's config folder.
+func (b *Boards) Root() string { return b.root }
+
 // Dir is the config folder of one board.
 func (b *Boards) Dir(boardID uint64) string {
 	return filepath.Join(b.root, strconv.FormatUint(boardID, 10))

@@ -19,6 +19,14 @@ func interrupt(cmd *exec.Cmd) {
 	}
 }
 
+// KillGroup ends a process group left behind by an app that went away
+// during a run. A group that is gone already is no error.
+func KillGroup(pid int) {
+	if pid > 0 {
+		_ = syscall.Kill(-pid, syscall.SIGKILL)
+	}
+}
+
 func kill(cmd *exec.Cmd) {
 	if cmd.Process != nil {
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)

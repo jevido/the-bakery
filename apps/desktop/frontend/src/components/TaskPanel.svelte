@@ -426,7 +426,9 @@
                     <span class="dim when" title={fullTime(r.started_at)}>{timeAgo(r.started_at, now)}</span>
                   </div>
                   <span class="dim small">
-                    by {r.member_name} · ${r.cost_usd.toFixed(2)}{#if r.files_changed} · +{r.additions} −{r.deletions} in {r.files_changed} files{/if}
+                    by {r.member_name} · ${r.cost_usd.toFixed(2)}
+                    {#if r.files_changed}· +{r.additions} −{r.deletions} in {r.files_changed}
+                      {r.files_changed === 1 ? 'file' : 'files'}{/if}
                     · <code>{r.branch}</code>
                   </span>
                   {#if r.summary}<p class="run-summary">{r.summary}</p>{/if}

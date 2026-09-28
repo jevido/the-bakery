@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -295,6 +296,12 @@ type RunInfo struct {
 	CostUSD    float64 `json:"cost_usd"`
 	Turns      int     `json:"turns"`
 	DurationMS int64   `json:"duration_ms"`
+	// Once the run has ended: what it left in its worktree, the column the
+	// task moved to ("" when it did not move), and whether the worktree was
+	// removed since.
+	Diff            workshop.WorktreeDiff `json:"diff"`
+	MovedTo         string                `json:"moved_to"`
+	WorktreeRemoved bool                  `json:"worktree_removed"`
 }
 
 // localRun is a run this app started, with what it has said so far.
@@ -302,9 +309,12 @@ type localRun struct {
 	mu     sync.Mutex
 	info   RunInfo
 	skills []string
-	seq    int
-	events []workshop.RunEvent
-	proc   *workshop.Process
+	// What the finish needs: the repo, the base branch, the finish column
+	// and the run's folder.
+	repo, base, finishColumn, dir string
+	seq                           int
+	events                        []workshop.RunEvent
+	proc                          *workshop.Process
 }
 
 func (r *localRun) snapshot() RunInfo {
@@ -371,10 +381,12 @@ func (s *WorkshopService) StartRun(ctx context.Context, boardID, taskID uint64, 
 			Model: prep.Agent.Model, PermissionMode: prep.Agent.PermissionMode, StartedAt: time.Now(), Status: "running",
 		},
 		skills: prep.Skills,
+		repo:   prep.Config.Repo, base: prep.Worktree.Base, finishColumn: prep.Config.FinishColumn, dir: prep.Dir,
 	}
 	s.runsMu.Lock()
 	s.runs[prep.ID] = run
 	s.runsMu.Unlock()
+	s.saveRunFile(run)
 
 	// The run outlives the request that started it.
 	proc, err := workshop.StartProcess(context.WithoutCancel(ctx), s.claudeBinary(), prep.Spec, prep.Dir, func(ev workshop.RunEvent) { s.record(run, ev) })
@@ -385,6 +397,7 @@ func (s *WorkshopService) StartRun(ctx context.Context, boardID, taskID uint64, 
 	run.mu.Lock()
 	run.proc = proc
 	run.mu.Unlock()
+	s.saveRunFile(run)
 	s.emitRuns()
 	go func() { s.end(run, proc.Wait()) }()
 	return run.snapshot(), nil
@@ -422,41 +435,214 @@ func (s *WorkshopService) record(run *localRun, ev workshop.RunEvent) {
 	}
 }
 
-// end closes a run once its process is gone: its status here, and its
-// record on the API.
+// end finishes a run once its process is gone: the diff it left, its
+// record on the API, a comment on the task, and the move to the board's
+// finish column when it succeeded.
 func (s *WorkshopService) end(run *localRun, out workshop.Outcome) {
-	status := "failed"
+	status := workshop.EndStatus(out)
+	summary := workshop.Summary(out)
+	problem := ""
 	switch {
 	case out.Stopped:
-		status = "stopped"
-	case out.Result != nil && out.Result.Subtype == "success" && !out.Result.IsError:
-		status = "succeeded"
+		problem = "Stopped from the run panel."
+	case status == "failed" && out.Result != nil:
+		problem = "Claude ended with " + out.Result.Subtype + "."
+	case status == "failed":
+		problem = strings.TrimSpace(fmt.Sprintf("Claude exited with code %d. %s", out.ExitCode, lastLine(out.Stderr)))
 	}
-	summary := out.LastText
-	if out.Result != nil && strings.TrimSpace(out.Result.Text) != "" {
-		summary = out.Result.Text
+	if problem != "" {
+		s.record(run, workshop.RunEvent{Kind: "note", Text: problem})
 	}
-	if status == "failed" && strings.TrimSpace(summary) == "" {
-		summary = lastLine(out.Stderr)
+
+	run.mu.Lock()
+	info, wt := run.info, workshop.Worktree{Path: run.info.Worktree, Branch: run.info.Branch, Base: run.base}
+	finishColumn := run.finishColumn
+	run.mu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	diff, err := workshop.Diff(ctx, wt)
+	if err != nil {
+		s.record(run, workshop.RunEvent{Kind: "note", Text: "Could not count the changes: " + err.Error()})
 	}
-	note := fmt.Sprintf("Run %s.", status)
-	if out.ExitCode != 0 && !out.Stopped {
-		note = fmt.Sprintf("Claude exited with code %d. %s", out.ExitCode, lastLine(out.Stderr))
+	token := s.session.Token()
+	end := api.RunEnd{
+		Status: status, CostUSD: info.CostUSD, Turns: info.Turns, Summary: summary,
+		FilesChanged: diff.Committed.Files, Additions: diff.Committed.Additions, Deletions: diff.Committed.Deletions,
 	}
-	s.record(run, workshop.RunEvent{Kind: "note", Text: strings.TrimSpace(note)})
+	if _, err := s.client.FinishRun(ctx, token, info.APIRunID, end); err != nil {
+		s.record(run, workshop.RunEvent{Kind: "note", Text: "Could not record the end of the run: " + err.Error()})
+	}
+	comment := workshop.FinishComment(workshop.RunReport{
+		AgentName: info.AgentName, Branch: info.Branch, Status: status, Diff: diff,
+		CostUSD: info.CostUSD, Summary: summary, Problem: problem,
+	})
+	if _, err := s.client.AddComment(ctx, token, info.TaskID, comment); err != nil {
+		s.record(run, workshop.RunEvent{Kind: "note", Text: "Could not comment on the task: " + err.Error()})
+	}
+	moved := ""
+	if status == "succeeded" && finishColumn != "" {
+		moved = s.moveToFinish(ctx, run, token, info, finishColumn)
+	}
 
 	run.mu.Lock()
 	run.info.Status = status
-	info := run.info
+	run.info.Diff = diff
+	run.info.MovedTo = moved
+	run.mu.Unlock()
+	s.saveRunFile(run)
+	s.record(run, workshop.RunEvent{Kind: "note", Text: "Run " + status + "."})
+	s.emitRuns()
+}
+
+// moveToFinish moves a finished task to the board's finish column, found by
+// name, and returns its name; "" when the board has no such column.
+func (s *WorkshopService) moveToFinish(ctx context.Context, run *localRun, token string, info RunInfo, column string) string {
+	view, err := s.client.GetBoard(ctx, token, info.BoardID)
+	if err != nil {
+		s.record(run, workshop.RunEvent{Kind: "note", Text: "Could not move the task: " + err.Error()})
+		return ""
+	}
+	for _, c := range view.Columns {
+		if strings.EqualFold(c.Name, column) {
+			if _, err := s.client.MoveTask(ctx, token, info.TaskID, c.ID, nil, nil); err != nil {
+				s.record(run, workshop.RunEvent{Kind: "note", Text: "Could not move the task: " + err.Error()})
+				return ""
+			}
+			s.record(run, workshop.RunEvent{Kind: "note", Text: "Moved the task to " + c.Name + "."})
+			return c.Name
+		}
+	}
+	s.record(run, workshop.RunEvent{Kind: "note", Text: "The board has no column " + column + "; the task stays where it is."})
+	return ""
+}
+
+// runFile is run.json in a run's folder: enough to finish a run the app did
+// not see end (it was closed or crashed during the run).
+type runFile struct {
+	APIRunID uint64 `json:"api_run_id"`
+	BoardID  uint64 `json:"board_id"`
+	TaskID   uint64 `json:"task_id"`
+	Status   string `json:"status"`
+	Repo     string `json:"repo"`
+	Worktree string `json:"worktree"`
+	Branch   string `json:"branch"`
+	// PID is claude's process (and process group) while it runs.
+	PID int `json:"pid,omitempty"`
+}
+
+func (s *WorkshopService) saveRunFile(run *localRun) {
+	run.mu.Lock()
+	f := runFile{APIRunID: run.info.APIRunID, BoardID: run.info.BoardID, TaskID: run.info.TaskID, Status: run.info.Status,
+		Repo: run.repo, Worktree: run.info.Worktree, Branch: run.info.Branch}
+	if run.proc != nil && run.info.Status == "running" {
+		f.PID = run.proc.PID()
+	}
+	dir := run.dir
+	run.mu.Unlock()
+	raw, _ := json.MarshalIndent(f, "", "  ")
+	_ = os.WriteFile(filepath.Join(dir, "run.json"), raw, 0o600)
+}
+
+// finishOrphans closes runs that were still running when this app last
+// went away: they are recorded as failed.
+func (s *WorkshopService) finishOrphans(ctx context.Context) {
+	files, _ := filepath.Glob(filepath.Join(s.boards.Root(), "*", "runs", "*", "run.json"))
+	for _, path := range files {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var f runFile
+		if json.Unmarshal(raw, &f) != nil || f.Status != "running" {
+			continue
+		}
+		id := filepath.Base(filepath.Dir(path))
+		s.runsMu.Lock()
+		_, mine := s.runs[id]
+		s.runsMu.Unlock()
+		if mine {
+			continue
+		}
+		// Claude may still be working without anyone watching: end it.
+		// (Its process group id is its pid; a reused pid would have to
+		// belong to a group of that id too.)
+		workshop.KillGroup(f.PID)
+		end := api.RunEnd{Status: "failed", Summary: "Desktop closed during the run."}
+		if _, err := s.client.FinishRun(ctx, s.session.Token(), f.APIRunID, end); err != nil {
+			// Out of reach or signed out: try again next launch. Refused
+			// (already ended, not ours): nothing left to do.
+			var apiErr *api.Error
+			if errors.Is(err, api.ErrUnauthorized) || !errors.As(err, &apiErr) {
+				continue
+			}
+		}
+		f.Status = "failed"
+		raw, _ = json.MarshalIndent(f, "", "  ")
+		_ = os.WriteFile(path, raw, 0o600)
+	}
+}
+
+// ServiceStartup finishes, once the member is signed in, the runs the app
+// left running when it last went away.
+func (s *WorkshopService) ServiceStartup(ctx context.Context, _ application.ServiceOptions) error {
+	go func() {
+		tick := time.NewTicker(2 * time.Second)
+		defer tick.Stop()
+		for {
+			if s.session.Token() != "" {
+				s.finishOrphans(ctx)
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-tick.C:
+			}
+		}
+	}()
+	return nil
+}
+
+// RemoveWorktree deletes a finished run's worktree; its branch stays.
+func (s *WorkshopService) RemoveWorktree(ctx context.Context, id string) error {
+	s.runsMu.Lock()
+	run := s.runs[id]
+	s.runsMu.Unlock()
+	if run == nil {
+		return errors.New("no such run on this machine")
+	}
+	info := run.snapshot()
+	s.runsMu.Lock()
+	for _, r := range s.runs {
+		if o := r.snapshot(); o.Status == "running" && o.Worktree == info.Worktree {
+			s.runsMu.Unlock()
+			return errors.New("a run is still working in this worktree; stop it first")
+		}
+	}
+	s.runsMu.Unlock()
+	run.mu.Lock()
+	repo := run.repo
+	run.mu.Unlock()
+	if err := workshop.RemoveWorktree(ctx, repo, info.Worktree); err != nil {
+		return err
+	}
+	run.mu.Lock()
+	run.info.WorktreeRemoved = true
 	run.mu.Unlock()
 	s.emitRuns()
+	return nil
+}
 
-	end := api.RunEnd{Status: status, CostUSD: info.CostUSD, Turns: info.Turns, Summary: trimSummary(summary)}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	if _, err := s.client.FinishRun(ctx, s.session.Token(), info.APIRunID, end); err != nil {
-		s.record(run, workshop.RunEvent{Kind: "note", Text: "Could not record the end of the run: " + err.Error()})
+// OpenWorktree shows a run's worktree in the file manager.
+func (s *WorkshopService) OpenWorktree(id string) error {
+	s.runsMu.Lock()
+	run := s.runs[id]
+	s.runsMu.Unlock()
+	if run == nil {
+		return errors.New("no such run on this machine")
 	}
+	return s.app.Browser.OpenFile(run.snapshot().Worktree)
 }
 
 // StopRun asks a run to stop; it ends as stopped within a few seconds.
@@ -540,15 +726,6 @@ func lastLine(s string) string {
 	s = strings.TrimSpace(s)
 	if i := strings.LastIndex(s, "\n"); i >= 0 {
 		s = s[i+1:]
-	}
-	return s
-}
-
-// trimSummary keeps a summary to 2 000 characters.
-func trimSummary(s string) string {
-	s = strings.TrimSpace(s)
-	if r := []rune(s); len(r) > 2000 {
-		return string(r[:2000]) + "…"
 	}
 	return s
 }

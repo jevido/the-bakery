@@ -155,6 +155,9 @@ func (p *Process) Stop() {
 	}()
 }
 
+// PID is the process's id, which is also its process group's.
+func (p *Process) PID() int { return p.cmd.Process.Pid }
+
 // Done is closed when the process has ended.
 func (p *Process) Done() <-chan struct{} { return p.done }
 
